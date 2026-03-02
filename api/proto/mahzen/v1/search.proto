@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package mahzen.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/emirakts0/mahzen/gen/go/mahzen/v1;mahzenv1";
+
+// SearchService provides keyword and semantic search over entries.
+service SearchService {
+  rpc KeywordSearch(KeywordSearchRequest) returns (SearchResponse) {
+    option (google.api.http) = {
+      get: "/v1/search/keyword"
+    };
+  }
+
+  rpc SemanticSearch(SemanticSearchRequest) returns (SearchResponse) {
+    option (google.api.http) = {
+      get: "/v1/search/semantic"
+    };
+  }
+}
+
+message KeywordSearchRequest {
+  string query = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message SemanticSearchRequest {
+  string query = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message SearchResult {
+  string entry_id = 1;
+  string title = 2;
+  string snippet = 3;
+  double score = 4;
+  repeated string highlights = 5;
+}
+
+message SearchResponse {
+  repeated SearchResult results = 1;
+  int32 total = 2;
+}

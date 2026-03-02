@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package mahzen.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/emirakts0/mahzen/gen/go/mahzen/v1;mahzenv1";
+
+// TagService provides operations for managing tags.
+service TagService {
+  rpc CreateTag(CreateTagRequest) returns (CreateTagResponse) {
+    option (google.api.http) = {
+      post: "/v1/tags"
+      body: "*"
+    };
+  }
+
+  rpc GetTag(GetTagRequest) returns (GetTagResponse) {
+    option (google.api.http) = {
+      get: "/v1/tags/{id}"
+    };
+  }
+
+  rpc ListTags(ListTagsRequest) returns (ListTagsResponse) {
+    option (google.api.http) = {
+      get: "/v1/tags"
+    };
+  }
+
+  rpc DeleteTag(DeleteTagRequest) returns (DeleteTagResponse) {
+    option (google.api.http) = {
+      delete: "/v1/tags/{id}"
+    };
+  }
+
+  rpc AttachTag(AttachTagRequest) returns (AttachTagResponse) {
+    option (google.api.http) = {
+      post: "/v1/entries/{entry_id}/tags"
+      body: "*"
+    };
+  }
+
+  rpc DetachTag(DetachTagRequest) returns (DetachTagResponse) {
+    option (google.api.http) = {
+      delete: "/v1/entries/{entry_id}/tags/{tag_id}"
+    };
+  }
+}
+
+message Tag {
+  string id = 1;
+  string name = 2;
+  string slug = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message CreateTagRequest {
+  string name = 1;
+}
+
+message CreateTagResponse {
+  Tag tag = 1;
+}
+
+message GetTagRequest {
+  string id = 1;
+}
+
+message GetTagResponse {
+  Tag tag = 1;
+}
+
+message ListTagsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ListTagsResponse {
+  repeated Tag tags = 1;
+  int32 total = 2;
+}
+
+message DeleteTagRequest {
+  string id = 1;
+}
+
+message DeleteTagResponse {}
+
+message AttachTagRequest {
+  string entry_id = 1;
+  string tag_id = 2;
+}
+
+message AttachTagResponse {}
+
+message DetachTagRequest {
+  string entry_id = 1;
+  string tag_id = 2;
+}
+
+message DetachTagResponse {}

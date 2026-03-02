@@ -1,0 +1,112 @@
+syntax = "proto3";
+
+package mahzen.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/emirakts0/mahzen/gen/go/mahzen/v1;mahzenv1";
+
+// EntryService provides operations for managing knowledge entries.
+service EntryService {
+  rpc CreateEntry(CreateEntryRequest) returns (CreateEntryResponse) {
+    option (google.api.http) = {
+      post: "/v1/entries"
+      body: "*"
+    };
+  }
+
+  rpc GetEntry(GetEntryRequest) returns (GetEntryResponse) {
+    option (google.api.http) = {
+      get: "/v1/entries/{id}"
+    };
+  }
+
+  rpc UpdateEntry(UpdateEntryRequest) returns (UpdateEntryResponse) {
+    option (google.api.http) = {
+      put: "/v1/entries/{id}"
+      body: "*"
+    };
+  }
+
+  rpc DeleteEntry(DeleteEntryRequest) returns (DeleteEntryResponse) {
+    option (google.api.http) = {
+      delete: "/v1/entries/{id}"
+    };
+  }
+
+  rpc ListEntries(ListEntriesRequest) returns (ListEntriesResponse) {
+    option (google.api.http) = {
+      get: "/v1/entries"
+    };
+  }
+}
+
+enum Visibility {
+  VISIBILITY_UNSPECIFIED = 0;
+  VISIBILITY_PUBLIC = 1;
+  VISIBILITY_PRIVATE = 2;
+}
+
+message Entry {
+  string id = 1;
+  string user_id = 2;
+  string title = 3;
+  string content = 4;
+  string summary = 5;
+  Visibility visibility = 6;
+  repeated string tags = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  string path = 10;
+}
+
+message CreateEntryRequest {
+  string title = 1;
+  string content = 2;
+  Visibility visibility = 3;
+  repeated string tag_ids = 4;
+  string path = 5;
+}
+
+message CreateEntryResponse {
+  Entry entry = 1;
+}
+
+message GetEntryRequest {
+  string id = 1;
+}
+
+message GetEntryResponse {
+  Entry entry = 1;
+}
+
+message UpdateEntryRequest {
+  string id = 1;
+  string title = 2;
+  string content = 3;
+  Visibility visibility = 4;
+  repeated string tag_ids = 5;
+  string path = 6;
+}
+
+message UpdateEntryResponse {
+  Entry entry = 1;
+}
+
+message DeleteEntryRequest {
+  string id = 1;
+}
+
+message DeleteEntryResponse {}
+
+message ListEntriesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string path = 3;
+}
+
+message ListEntriesResponse {
+  repeated Entry entries = 1;
+  int32 total = 2;
+}

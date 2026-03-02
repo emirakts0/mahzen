@@ -1,0 +1,37 @@
+{
+  "$id": "https://schemas.mahzen.io/identity.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Mahzen Identity Schema",
+  "type": "object",
+  "properties": {
+    "traits": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "title": "Email",
+          "ory.sh/kratos": {
+            "credentials": {
+              "password": {
+                "identifier": true
+              }
+            },
+            "verification": {
+              "via": "email"
+            },
+            "recovery": {
+              "via": "email"
+            }
+          }
+        },
+        "display_name": {
+          "type": "string",
+          "title": "Display Name"
+        }
+      },
+      "required": ["email"],
+      "additionalProperties": false
+    }
+  }
+}

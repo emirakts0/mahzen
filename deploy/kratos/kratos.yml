@@ -1,0 +1,59 @@
+version: v1.3.0
+
+serve:
+  public:
+    base_url: http://localhost:4433/
+    cors:
+      enabled: true
+  admin:
+    base_url: http://localhost:4434/
+
+selfservice:
+  default_browser_return_url: http://localhost:3000/
+  allowed_return_urls:
+    - http://localhost:3000
+
+  methods:
+    password:
+      enabled: true
+
+  flows:
+    registration:
+      enabled: true
+      ui_url: http://localhost:3000/registration
+
+    login:
+      ui_url: http://localhost:3000/login
+
+    settings:
+      ui_url: http://localhost:3000/settings
+
+    recovery:
+      enabled: true
+      ui_url: http://localhost:3000/recovery
+
+    verification:
+      enabled: true
+      ui_url: http://localhost:3000/verification
+
+log:
+  level: debug
+  format: text
+
+secrets:
+  cookie:
+    - mahzen-kratos-cookie-secret-change-in-production
+
+hashers:
+  argon2:
+    parallelism: 1
+    memory: 131072
+    iterations: 2
+    salt_length: 16
+    key_length: 16
+
+identity:
+  default_schema_id: default
+  schemas:
+    - id: default
+      url: file:///etc/config/kratos/identity.schema.json

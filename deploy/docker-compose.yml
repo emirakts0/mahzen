@@ -1,0 +1,125 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: mahzen-postgres
+    environment:
+      POSTGRES_USER: mahzen
+      POSTGRES_PASSWORD: mahzen
+      POSTGRES_DB: mahzen
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mahzen -d mahzen"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  typesense:
+    image: typesense/typesense:27.1
+    container_name: mahzen-typesense
+    environment:
+      TYPESENSE_API_KEY: mahzen-typesense-key
+      TYPESENSE_DATA_DIR: /data
+      TYPESENSE_ENABLE_CORS: "true"
+    ports:
+      - "8108:8108"
+    volumes:
+      - typesense_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8108/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: mahzen-rustfs
+    environment:
+      RUSTFS_ROOT_USER: rustfsadmin
+      RUSTFS_ROOT_PASSWORD: rustfsadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - rustfs_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  kratos-migrate:
+    image: oryd/kratos:v1.3.1
+    container_name: mahzen-kratos-migrate
+    environment:
+      DSN: postgres://mahzen:mahzen@postgres:5432/mahzen?sslmode=disable
+    volumes:
+      - ./kratos:/etc/config/kratos
+    command: migrate sql -e --yes
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  kratos:
+    image: oryd/kratos:v1.3.1
+    container_name: mahzen-kratos
+    environment:
+      DSN: postgres://mahzen:mahzen@postgres:5432/mahzen?sslmode=disable
+      SERVE_PUBLIC_BASE_URL: http://localhost:4433/
+      SERVE_ADMIN_BASE_URL: http://localhost:4434/
+    ports:
+      - "4433:4433"
+      - "4434:4434"
+    volumes:
+      - ./kratos:/etc/config/kratos
+    command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier
+    depends_on:
+      kratos-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  hydra-migrate:
+    image: oryd/hydra:v2.3.0
+    container_name: mahzen-hydra-migrate
+    environment:
+      DSN: postgres://mahzen:mahzen@postgres:5432/mahzen?sslmode=disable
+    command: migrate sql -e --yes
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  hydra:
+    image: oryd/hydra:v2.3.0
+    container_name: mahzen-hydra
+    environment:
+      DSN: postgres://mahzen:mahzen@postgres:5432/mahzen?sslmode=disable
+      URLS_SELF_ISSUER: http://localhost:4444/
+      URLS_CONSENT: http://localhost:3000/consent
+      URLS_LOGIN: http://localhost:3000/login
+      URLS_LOGOUT: http://localhost:3000/logout
+      SECRETS_SYSTEM: mahzen-hydra-secret-change-in-production
+      OIDC_SUBJECT_IDENTIFIERS_SUPPORTED_TYPES: public,pairwise
+      OIDC_SUBJECT_IDENTIFIERS_PAIRWISE_SALT: mahzen-hydra-salt-change-in-production
+    ports:
+      - "4444:4444"
+      - "4445:4445"
+    command: serve all --dev
+    depends_on:
+      hydra-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  typesense_data:
+  rustfs_data:

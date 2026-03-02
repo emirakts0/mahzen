@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package mahzen.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/emirakts0/mahzen/gen/go/mahzen/v1;mahzenv1";
+
+// UserService provides operations for the authenticated user.
+service UserService {
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse) {
+    option (google.api.http) = {
+      get: "/v1/users/me"
+    };
+  }
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string display_name = 3;
+}
+
+message GetCurrentUserRequest {}
+
+message GetCurrentUserResponse {
+  User user = 1;
+}
