@@ -11,66 +11,88 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createUser = `-- name: CreateUser :one
+INSERT INTO users (email, display_name, password_hash)
+VALUES ($1, $2, $3)
+RETURNING id, email, display_name, password_hash, created_at
+`
+
+type CreateUserParams struct {
+	Email        string `json:"email"`
+	DisplayName  string `json:"display_name"`
+	PasswordHash string `json:"password_hash"`
+}
+
+type CreateUserRow struct {
+	ID           pgtype.UUID        `json:"id"`
+	Email        string             `json:"email"`
+	DisplayName  string             `json:"display_name"`
+	PasswordHash string             `json:"password_hash"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
+	row := q.db.QueryRow(ctx, createUser, arg.Email, arg.DisplayName, arg.PasswordHash)
+	var i CreateUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.DisplayName,
+		&i.PasswordHash,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, email, display_name, password_hash, created_at
+FROM users
+WHERE email = $1
+`
+
+type GetUserByEmailRow struct {
+	ID           pgtype.UUID        `json:"id"`
+	Email        string             `json:"email"`
+	DisplayName  string             `json:"display_name"`
+	PasswordHash string             `json:"password_hash"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
+	row := q.db.QueryRow(ctx, getUserByEmail, email)
+	var i GetUserByEmailRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.DisplayName,
+		&i.PasswordHash,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, kratos_id, email, display_name, created_at
+SELECT id, email, display_name, password_hash, created_at
 FROM users
 WHERE id = $1
 `
 
-func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
+type GetUserByIDRow struct {
+	ID           pgtype.UUID        `json:"id"`
+	Email        string             `json:"email"`
+	DisplayName  string             `json:"display_name"`
+	PasswordHash string             `json:"password_hash"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDRow, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
-	var i User
+	var i GetUserByIDRow
 	err := row.Scan(
 		&i.ID,
-		&i.KratosID,
 		&i.Email,
 		&i.DisplayName,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getUserByKratosID = `-- name: GetUserByKratosID :one
-SELECT id, kratos_id, email, display_name, created_at
-FROM users
-WHERE kratos_id = $1
-`
-
-func (q *Queries) GetUserByKratosID(ctx context.Context, kratosID string) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByKratosID, kratosID)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.KratosID,
-		&i.Email,
-		&i.DisplayName,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const upsertUser = `-- name: UpsertUser :one
-INSERT INTO users (kratos_id, email, display_name)
-VALUES ($1, $2, $3)
-ON CONFLICT (kratos_id)
-DO UPDATE SET email = EXCLUDED.email, display_name = EXCLUDED.display_name
-RETURNING id, kratos_id, email, display_name, created_at
-`
-
-type UpsertUserParams struct {
-	KratosID    string `json:"kratos_id"`
-	Email       string `json:"email"`
-	DisplayName string `json:"display_name"`
-}
-
-func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, upsertUser, arg.KratosID, arg.Email, arg.DisplayName)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.KratosID,
-		&i.Email,
-		&i.DisplayName,
+		&i.PasswordHash,
 		&i.CreatedAt,
 	)
 	return i, err

@@ -1,45 +1,61 @@
 package handler
 
 import (
-	"context"
+	"net/http"
+	"strconv"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"github.com/gin-gonic/gin"
 
-	pb "github.com/emirakts0/mahzen/gen/go/mahzen/v1"
 	"github.com/emirakts0/mahzen/internal/service"
 )
 
-// searchHandler implements the gRPC SearchServiceServer.
+// searchHandler implements the search HTTP handlers.
 type searchHandler struct {
-	pb.UnimplementedSearchServiceServer
 	svc *service.SearchService
 }
 
-// RegisterSearchServer registers the SearchService gRPC handler.
-func RegisterSearchServer(s *grpc.Server, svc *service.SearchService) {
-	pb.RegisterSearchServiceServer(s, &searchHandler{svc: svc})
+// newSearchHandler creates a new searchHandler.
+func newSearchHandler(svc *service.SearchService) *searchHandler {
+	return &searchHandler{svc: svc}
 }
 
-func (h *searchHandler) KeywordSearch(ctx context.Context, req *pb.KeywordSearchRequest) (*pb.SearchResponse, error) {
-	userID := userIDFromContext(ctx)
+// searchResultResponse is the JSON representation of a search result.
+type searchResultResponse struct {
+	EntryID    string   `json:"entry_id"`
+	Title      string   `json:"title"`
+	Snippet    string   `json:"snippet"`
+	Score      float64  `json:"score"`
+	Highlights []string `json:"highlights,omitempty"`
+}
 
-	limit := int(req.Limit)
-	if limit <= 0 {
-		limit = 20
+func (h *searchHandler) keywordSearch(c *gin.Context) {
+	query := c.Query("query")
+	userID := userIDFromContext(c)
+
+	limit := 20
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
 	}
-	offset := int(req.Offset)
 
-	results, total, err := h.svc.KeywordSearch(ctx, req.Query, userID, limit, offset)
+	offset := 0
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	results, total, err := h.svc.KeywordSearch(c.Request.Context(), query, userID, limit, offset)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "keyword search: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "keyword search: " + err.Error()})
+		return
 	}
 
-	pbResults := make([]*pb.SearchResult, len(results))
+	items := make([]searchResultResponse, len(results))
 	for i, r := range results {
-		pbResults[i] = &pb.SearchResult{
-			EntryId:    r.EntryID,
+		items[i] = searchResultResponse{
+			EntryID:    r.EntryID,
 			Title:      r.Title,
 			Snippet:    r.Snippet,
 			Score:      r.Score,
@@ -47,30 +63,40 @@ func (h *searchHandler) KeywordSearch(ctx context.Context, req *pb.KeywordSearch
 		}
 	}
 
-	return &pb.SearchResponse{
-		Results: pbResults,
-		Total:   int32(total),
-	}, nil
+	c.JSON(http.StatusOK, gin.H{
+		"results": items,
+		"total":   total,
+	})
 }
 
-func (h *searchHandler) SemanticSearch(ctx context.Context, req *pb.SemanticSearchRequest) (*pb.SearchResponse, error) {
-	userID := userIDFromContext(ctx)
+func (h *searchHandler) semanticSearch(c *gin.Context) {
+	query := c.Query("query")
+	userID := userIDFromContext(c)
 
-	limit := int(req.Limit)
-	if limit <= 0 {
-		limit = 20
+	limit := 20
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
 	}
-	offset := int(req.Offset)
 
-	results, total, err := h.svc.SemanticSearch(ctx, req.Query, userID, limit, offset)
+	offset := 0
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	results, total, err := h.svc.SemanticSearch(c.Request.Context(), query, userID, limit, offset)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "semantic search: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "semantic search: " + err.Error()})
+		return
 	}
 
-	pbResults := make([]*pb.SearchResult, len(results))
+	items := make([]searchResultResponse, len(results))
 	for i, r := range results {
-		pbResults[i] = &pb.SearchResult{
-			EntryId:    r.EntryID,
+		items[i] = searchResultResponse{
+			EntryID:    r.EntryID,
 			Title:      r.Title,
 			Snippet:    r.Snippet,
 			Score:      r.Score,
@@ -78,8 +104,8 @@ func (h *searchHandler) SemanticSearch(ctx context.Context, req *pb.SemanticSear
 		}
 	}
 
-	return &pb.SearchResponse{
-		Results: pbResults,
-		Total:   int32(total),
-	}, nil
+	c.JSON(http.StatusOK, gin.H{
+		"results": items,
+		"total":   total,
+	})
 }

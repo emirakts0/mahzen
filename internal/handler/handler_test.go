@@ -1,28 +1,29 @@
 package handler
 
 import (
-	"context"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 
-	pb "github.com/emirakts0/mahzen/gen/go/mahzen/v1"
 	"github.com/emirakts0/mahzen/internal/domain"
 )
 
+func init() {
+	gin.SetMode(gin.TestMode)
+}
+
 // ---------------------------------------------------------------------------
-// domainEntryToProto
+// domainEntryToResponse
 // ---------------------------------------------------------------------------
 
-func TestDomainEntryToProto(t *testing.T) {
+func TestDomainEntryToResponse(t *testing.T) {
 	now := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 
 	entry := &domain.Entry{
@@ -37,30 +38,30 @@ func TestDomainEntryToProto(t *testing.T) {
 		UpdatedAt:  now,
 	}
 
-	pbEntry := domainEntryToProto(entry, []string{"tag-1", "tag-2"})
-	assert.Equal(t, "entry-1", pbEntry.Id)
-	assert.Equal(t, "user-1", pbEntry.UserId)
-	assert.Equal(t, "Test Entry", pbEntry.Title)
-	assert.Equal(t, "some content", pbEntry.Content)
-	assert.Equal(t, "a summary", pbEntry.Summary)
-	assert.Equal(t, "/notes/work", pbEntry.Path)
-	assert.Equal(t, pb.Visibility_VISIBILITY_PUBLIC, pbEntry.Visibility)
-	assert.Equal(t, []string{"tag-1", "tag-2"}, pbEntry.Tags)
-	assert.Equal(t, now.Unix(), pbEntry.CreatedAt.AsTime().Unix())
+	resp := domainEntryToResponse(entry, []string{"tag-1", "tag-2"})
+	assert.Equal(t, "entry-1", resp.ID)
+	assert.Equal(t, "user-1", resp.UserID)
+	assert.Equal(t, "Test Entry", resp.Title)
+	assert.Equal(t, "some content", resp.Content)
+	assert.Equal(t, "a summary", resp.Summary)
+	assert.Equal(t, "/notes/work", resp.Path)
+	assert.Equal(t, "public", resp.Visibility)
+	assert.Equal(t, []string{"tag-1", "tag-2"}, resp.Tags)
+	assert.Equal(t, now.Format(time.RFC3339), resp.CreatedAt)
 }
 
-func TestDomainEntryToProto_NilTags(t *testing.T) {
+func TestDomainEntryToResponse_NilTags(t *testing.T) {
 	entry := &domain.Entry{ID: "e1", Visibility: domain.VisibilityPrivate}
-	pbEntry := domainEntryToProto(entry, nil)
-	assert.Nil(t, pbEntry.Tags)
-	assert.Equal(t, pb.Visibility_VISIBILITY_PRIVATE, pbEntry.Visibility)
+	resp := domainEntryToResponse(entry, nil)
+	assert.Nil(t, resp.Tags)
+	assert.Equal(t, "private", resp.Visibility)
 }
 
 // ---------------------------------------------------------------------------
-// domainTagToProto
+// domainTagToResponse
 // ---------------------------------------------------------------------------
 
-func TestDomainTagToProto(t *testing.T) {
+func TestDomainTagToResponse(t *testing.T) {
 	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	tag := &domain.Tag{
 		ID:        "tag-1",
@@ -69,49 +70,50 @@ func TestDomainTagToProto(t *testing.T) {
 		CreatedAt: now,
 	}
 
-	pbTag := domainTagToProto(tag)
-	assert.Equal(t, "tag-1", pbTag.Id)
-	assert.Equal(t, "Golang", pbTag.Name)
-	assert.Equal(t, "golang", pbTag.Slug)
-	assert.Equal(t, now.Unix(), pbTag.CreatedAt.AsTime().Unix())
+	resp := domainTagToResponse(tag)
+	assert.Equal(t, "tag-1", resp.ID)
+	assert.Equal(t, "Golang", resp.Name)
+	assert.Equal(t, "golang", resp.Slug)
+	assert.Equal(t, now.Format(time.RFC3339), resp.CreatedAt)
 }
 
 // ---------------------------------------------------------------------------
-// protoToVisibility / visibilityToProto
+// Visibility conversion
 // ---------------------------------------------------------------------------
 
-func TestProtoToVisibility(t *testing.T) {
+func TestParseVisibility(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    pb.Visibility
+		input    string
 		expected domain.Visibility
 	}{
-		{"public", pb.Visibility_VISIBILITY_PUBLIC, domain.VisibilityPublic},
-		{"private", pb.Visibility_VISIBILITY_PRIVATE, domain.VisibilityPrivate},
-		{"unspecified defaults to private", pb.Visibility_VISIBILITY_UNSPECIFIED, domain.VisibilityPrivate},
+		{"public", "public", domain.VisibilityPublic},
+		{"private", "private", domain.VisibilityPrivate},
+		{"empty defaults to private", "", domain.VisibilityPrivate},
+		{"unknown defaults to private", "unknown", domain.VisibilityPrivate},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, protoToVisibility(tt.input))
+			assert.Equal(t, tt.expected, domain.ParseVisibility(tt.input))
 		})
 	}
 }
 
-func TestVisibilityToProto(t *testing.T) {
+func TestVisibilityString(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    domain.Visibility
-		expected pb.Visibility
+		expected string
 	}{
-		{"public", domain.VisibilityPublic, pb.Visibility_VISIBILITY_PUBLIC},
-		{"private", domain.VisibilityPrivate, pb.Visibility_VISIBILITY_PRIVATE},
-		{"unknown defaults to unspecified", domain.Visibility(99), pb.Visibility_VISIBILITY_UNSPECIFIED},
+		{"public", domain.VisibilityPublic, "public"},
+		{"private", domain.VisibilityPrivate, "private"},
+		{"unknown", domain.Visibility(99), "unknown"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, visibilityToProto(tt.input))
+			assert.Equal(t, tt.expected, tt.input.String())
 		})
 	}
 }
@@ -121,84 +123,77 @@ func TestVisibilityToProto(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestUserIDFromContext_Present(t *testing.T) {
-	md := metadata.New(map[string]string{"x-user-id": "user-42"})
-	ctx := metadata.NewIncomingContext(context.Background(), md)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(userIDKey, "user-42")
 
-	assert.Equal(t, "user-42", userIDFromContext(ctx))
+	assert.Equal(t, "user-42", userIDFromContext(c))
 }
 
 func TestUserIDFromContext_Missing(t *testing.T) {
-	ctx := context.Background()
-	assert.Empty(t, userIDFromContext(ctx))
-}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
 
-func TestUserIDFromContext_EmptyMetadata(t *testing.T) {
-	md := metadata.New(map[string]string{})
-	ctx := metadata.NewIncomingContext(context.Background(), md)
-	assert.Empty(t, userIDFromContext(ctx))
+	assert.Empty(t, userIDFromContext(c))
 }
 
 // ---------------------------------------------------------------------------
-// LoggingInterceptor
+// LoggingMiddleware
 // ---------------------------------------------------------------------------
 
-func TestLoggingInterceptor(t *testing.T) {
+func TestLoggingMiddleware(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	interceptor := LoggingInterceptor(logger)
 
-	info := &grpc.UnaryServerInfo{FullMethod: "/test.Service/Method"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return "response", nil
-	}
+	w := httptest.NewRecorder()
+	_, engine := gin.CreateTestContext(w)
 
-	resp, err := interceptor(context.Background(), nil, info, handler)
-	require.NoError(t, err)
-	assert.Equal(t, "response", resp)
-}
+	engine.Use(LoggingMiddleware(logger))
+	engine.GET("/test", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
 
-func TestLoggingInterceptor_WithError(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	interceptor := LoggingInterceptor(logger)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	engine.ServeHTTP(w, req)
 
-	info := &grpc.UnaryServerInfo{FullMethod: "/test.Service/Method"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return nil, status.Error(codes.NotFound, "not found")
-	}
-
-	_, err := interceptor(context.Background(), nil, info, handler)
-	require.Error(t, err)
-	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "ok", w.Body.String())
 }
 
 // ---------------------------------------------------------------------------
-// RecoveryInterceptor
+// RecoveryMiddleware
 // ---------------------------------------------------------------------------
 
-func TestRecoveryInterceptor_NoPanic(t *testing.T) {
+func TestRecoveryMiddleware_NoPanic(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	interceptor := RecoveryInterceptor(logger)
 
-	info := &grpc.UnaryServerInfo{FullMethod: "/test.Service/Method"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return "ok", nil
-	}
+	w := httptest.NewRecorder()
+	_, engine := gin.CreateTestContext(w)
 
-	resp, err := interceptor(context.Background(), nil, info, handler)
-	require.NoError(t, err)
-	assert.Equal(t, "ok", resp)
+	engine.Use(RecoveryMiddleware(logger))
+	engine.GET("/test", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	engine.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "ok", w.Body.String())
 }
 
-func TestRecoveryInterceptor_Panic(t *testing.T) {
+func TestRecoveryMiddleware_Panic(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	interceptor := RecoveryInterceptor(logger)
 
-	info := &grpc.UnaryServerInfo{FullMethod: "/test.Service/Method"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	w := httptest.NewRecorder()
+	_, engine := gin.CreateTestContext(w)
+
+	engine.Use(RecoveryMiddleware(logger))
+	engine.GET("/test", func(c *gin.Context) {
 		panic("unexpected error")
-	}
+	})
 
-	resp, err := interceptor(context.Background(), nil, info, handler)
-	require.Error(t, err)
-	assert.Nil(t, resp)
-	assert.Equal(t, codes.Internal, status.Code(err))
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	engine.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

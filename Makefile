@@ -2,7 +2,7 @@ GO := /home/emir/sdk/go1.26.0/bin/go
 BINARY := mahzen
 CMD := ./cmd/mahzen
 
-.PHONY: all build run clean test lint proto-gen sqlc-gen migrate-up migrate-down deps docker-up docker-down
+.PHONY: all build run clean test lint sqlc-gen migrate-up migrate-down deps docker-up docker-down web-install web-dev web-build web-lint dist gen-certs
 
 all: build
 
@@ -10,13 +10,15 @@ all: build
 build:
 	$(GO) build -o $(BINARY) $(CMD)
 
-## run: Run the application
+## run: Run the application (generates TLS certs if missing)
 run:
+	@[ -f certs/server.crt ] && [ -f certs/server.key ] || ./scripts/gen-certs.sh
 	$(GO) run $(CMD) -config config.yaml
 
 ## clean: Remove build artifacts
 clean:
 	rm -f $(BINARY)
+	rm -rf cmd/mahzen/dist
 	$(GO) clean
 
 ## test: Run all tests
@@ -27,22 +29,17 @@ test:
 lint:
 	golangci-lint run ./...
 
-## proto-gen: Generate protobuf and gRPC gateway stubs
-proto-gen:
-	buf dep update
-	buf generate
-
 ## sqlc-gen: Generate sqlc database code
 sqlc-gen:
 	sqlc generate -f sqlc/sqlc.yaml
 
-## migrate-up: Run database migrations up
+## migrate-up: Apply all migrations
 migrate-up:
-	migrate -path migrations -database "postgres://mahzen:mahzen@localhost:5432/mahzen?sslmode=disable" up
+	docker exec -i mahzen-postgres psql -U mahzen -d mahzen < migrations/000001_init.up.sql
 
-## migrate-down: Run database migrations down
+## migrate-down: Roll back all migrations
 migrate-down:
-	migrate -path migrations -database "postgres://mahzen:mahzen@localhost:5432/mahzen?sslmode=disable" down
+	docker exec -i mahzen-postgres psql -U mahzen -d mahzen < migrations/000001_init.down.sql
 
 ## deps: Download Go module dependencies
 deps:
@@ -61,3 +58,30 @@ docker-down:
 help:
 	@echo "Available targets:"
 	@grep -E '^## ' Makefile | sed 's/## /  /'
+
+## web-install: Install frontend dependencies
+web-install:
+	cd web && bun install
+
+## web-dev: Start frontend dev server (installs dependencies if missing)
+web-dev:
+	@[ -d web/node_modules ] || (cd web && bun install)
+	cd web && bun run dev
+
+## web-build: Build frontend for production
+web-build:
+	cd web && bun run build
+
+## web-lint: Lint frontend code
+web-lint:
+	cd web && bun run lint
+
+## gen-certs: Generate self-signed TLS certificate for HTTP/3 development
+gen-certs:
+	./scripts/gen-certs.sh
+
+## dist: Build frontend + embed + Go binary (production)
+dist: web-build
+	rm -rf cmd/mahzen/dist
+	cp -r web/dist cmd/mahzen/dist
+	$(GO) build -o $(BINARY) $(CMD)

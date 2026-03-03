@@ -1,16 +1,14 @@
--- name: UpsertUser :one
-INSERT INTO users (kratos_id, email, display_name)
+-- name: CreateUser :one
+INSERT INTO users (email, display_name, password_hash)
 VALUES ($1, $2, $3)
-ON CONFLICT (kratos_id)
-DO UPDATE SET email = EXCLUDED.email, display_name = EXCLUDED.display_name
-RETURNING id, kratos_id, email, display_name, created_at;
+RETURNING id, email, display_name, password_hash, created_at;
 
 -- name: GetUserByID :one
-SELECT id, kratos_id, email, display_name, created_at
+SELECT id, email, display_name, password_hash, created_at
 FROM users
 WHERE id = $1;
 
--- name: GetUserByKratosID :one
-SELECT id, kratos_id, email, display_name, created_at
+-- name: GetUserByEmail :one
+SELECT id, email, display_name, password_hash, created_at
 FROM users
-WHERE kratos_id = $1;
+WHERE email = $1;

@@ -3,15 +3,17 @@ info:
   title: Mahzen API
   description: |
     Mahzen is a knowledge management platform that provides CRUD operations for
-    entries and tags, keyword and semantic search, and user identity management.
+    entries and tags, keyword and semantic search, and user authentication.
 
-    The HTTP API is served via grpc-gateway on port 8080.
+    The HTTP API is served via Gin on port 8080. When TLS is configured, the
+    server supports both HTTP/2 and HTTP/3 (QUIC).
 
-    **Authentication**: Requests are identified by the `x-user-id` header.
-    In production this will be set automatically by an auth interceptor after
-    validating the session with Ory Kratos / Hydra.
+    **Authentication**: Requests are authenticated via JWT Bearer tokens in the
+    `Authorization` header. The auth middleware validates the token and sets
+    `X-User-Id` internally. Public endpoints (register, login, refresh) do not
+    require authentication.
 
-    **Visibility**: Entries are either `PUBLIC` (visible to all) or `PRIVATE`
+    **Visibility**: Entries are either `public` (visible to all) or `private`
     (visible only to the owner). Listing and search endpoints enforce this at the
     database and search-engine level.
 
@@ -22,9 +24,11 @@ info:
 
 servers:
   - url: http://localhost:8080
-    description: Local development (grpc-gateway)
+    description: Local development (Gin)
 
 tags:
+  - name: Auth
+    description: Authentication and token management
   - name: Entries
     description: CRUD operations for knowledge entries
   - name: Tags
@@ -36,6 +40,91 @@ tags:
 
 paths:
   # ---------------------------------------------------------------------------
+  # Auth
+  # ---------------------------------------------------------------------------
+  /v1/auth/register:
+    post:
+      operationId: Register
+      summary: Register a new user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "200":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/auth/login:
+    post:
+      operationId: Login
+      summary: Login with email and password
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
+  /v1/auth/refresh:
+    post:
+      operationId: RefreshToken
+      summary: Refresh an access token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+
+  /v1/auth/logout:
+    post:
+      operationId: Logout
+      summary: Invalidate a refresh token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+      responses:
+        "200":
+          description: Logged out successfully
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ---------------------------------------------------------------------------
   # Entries
   # ---------------------------------------------------------------------------
   /v1/entries:
@@ -43,8 +132,8 @@ paths:
       operationId: CreateEntry
       summary: Create a new entry
       tags: [Entries]
-      parameters:
-        - $ref: "#/components/parameters/XUserID"
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -57,7 +146,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CreateEntryResponse"
+                $ref: "#/components/schemas/EntryResponse"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "500":
@@ -69,14 +158,15 @@ paths:
       description: |
         Returns entries visible to the authenticated user. Public entries are
         always included; private entries are included only when they belong to
-        the caller identified by `x-user-id`.
+        the caller.
 
         When `path` is provided, results are filtered to entries at that path
         and all descendant paths (recursive). For example, `path=/notes` returns
         entries at `/notes`, `/notes/work`, `/notes/work/meeting`, etc.
       tags: [Entries]
+      security:
+        - BearerAuth: []
       parameters:
-        - $ref: "#/components/parameters/XUserID"
         - $ref: "#/components/parameters/PathFilter"
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Offset"
@@ -103,7 +193,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GetEntryResponse"
+                $ref: "#/components/schemas/EntryResponse"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -111,6 +201,8 @@ paths:
       operationId: UpdateEntry
       summary: Update an existing entry
       tags: [Entries]
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/EntryID"
       requestBody:
@@ -125,7 +217,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UpdateEntryResponse"
+                $ref: "#/components/schemas/EntryResponse"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -133,15 +225,13 @@ paths:
       operationId: DeleteEntry
       summary: Delete an entry
       tags: [Entries]
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/EntryID"
       responses:
         "200":
           description: Entry deleted successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DeleteEntryResponse"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -153,6 +243,8 @@ paths:
       operationId: CreateTag
       summary: Create a new tag
       tags: [Tags]
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -165,7 +257,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CreateTagResponse"
+                $ref: "#/components/schemas/TagResponse"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -199,7 +291,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GetTagResponse"
+                $ref: "#/components/schemas/TagResponse"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -207,15 +299,13 @@ paths:
       operationId: DeleteTag
       summary: Delete a tag
       tags: [Tags]
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/TagID"
       responses:
         "200":
           description: Tag deleted successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DeleteTagResponse"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -224,6 +314,8 @@ paths:
       operationId: AttachTag
       summary: Attach a tag to an entry
       tags: [Tags]
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/EntryIDPath"
       requestBody:
@@ -235,10 +327,6 @@ paths:
       responses:
         "200":
           description: Tag attached successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AttachTagResponse"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -247,6 +335,8 @@ paths:
       operationId: DetachTag
       summary: Detach a tag from an entry
       tags: [Tags]
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/EntryIDPath"
         - name: tag_id
@@ -259,10 +349,6 @@ paths:
       responses:
         "200":
           description: Tag detached successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DetachTagResponse"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -278,8 +364,9 @@ paths:
         rules: public entries are always returned, private entries only when the
         caller owns them.
       tags: [Search]
+      security:
+        - BearerAuth: []
       parameters:
-        - $ref: "#/components/parameters/XUserID"
         - $ref: "#/components/parameters/SearchQuery"
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Offset"
@@ -302,8 +389,9 @@ paths:
         (`text-embedding-3-small`, 1536 dimensions) and running a vector search
         in Typesense. Results respect visibility rules.
       tags: [Search]
+      security:
+        - BearerAuth: []
       parameters:
-        - $ref: "#/components/parameters/XUserID"
         - $ref: "#/components/parameters/SearchQuery"
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Offset"
@@ -325,8 +413,8 @@ paths:
       operationId: GetCurrentUser
       summary: Get the currently authenticated user
       tags: [Users]
-      parameters:
-        - $ref: "#/components/parameters/XUserID"
+      security:
+        - BearerAuth: []
       responses:
         "200":
           description: Current user info
@@ -342,21 +430,18 @@ paths:
 # =============================================================================
 components:
   # ---------------------------------------------------------------------------
+  # Security
+  # ---------------------------------------------------------------------------
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # ---------------------------------------------------------------------------
   # Parameters
   # ---------------------------------------------------------------------------
   parameters:
-    XUserID:
-      name: x-user-id
-      in: header
-      required: false
-      description: |
-        User identifier. In production this is set by the auth interceptor after
-        validating the Ory Kratos session. For local development, pass a UUID
-        manually.
-      schema:
-        type: string
-        format: uuid
-
     EntryID:
       name: id
       in: path
@@ -433,14 +518,57 @@ components:
     Visibility:
       type: string
       enum:
-        - VISIBILITY_UNSPECIFIED
-        - VISIBILITY_PUBLIC
-        - VISIBILITY_PRIVATE
+        - public
+        - private
       description: |
         Entry visibility level.
-        - `VISIBILITY_UNSPECIFIED` (0): Defaults to PRIVATE.
-        - `VISIBILITY_PUBLIC` (1): Visible to all users.
-        - `VISIBILITY_PRIVATE` (2): Visible only to the owner.
+        - `public`: Visible to all users.
+        - `private`: Visible only to the owner. This is the default.
+
+    # -- Auth ----------------------------------------------------------------
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        password:
+          type: string
+          minLength: 8
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    LogoutRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
 
     # -- Entry -----------------------------------------------------------------
     Entry:
@@ -449,7 +577,7 @@ components:
         id:
           type: string
           format: uuid
-        userId:
+        user_id:
           type: string
           format: uuid
         title:
@@ -473,10 +601,10 @@ components:
           items:
             type: string
           description: Tag names associated with this entry
-        createdAt:
+        created_at:
           type: string
           format: date-time
-        updatedAt:
+        updated_at:
           type: string
           format: date-time
 
@@ -496,20 +624,14 @@ components:
           example: /notes/work
         visibility:
           $ref: "#/components/schemas/Visibility"
-        tagIds:
+        tag_ids:
           type: array
           items:
             type: string
             format: uuid
           description: Tag IDs to attach to the entry
 
-    CreateEntryResponse:
-      type: object
-      properties:
-        entry:
-          $ref: "#/components/schemas/Entry"
-
-    GetEntryResponse:
+    EntryResponse:
       type: object
       properties:
         entry:
@@ -530,21 +652,11 @@ components:
           example: /notes/work
         visibility:
           $ref: "#/components/schemas/Visibility"
-        tagIds:
+        tag_ids:
           type: array
           items:
             type: string
             format: uuid
-
-    UpdateEntryResponse:
-      type: object
-      properties:
-        entry:
-          $ref: "#/components/schemas/Entry"
-
-    DeleteEntryResponse:
-      type: object
-      description: Empty response body
 
     ListEntriesResponse:
       type: object
@@ -569,7 +681,7 @@ components:
           type: string
         slug:
           type: string
-        createdAt:
+        created_at:
           type: string
           format: date-time
 
@@ -580,13 +692,7 @@ components:
         name:
           type: string
 
-    CreateTagResponse:
-      type: object
-      properties:
-        tag:
-          $ref: "#/components/schemas/Tag"
-
-    GetTagResponse:
+    TagResponse:
       type: object
       properties:
         tag:
@@ -603,32 +709,20 @@ components:
           type: integer
           format: int32
 
-    DeleteTagResponse:
-      type: object
-      description: Empty response body
-
     AttachTagRequest:
       type: object
-      required: [tagId]
+      required: [tag_id]
       properties:
-        tagId:
+        tag_id:
           type: string
           format: uuid
           description: ID of the tag to attach
-
-    AttachTagResponse:
-      type: object
-      description: Empty response body
-
-    DetachTagResponse:
-      type: object
-      description: Empty response body
 
     # -- Search ----------------------------------------------------------------
     SearchResult:
       type: object
       properties:
-        entryId:
+        entry_id:
           type: string
           format: uuid
         title:
@@ -667,7 +761,7 @@ components:
         email:
           type: string
           format: email
-        displayName:
+        display_name:
           type: string
 
     GetCurrentUserResponse:
@@ -680,10 +774,7 @@ components:
     Error:
       type: object
       properties:
-        code:
-          type: integer
-          description: gRPC status code
-        message:
+        error:
           type: string
           description: Human-readable error message
 
@@ -691,8 +782,15 @@ components:
   # Responses
   # ---------------------------------------------------------------------------
   responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
     Unauthenticated:
-      description: User not authenticated (missing or invalid x-user-id)
+      description: Missing or invalid authentication token
       content:
         application/json:
           schema:

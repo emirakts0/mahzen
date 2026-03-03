@@ -3,7 +3,9 @@ package ai
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	openai "github.com/sashabaranov/go-openai"
 
@@ -23,6 +25,12 @@ func newOpenAI(cfg config.OpenAIConfig) *OpenAIProvider {
 	var client *openai.Client
 	if cfg.APIKey != "" {
 		client = openai.NewClient(cfg.APIKey)
+		slog.Info("openai provider initialized",
+			"embedding_model", cfg.EmbeddingModel,
+			"chat_model", cfg.ChatModel,
+		)
+	} else {
+		slog.Warn("openai provider running in no-op mode (no API key configured)")
 	}
 
 	return &OpenAIProvider{
@@ -34,21 +42,40 @@ func newOpenAI(cfg config.OpenAIConfig) *OpenAIProvider {
 
 func (p *OpenAIProvider) Embed(ctx context.Context, text string) ([]float32, error) {
 	if p.client == nil {
-		// No-op: return zero vector when API key is not configured.
+		slog.Debug("openai embed skipped (no-op mode)", "text_length", len(text))
 		return make([]float32, 1536), nil
 	}
 
+	slog.Info("openai embed request",
+		"text_length", len(text),
+		"model", string(p.embeddingModel),
+	)
+
+	start := time.Now()
 	resp, err := p.client.CreateEmbeddings(ctx, openai.EmbeddingRequest{
 		Input: []string{text},
 		Model: p.embeddingModel,
 	})
+	duration := time.Since(start)
+
 	if err != nil {
+		slog.Error("openai embed failed",
+			"duration", duration,
+			"error", err,
+		)
 		return nil, fmt.Errorf("creating embedding: %w", err)
 	}
 
 	if len(resp.Data) == 0 {
+		slog.Error("openai embed returned empty data", "duration", duration)
 		return nil, fmt.Errorf("empty embedding response")
 	}
+
+	slog.Info("openai embed response",
+		"duration", duration,
+		"dimensions", len(resp.Data[0].Embedding),
+		"usage_tokens", resp.Usage.TotalTokens,
+	)
 
 	return resp.Data[0].Embedding, nil
 }
@@ -66,9 +93,16 @@ Content:
 
 func (p *OpenAIProvider) Summarize(ctx context.Context, text string) (string, []string, error) {
 	if p.client == nil {
+		slog.Debug("openai summarize skipped (no-op mode)", "text_length", len(text))
 		return "", nil, nil
 	}
 
+	slog.Info("openai summarize request",
+		"text_length", len(text),
+		"model", p.chatModel,
+	)
+
+	start := time.Now()
 	resp, err := p.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: p.chatModel,
 		Messages: []openai.ChatCompletionMessage{
@@ -77,18 +111,37 @@ func (p *OpenAIProvider) Summarize(ctx context.Context, text string) (string, []
 				Content: fmt.Sprintf(summarizePrompt, text),
 			},
 		},
-		Temperature: 0.3,
+		Temperature:         0.3,
 		MaxCompletionTokens: 300,
 	})
+	duration := time.Since(start)
+
 	if err != nil {
+		slog.Error("openai summarize failed",
+			"duration", duration,
+			"error", err,
+		)
 		return "", nil, fmt.Errorf("creating chat completion: %w", err)
 	}
 
 	if len(resp.Choices) == 0 {
+		slog.Error("openai summarize returned empty choices", "duration", duration)
 		return "", nil, fmt.Errorf("empty chat completion response")
 	}
 
-	return parseSummarizeResponse(resp.Choices[0].Message.Content)
+	rawResponse := resp.Choices[0].Message.Content
+	summary, tags, parseErr := parseSummarizeResponse(rawResponse)
+
+	slog.Info("openai summarize response",
+		"duration", duration,
+		"summary_length", len(summary),
+		"tag_count", len(tags),
+		"tags", tags,
+		"usage_prompt_tokens", resp.Usage.PromptTokens,
+		"usage_completion_tokens", resp.Usage.CompletionTokens,
+	)
+
+	return summary, tags, parseErr
 }
 
 // parseSummarizeResponse extracts summary and tags from the structured LLM response.

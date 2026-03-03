@@ -295,7 +295,7 @@ func TestUpdateEntry_InlineToInline(t *testing.T) {
 		},
 	}
 	indexer := &mock.Indexer{
-		IndexEntryFn: func(ctx context.Context, entry *domain.Entry, tags []*domain.Tag, embedding []float32) error {
+		UpdateEntryFn: func(ctx context.Context, entry *domain.Entry, tags []*domain.Tag, embedding []float32) error {
 			return nil
 		},
 	}
@@ -340,7 +340,7 @@ func TestUpdateEntry_InlineToS3(t *testing.T) {
 		},
 	}
 	indexer := &mock.Indexer{
-		IndexEntryFn: func(ctx context.Context, entry *domain.Entry, tags []*domain.Tag, embedding []float32) error {
+		UpdateEntryFn: func(ctx context.Context, entry *domain.Entry, tags []*domain.Tag, embedding []float32) error {
 			return nil
 		},
 	}
@@ -385,7 +385,7 @@ func TestUpdateEntry_S3ToInline(t *testing.T) {
 		},
 	}
 	indexer := &mock.Indexer{
-		IndexEntryFn: func(ctx context.Context, entry *domain.Entry, tags []*domain.Tag, embedding []float32) error {
+		UpdateEntryFn: func(ctx context.Context, entry *domain.Entry, tags []*domain.Tag, embedding []float32) error {
 			return nil
 		},
 	}
@@ -435,7 +435,7 @@ func TestUpdateEntry_ReTagging(t *testing.T) {
 		},
 	}
 	indexer := &mock.Indexer{
-		IndexEntryFn: func(ctx context.Context, entry *domain.Entry, tags []*domain.Tag, embedding []float32) error {
+		UpdateEntryFn: func(ctx context.Context, entry *domain.Entry, tags []*domain.Tag, embedding []float32) error {
 			return nil
 		},
 	}

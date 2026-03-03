@@ -9,27 +9,35 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
+	Server    ServerConfig    `mapstructure:"server"`
+	Database  DatabaseConfig  `mapstructure:"database"`
 	Typesense TypesenseConfig `mapstructure:"typesense"`
-	S3       S3Config       `mapstructure:"s3"`
-	OpenAI   OpenAIConfig   `mapstructure:"openai"`
-	Identity IdentityConfig `mapstructure:"identity"`
-	Log      LogConfig      `mapstructure:"log"`
-	Entry    EntryConfig    `mapstructure:"entry"`
+	S3        S3Config        `mapstructure:"s3"`
+	OpenAI    OpenAIConfig    `mapstructure:"openai"`
+	Auth      AuthConfig      `mapstructure:"auth"`
+	Log       LogConfig       `mapstructure:"log"`
+	Entry     EntryConfig     `mapstructure:"entry"`
 }
 
 type ServerConfig struct {
-	GRPC GRPCConfig `mapstructure:"grpc"`
 	HTTP HTTPConfig `mapstructure:"http"`
 }
 
-type GRPCConfig struct {
-	Port int `mapstructure:"port"`
+type HTTPConfig struct {
+	Port int       `mapstructure:"port"`
+	TLS  TLSConfig `mapstructure:"tls"`
 }
 
-type HTTPConfig struct {
-	Port int `mapstructure:"port"`
+// TLSConfig holds TLS/HTTP3 certificate paths.
+// When both CertFile and KeyFile are set, the server starts with HTTP/3 (QUIC).
+type TLSConfig struct {
+	CertFile string `mapstructure:"cert_file"`
+	KeyFile  string `mapstructure:"key_file"`
+}
+
+// Enabled reports whether TLS is configured.
+func (t TLSConfig) Enabled() bool {
+	return t.CertFile != "" && t.KeyFile != ""
 }
 
 type DatabaseConfig struct {
@@ -50,10 +58,10 @@ func (d DatabaseConfig) DSN() string {
 }
 
 type PoolConfig struct {
-	MaxConns        int           `mapstructure:"max_conns"`
-	MinConns        int           `mapstructure:"min_conns"`
-	MaxConnLifetime time.Duration `mapstructure:"max_conn_lifetime"`
-	MaxConnIdleTime time.Duration `mapstructure:"max_conn_idle_time"`
+	MaxConns          int           `mapstructure:"max_conns"`
+	MinConns          int           `mapstructure:"min_conns"`
+	MaxConnLifetime   time.Duration `mapstructure:"max_conn_lifetime"`
+	MaxConnIdleTime   time.Duration `mapstructure:"max_conn_idle_time"`
 	HealthCheckPeriod time.Duration `mapstructure:"health_check_period"`
 }
 
@@ -90,19 +98,10 @@ type OpenAIConfig struct {
 	ChatModel      string `mapstructure:"chat_model"`
 }
 
-type IdentityConfig struct {
-	Kratos KratosConfig `mapstructure:"kratos"`
-	Hydra  HydraConfig  `mapstructure:"hydra"`
-}
-
-type KratosConfig struct {
-	PublicURL string `mapstructure:"public_url"`
-	AdminURL  string `mapstructure:"admin_url"`
-}
-
-type HydraConfig struct {
-	PublicURL string `mapstructure:"public_url"`
-	AdminURL  string `mapstructure:"admin_url"`
+type AuthConfig struct {
+	JWTSecret          string        `mapstructure:"jwt_secret"`
+	AccessTokenExpiry  time.Duration `mapstructure:"access_token_expiry"`
+	RefreshTokenExpiry time.Duration `mapstructure:"refresh_token_expiry"`
 }
 
 type LogConfig struct {
@@ -142,9 +141,6 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) validate() error {
-	if c.Server.GRPC.Port == 0 {
-		return fmt.Errorf("server.grpc.port is required")
-	}
 	if c.Server.HTTP.Port == 0 {
 		return fmt.Errorf("server.http.port is required")
 	}
@@ -166,8 +162,8 @@ func (c *Config) validate() error {
 	if c.S3.Bucket == "" {
 		return fmt.Errorf("s3.bucket is required")
 	}
-	if c.Identity.Kratos.PublicURL == "" {
-		return fmt.Errorf("identity.kratos.public_url is required")
+	if c.Auth.JWTSecret == "" {
+		return fmt.Errorf("auth.jwt_secret is required")
 	}
 	return nil
 }

@@ -1,100 +1,153 @@
 package handler
 
 import (
-	"context"
+	"net/http"
+	"strconv"
+	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/gin-gonic/gin"
 
-	pb "github.com/emirakts0/mahzen/gen/go/mahzen/v1"
 	"github.com/emirakts0/mahzen/internal/domain"
 	"github.com/emirakts0/mahzen/internal/service"
 )
 
-// tagHandler implements the gRPC TagServiceServer.
+// tagHandler implements the tag HTTP handlers.
 type tagHandler struct {
-	pb.UnimplementedTagServiceServer
 	svc *service.TagService
 }
 
-// RegisterTagServer registers the TagService gRPC handler.
-func RegisterTagServer(s *grpc.Server, svc *service.TagService) {
-	pb.RegisterTagServiceServer(s, &tagHandler{svc: svc})
+// newTagHandler creates a new tagHandler.
+func newTagHandler(svc *service.TagService) *tagHandler {
+	return &tagHandler{svc: svc}
 }
 
-func (h *tagHandler) CreateTag(ctx context.Context, req *pb.CreateTagRequest) (*pb.CreateTagResponse, error) {
-	tag, err := h.svc.CreateTag(ctx, req.Name)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "creating tag: %v", err)
-	}
-
-	return &pb.CreateTagResponse{
-		Tag: domainTagToProto(tag),
-	}, nil
+// createTagRequest is the JSON body for POST /v1/tags.
+type createTagRequest struct {
+	Name string `json:"name" binding:"required"`
 }
 
-func (h *tagHandler) GetTag(ctx context.Context, req *pb.GetTagRequest) (*pb.GetTagResponse, error) {
-	tag, err := h.svc.GetTag(ctx, req.Id)
-	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "tag not found: %v", err)
-	}
-
-	return &pb.GetTagResponse{
-		Tag: domainTagToProto(tag),
-	}, nil
+// attachTagRequest is the JSON body for POST /v1/entries/:entry_id/tags.
+type attachTagRequest struct {
+	TagID string `json:"tag_id" binding:"required"`
 }
 
-func (h *tagHandler) ListTags(ctx context.Context, req *pb.ListTagsRequest) (*pb.ListTagsResponse, error) {
-	limit := int(req.Limit)
-	if limit <= 0 {
-		limit = 20
-	}
-	offset := int(req.Offset)
-
-	tags, total, err := h.svc.ListTags(ctx, limit, offset)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "listing tags: %v", err)
-	}
-
-	pbTags := make([]*pb.Tag, len(tags))
-	for i, t := range tags {
-		pbTags[i] = domainTagToProto(t)
-	}
-
-	return &pb.ListTagsResponse{
-		Tags:  pbTags,
-		Total: int32(total),
-	}, nil
+// tagResponse is the JSON representation of a tag.
+type tagResponse struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
+	CreatedAt string `json:"created_at"`
 }
 
-func (h *tagHandler) DeleteTag(ctx context.Context, req *pb.DeleteTagRequest) (*pb.DeleteTagResponse, error) {
-	if err := h.svc.DeleteTag(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "deleting tag: %v", err)
-	}
-	return &pb.DeleteTagResponse{}, nil
-}
-
-func (h *tagHandler) AttachTag(ctx context.Context, req *pb.AttachTagRequest) (*pb.AttachTagResponse, error) {
-	if err := h.svc.AttachTag(ctx, req.EntryId, req.TagId); err != nil {
-		return nil, status.Errorf(codes.Internal, "attaching tag: %v", err)
-	}
-	return &pb.AttachTagResponse{}, nil
-}
-
-func (h *tagHandler) DetachTag(ctx context.Context, req *pb.DetachTagRequest) (*pb.DetachTagResponse, error) {
-	if err := h.svc.DetachTag(ctx, req.EntryId, req.TagId); err != nil {
-		return nil, status.Errorf(codes.Internal, "detaching tag: %v", err)
-	}
-	return &pb.DetachTagResponse{}, nil
-}
-
-func domainTagToProto(t *domain.Tag) *pb.Tag {
-	return &pb.Tag{
-		Id:        t.ID,
+func domainTagToResponse(t *domain.Tag) tagResponse {
+	return tagResponse{
+		ID:        t.ID,
 		Name:      t.Name,
 		Slug:      t.Slug,
-		CreatedAt: timestamppb.New(t.CreatedAt),
+		CreatedAt: t.CreatedAt.Format(time.RFC3339),
 	}
+}
+
+func (h *tagHandler) createTag(c *gin.Context) {
+	var req createTagRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	tag, err := h.svc.CreateTag(c.Request.Context(), req.Name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "creating tag: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tag": domainTagToResponse(tag),
+	})
+}
+
+func (h *tagHandler) getTag(c *gin.Context) {
+	id := c.Param("id")
+
+	tag, err := h.svc.GetTag(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "tag not found: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tag": domainTagToResponse(tag),
+	})
+}
+
+func (h *tagHandler) listTags(c *gin.Context) {
+	limit := 20
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+
+	offset := 0
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	tags, total, err := h.svc.ListTags(c.Request.Context(), limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "listing tags: " + err.Error()})
+		return
+	}
+
+	items := make([]tagResponse, len(tags))
+	for i, t := range tags {
+		items[i] = domainTagToResponse(t)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tags":  items,
+		"total": total,
+	})
+}
+
+func (h *tagHandler) deleteTag(c *gin.Context) {
+	id := c.Param("id")
+
+	if err := h.svc.DeleteTag(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "deleting tag: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+func (h *tagHandler) attachTag(c *gin.Context) {
+	entryID := c.Param("entry_id")
+
+	var req attachTagRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.svc.AttachTag(c.Request.Context(), entryID, req.TagID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "attaching tag: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+func (h *tagHandler) detachTag(c *gin.Context) {
+	entryID := c.Param("entry_id")
+	tagID := c.Param("tag_id")
+
+	if err := h.svc.DetachTag(c.Request.Context(), entryID, tagID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "detaching tag: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
 }

@@ -161,9 +161,16 @@ func (r *EntryRepository) ListByUser(ctx context.Context, userID string, limit, 
 }
 
 func (r *EntryRepository) ListAccessible(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error) {
-	uid, err := parseUUID(userID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("parsing user id: %w", err)
+	// When userID is empty (unauthenticated request), use a nil UUID.
+	// PostgreSQL evaluates "user_id = NULL" as NULL (never true),
+	// so only public entries are returned.
+	var uid pgtype.UUID
+	if userID != "" {
+		var err error
+		uid, err = parseUUID(userID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("parsing user id: %w", err)
+		}
 	}
 
 	// When a path prefix is provided, use the path-filtered queries.

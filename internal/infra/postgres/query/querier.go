@@ -16,14 +16,19 @@ type Querier interface {
 	CountAccessibleEntriesByPath(ctx context.Context, arg CountAccessibleEntriesByPathParams) (int64, error)
 	CountEntriesByUser(ctx context.Context, userID pgtype.UUID) (int64, error)
 	CountTags(ctx context.Context) (int64, error)
+	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	DeleteEntry(ctx context.Context, id pgtype.UUID) error
+	DeleteRefreshTokenByHash(ctx context.Context, tokenHash string) error
+	DeleteRefreshTokensByUserID(ctx context.Context, userID pgtype.UUID) error
 	DeleteTag(ctx context.Context, id pgtype.UUID) error
 	DetachTagFromEntry(ctx context.Context, arg DetachTagFromEntryParams) error
 	GetEntryByID(ctx context.Context, id pgtype.UUID) (GetEntryByIDRow, error)
+	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
 	GetTagByID(ctx context.Context, id pgtype.UUID) (Tag, error)
 	GetTagBySlug(ctx context.Context, slug string) (Tag, error)
-	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
-	GetUserByKratosID(ctx context.Context, kratosID string) (User, error)
+	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
+	GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDRow, error)
 	InsertEntry(ctx context.Context, arg InsertEntryParams) (InsertEntryRow, error)
 	InsertTag(ctx context.Context, arg InsertTagParams) (Tag, error)
 	ListAccessibleEntries(ctx context.Context, arg ListAccessibleEntriesParams) ([]ListAccessibleEntriesRow, error)
@@ -32,7 +37,6 @@ type Querier interface {
 	ListTags(ctx context.Context, arg ListTagsParams) ([]Tag, error)
 	ListTagsByEntry(ctx context.Context, entryID pgtype.UUID) ([]Tag, error)
 	UpdateEntry(ctx context.Context, arg UpdateEntryParams) (UpdateEntryRow, error)
-	UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -45,10 +45,10 @@ type Entry struct {
 	ID         string
 	UserID     string
 	Title      string
-	Content    string     // Inline content when size is below S3 threshold.
-	Summary    string     // AI-generated summary.
-	S3Key      string     // Set when content is stored in object storage.
-	Path       string     // Materialized path for hierarchical organization (e.g. "/notes/work").
+	Content    string // Inline content when size is below S3 threshold.
+	Summary    string // AI-generated summary.
+	S3Key      string // Set when content is stored in object storage.
+	Path       string // Materialized path for hierarchical organization (e.g. "/notes/work").
 	Visibility Visibility
 	CreatedAt  time.Time
 	UpdatedAt  time.Time

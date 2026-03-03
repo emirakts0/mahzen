@@ -1,2 +1,12 @@
-todo: dosyaları klasör sistemi gibi hiyerarşik de saklayabiliriz aynı zamanda. bunu bi düşünelim. public private sisteme göre entegre etmek lazım.
-todo: temel bir arayüz gerek hem client appleri indirmek hem de appsiz genel dosya cart curt görmek için.
+arayüzü daha merkezi farklı modern tazda yapalım. ortada kutumsu hayal ettim. client appleri indirmek için de altta veya üstte download .. yazıları kutuları olur.
+client arayüzüne direkt bi chat gpt sorgusu falan eklriz sonucunu direkt insert etme özelliği falan olur. yani formatlı chat olur direkt insert için.
+
+todo: Search yapılarını iyice bak iyileştir.
+     kelime search yaparken eşleşen parçaları falan göstermek lazım highlight edip. hatta benzerlikten falan bulduysa ona göre bi response döner bize ve onu da gösterebilmeliyiz.
+     semantic search için de şuan çok çalışıyor hissi vermedi.
+
+admin mode olabilsin. logine kapalı mod yani sadece admin hesap oluşturabilir vb. bide basit bi admin sayfası olabilir kullanıcıları yönetmek için.
+
+
+SONRA: kullanıcıların private verileri şifrelenmiş falan mı saklansa? şifreli kısım search edilemez falan belki.
+

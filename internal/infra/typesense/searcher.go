@@ -3,6 +3,10 @@ package typesense
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/typesense/typesense-go/v3/typesense"
 	"github.com/typesense/typesense-go/v3/typesense/api"
@@ -24,43 +28,113 @@ func NewSearcher(client *typesense.Client) *Searcher {
 func (s *Searcher) KeywordSearch(ctx context.Context, query, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
 	filterBy := buildVisibilityFilter(userID)
 
+	slog.Info("typesense keyword search",
+		"query", query,
+		"user_id", userID,
+		"filter_by", filterBy,
+		"limit", limit,
+		"offset", offset,
+	)
+
 	params := &api.SearchCollectionParams{
-		Q:              pointer.String(query),
-		QueryBy:        pointer.String("title,content,summary,tags"),
-		FilterBy:       pointer.String(filterBy),
-		PerPage:        pointer.Int(limit),
-		Page:           pointer.Int((offset / max(limit, 1)) + 1),
+		Q:               pointer.String(query),
+		QueryBy:         pointer.String("title,content,summary,tags"),
+		FilterBy:        pointer.String(filterBy),
+		PerPage:         pointer.Int(limit),
+		Page:            pointer.Int((offset / max(limit, 1)) + 1),
 		HighlightFields: pointer.String("title,content,summary"),
 	}
 
+	start := time.Now()
 	result, err := s.client.Collection(CollectionName).Documents().Search(ctx, params)
+	duration := time.Since(start)
+
 	if err != nil {
+		slog.Error("typesense keyword search failed",
+			"query", query,
+			"duration", duration,
+			"error", err,
+		)
 		return nil, 0, fmt.Errorf("keyword search: %w", err)
 	}
 
-	return mapSearchResults(result)
+	results, total, mapErr := mapSearchResults(result)
+
+	slog.Info("typesense keyword search completed",
+		"query", query,
+		"duration", duration,
+		"total_found", total,
+		"returned", len(results),
+	)
+
+	return results, total, mapErr
 }
 
 func (s *Searcher) SemanticSearch(ctx context.Context, embedding []float32, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
 	filterBy := buildVisibilityFilter(userID)
-
-	// Build the vector query string: embedding field, top-k results
 	vectorQuery := fmt.Sprintf("embedding:([%s], k:%d)", floatsToString(embedding), limit)
 
-	params := &api.SearchCollectionParams{
-		Q:           pointer.String("*"),
-		VectorQuery: pointer.String(vectorQuery),
-		FilterBy:    pointer.String(filterBy),
-		PerPage:     pointer.Int(limit),
-		Page:        pointer.Int((offset / max(limit, 1)) + 1),
-	}
+	slog.Info("typesense semantic search",
+		"user_id", userID,
+		"filter_by", filterBy,
+		"embedding_dims", len(embedding),
+		"limit", limit,
+		"offset", offset,
+	)
 
-	result, err := s.client.Collection(CollectionName).Documents().Search(ctx, params)
+	collection := CollectionName
+	q := "*"
+	perPage := limit
+	pageNum := (offset / max(limit, 1)) + 1
+	excludeFields := "embedding"
+
+	start := time.Now()
+	result, err := s.client.MultiSearch.Perform(ctx, &api.MultiSearchParams{}, api.MultiSearchSearchesParameter{
+		Searches: []api.MultiSearchCollectionParameters{
+			{
+				Collection:    &collection,
+				Q:             &q,
+				VectorQuery:   &vectorQuery,
+				FilterBy:      &filterBy,
+				PerPage:       &perPage,
+				Page:          &pageNum,
+				ExcludeFields: &excludeFields,
+			},
+		},
+	})
+	duration := time.Since(start)
+
 	if err != nil {
+		slog.Error("typesense semantic search failed",
+			"duration", duration,
+			"error", err,
+		)
 		return nil, 0, fmt.Errorf("semantic search: %w", err)
 	}
 
-	return mapSearchResults(result)
+	if len(result.Results) == 0 {
+		slog.Info("typesense semantic search completed (no results)",
+			"duration", duration,
+		)
+		return nil, 0, nil
+	}
+
+	item := result.Results[0]
+	// Map MultiSearchResultItem fields into api.SearchResult for unified processing.
+	sr := &api.SearchResult{
+		Found: item.Found,
+		Hits:  item.Hits,
+	}
+
+	results, total, mapErr := mapSearchResults(sr)
+
+	slog.Info("typesense semantic search completed",
+		"duration", duration,
+		"total_found", total,
+		"returned", len(results),
+	)
+
+	return results, total, mapErr
 }
 
 // buildVisibilityFilter creates a Typesense filter_by expression that enforces
@@ -93,6 +167,7 @@ func mapSearchResults(result *api.SearchResult) ([]*domain.SearchResult, int, er
 		}
 
 		if hit.TextMatch != nil {
+			// Send raw TextMatch score; normalization is done on the frontend.
 			sr.Score = float64(*hit.TextMatch)
 		}
 		if hit.VectorDistance != nil {
@@ -132,9 +207,12 @@ func floatsToString(fs []float32) string {
 	if len(fs) == 0 {
 		return ""
 	}
-	s := fmt.Sprintf("%f", fs[0])
+	var b strings.Builder
+	b.Grow(len(fs) * 12) // pre-allocate: ~12 chars per float
+	b.WriteString(strconv.FormatFloat(float64(fs[0]), 'f', -1, 32))
 	for _, f := range fs[1:] {
-		s += fmt.Sprintf(",%f", f)
+		b.WriteByte(',')
+		b.WriteString(strconv.FormatFloat(float64(f), 'f', -1, 32))
 	}
-	return s
+	return b.String()
 }

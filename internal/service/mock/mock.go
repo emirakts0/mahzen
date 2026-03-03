@@ -189,3 +189,100 @@ type Summarizer struct {
 func (m *Summarizer) Summarize(ctx context.Context, text string) (string, []string, error) {
 	return m.SummarizeFn(ctx, text)
 }
+
+// ---------------------------------------------------------------------------
+// UserRepository
+// ---------------------------------------------------------------------------
+
+// UserRepository is a test double for domain.UserRepository.
+type UserRepository struct {
+	CreateFn     func(ctx context.Context, email, displayName, passwordHash string) (*domain.User, error)
+	GetByIDFn    func(ctx context.Context, id string) (*domain.User, error)
+	GetByEmailFn func(ctx context.Context, email string) (*domain.User, error)
+}
+
+func (m *UserRepository) Create(ctx context.Context, email, displayName, passwordHash string) (*domain.User, error) {
+	return m.CreateFn(ctx, email, displayName, passwordHash)
+}
+
+func (m *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
+	return m.GetByIDFn(ctx, id)
+}
+
+func (m *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	return m.GetByEmailFn(ctx, email)
+}
+
+// ---------------------------------------------------------------------------
+// RefreshTokenRepository
+// ---------------------------------------------------------------------------
+
+// RefreshTokenRepository is a test double for domain.RefreshTokenRepository.
+type RefreshTokenRepository struct {
+	CreateFn            func(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*domain.RefreshToken, error)
+	GetByTokenHashFn    func(ctx context.Context, tokenHash string) (*domain.RefreshToken, error)
+	DeleteByTokenHashFn func(ctx context.Context, tokenHash string) error
+	DeleteAllForUserFn  func(ctx context.Context, userID string) error
+}
+
+func (m *RefreshTokenRepository) Create(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*domain.RefreshToken, error) {
+	return m.CreateFn(ctx, userID, tokenHash, expiresAt)
+}
+
+func (m *RefreshTokenRepository) GetByTokenHash(ctx context.Context, tokenHash string) (*domain.RefreshToken, error) {
+	return m.GetByTokenHashFn(ctx, tokenHash)
+}
+
+func (m *RefreshTokenRepository) DeleteByTokenHash(ctx context.Context, tokenHash string) error {
+	return m.DeleteByTokenHashFn(ctx, tokenHash)
+}
+
+func (m *RefreshTokenRepository) DeleteAllForUser(ctx context.Context, userID string) error {
+	return m.DeleteAllForUserFn(ctx, userID)
+}
+
+// ---------------------------------------------------------------------------
+// TokenGenerator
+// ---------------------------------------------------------------------------
+
+// TokenGenerator is a test double for domain.TokenGenerator.
+type TokenGenerator struct {
+	GenerateAccessTokenFn  func(userID string) (string, error)
+	ValidateAccessTokenFn  func(token string) (string, error)
+	GenerateRefreshTokenFn func() (string, error)
+	HashTokenFn            func(token string) string
+}
+
+func (m *TokenGenerator) GenerateAccessToken(userID string) (string, error) {
+	return m.GenerateAccessTokenFn(userID)
+}
+
+func (m *TokenGenerator) ValidateAccessToken(token string) (string, error) {
+	return m.ValidateAccessTokenFn(token)
+}
+
+func (m *TokenGenerator) GenerateRefreshToken() (string, error) {
+	return m.GenerateRefreshTokenFn()
+}
+
+func (m *TokenGenerator) HashToken(token string) string {
+	return m.HashTokenFn(token)
+}
+
+// ---------------------------------------------------------------------------
+// PasswordHasher
+// ---------------------------------------------------------------------------
+
+// PasswordHasher is a test double for domain.PasswordHasher.
+type PasswordHasher struct {
+	HashFn    func(password string) (string, error)
+	CompareFn func(hash, password string) error
+}
+
+func (m *PasswordHasher) Hash(password string) (string, error) {
+	return m.HashFn(password)
+}
+
+func (m *PasswordHasher) Compare(hash, password string) error {
+	return m.CompareFn(hash, password)
+}

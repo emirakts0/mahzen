@@ -2,30 +2,27 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/quic-go/quic-go/http3"
 	"github.com/rs/zerolog"
 	slogzerolog "github.com/samber/slog-zerolog/v2"
 	tsclient "github.com/typesense/typesense-go/v3/typesense"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/reflection"
 
 	"github.com/emirakts0/mahzen/internal/config"
 	"github.com/emirakts0/mahzen/internal/domain"
 	"github.com/emirakts0/mahzen/internal/handler"
 	"github.com/emirakts0/mahzen/internal/infra/ai"
-	"github.com/emirakts0/mahzen/internal/infra/identity"
+	"github.com/emirakts0/mahzen/internal/infra/auth"
 	"github.com/emirakts0/mahzen/internal/infra/postgres"
 	"github.com/emirakts0/mahzen/internal/infra/storage"
 	"github.com/emirakts0/mahzen/internal/infra/typesense"
@@ -44,7 +41,7 @@ func main() {
 
 	logger := setupLogger(cfg.Log)
 	slog.SetDefault(logger)
-	logger.Info("starting mahzen", "grpc_port", cfg.Server.GRPC.Port, "http_port", cfg.Server.HTTP.Port)
+	logger.Info("starting mahzen", "http_port", cfg.Server.HTTP.Port)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -52,7 +49,7 @@ func main() {
 	infra := mustInitInfra(ctx, cfg, logger)
 	defer infra.close()
 
-	buildServers(ctx, cfg, infra, logger).run(ctx, logger)
+	buildServer(cfg, infra, logger).run(ctx, logger)
 }
 
 // ---------------------------------------------------------------------------
@@ -67,8 +64,8 @@ type infrastructure struct {
 	objectStorage *storage.ObjectStore
 	embedder      domain.Embedder
 	summarizer    domain.Summarizer
-	kratosClient  *identity.KratosClient
-	hydraClient   *identity.HydraClient
+	tokenProvider *auth.TokenProvider
+	hasher        *auth.BcryptHasher
 }
 
 func (i *infrastructure) close() {
@@ -108,80 +105,119 @@ func mustInitInfra(ctx context.Context, cfg *config.Config, logger *slog.Logger)
 	embedder, summarizer := ai.NewProvider(cfg.OpenAI)
 	logger.Info("ai provider initialized")
 
+	tokenProvider := auth.NewTokenProvider(cfg.Auth)
+	hasher := auth.NewBcryptHasher()
+	logger.Info("auth provider initialized")
+
 	return &infrastructure{
 		pool:          pool,
 		tsClient:      tsClient,
 		objectStorage: storage.NewObjectStorage(s3Client, cfg.S3.Bucket),
 		embedder:      embedder,
 		summarizer:    summarizer,
-		kratosClient:  identity.NewKratosClient(cfg.Identity.Kratos),
-		hydraClient:   identity.NewHydraClient(cfg.Identity.Hydra),
+		tokenProvider: tokenProvider,
+		hasher:        hasher,
 	}
 }
 
 // ---------------------------------------------------------------------------
-// Servers
+// Server
 // ---------------------------------------------------------------------------
 
-// servers holds the gRPC and HTTP gateway servers along with the listener.
-type servers struct {
-	grpc *grpc.Server
-	http *http.Server
-	lis  net.Listener
+// server holds the HTTP server(s).
+type server struct {
+	httpServer *http.Server
+	h3Server   *http3.Server // nil when TLS is not configured
+	tlsEnabled bool
 }
 
-func buildServers(ctx context.Context, cfg *config.Config, infra *infrastructure, logger *slog.Logger) *servers {
+func buildServer(cfg *config.Config, infra *infrastructure, logger *slog.Logger) *server {
 	entryRepo := postgres.NewEntryRepository(infra.pool)
 	tagRepo := postgres.NewTagRepository(infra.pool)
+	userRepo := postgres.NewUserRepository(infra.pool)
+	refreshTokenRepo := postgres.NewRefreshTokenRepository(infra.pool)
 
 	entrySvc := service.NewEntryService(entryRepo, tagRepo, infra.objectStorage, typesense.NewIndexer(infra.tsClient), infra.embedder, cfg.Entry)
 	tagSvc := service.NewTagService(tagRepo)
 	searchSvc := service.NewSearchService(typesense.NewSearcher(infra.tsClient), infra.embedder)
+	authSvc := service.NewAuthService(userRepo, refreshTokenRepo, infra.tokenProvider, infra.hasher, infra.tokenProvider.RefreshTokenExpiry())
 
-	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			handler.LoggingInterceptor(logger),
-			handler.RecoveryInterceptor(logger),
-		),
-	)
-	handler.RegisterEntryServer(grpcServer, entrySvc)
-	handler.RegisterTagServer(grpcServer, tagSvc)
-	handler.RegisterSearchServer(grpcServer, searchSvc)
-	reflection.Register(grpcServer)
+	router := handler.SetupRouter(handler.RouterDeps{
+		Logger:    logger,
+		TokenGen:  infra.tokenProvider,
+		EntrySvc:  entrySvc,
+		TagSvc:    tagSvc,
+		SearchSvc: searchSvc,
+		AuthSvc:   authSvc,
+		UserRepo:  userRepo,
+	})
 
-	grpcAddr := fmt.Sprintf(":%d", cfg.Server.GRPC.Port)
-	lis, err := net.Listen("tcp", grpcAddr)
-	if err != nil {
-		logger.Error("failed to listen for grpc", "address", grpcAddr, "error", err)
-		os.Exit(1)
+	// Register SPA handler for non-API routes.
+	registerSPARoutes(router)
+
+	addr := fmt.Sprintf(":%d", cfg.Server.HTTP.Port)
+	tlsEnabled := cfg.Server.HTTP.TLS.Enabled()
+
+	httpServer := &http.Server{
+		Addr:    addr,
+		Handler: router,
 	}
 
-	gwMux := runtime.NewServeMux()
-	if err := handler.RegisterGatewayHandlers(ctx, gwMux, grpcAddr, []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	}); err != nil {
-		logger.Error("failed to register gateway handlers", "error", err)
-		os.Exit(1)
+	var h3Srv *http3.Server
+	if tlsEnabled {
+		tlsCert, err := tls.LoadX509KeyPair(cfg.Server.HTTP.TLS.CertFile, cfg.Server.HTTP.TLS.KeyFile)
+		if err != nil {
+			logger.Error("failed to load TLS certificates", "error", err)
+			os.Exit(1)
+		}
+
+		tlsCfg := &tls.Config{
+			Certificates: []tls.Certificate{tlsCert},
+		}
+
+		httpServer.TLSConfig = tlsCfg
+
+		h3Srv = &http3.Server{
+			Addr:      addr,
+			Handler:   router,
+			TLSConfig: tlsCfg,
+		}
+
+		// Advertise HTTP/3 via Alt-Svc header on HTTP/2 responses.
+		origHandler := httpServer.Handler
+		httpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if err := h3Srv.SetQUICHeaders(w.Header()); err != nil {
+				logger.Debug("failed to set QUIC headers", "error", err)
+			}
+			origHandler.ServeHTTP(w, r)
+		})
 	}
 
-	return &servers{
-		grpc: grpcServer,
-		http: &http.Server{Addr: fmt.Sprintf(":%d", cfg.Server.HTTP.Port), Handler: gwMux},
-		lis:  lis,
+	return &server{
+		httpServer: httpServer,
+		h3Server:   h3Srv,
+		tlsEnabled: tlsEnabled,
 	}
 }
 
-func (s *servers) run(ctx context.Context, logger *slog.Logger) {
+func (s *server) run(ctx context.Context, logger *slog.Logger) {
 	errCh := make(chan error, 2)
 
-	go func() {
-		logger.Info("grpc server listening", "address", s.lis.Addr().String())
-		errCh <- s.grpc.Serve(s.lis)
-	}()
-	go func() {
-		logger.Info("http gateway listening", "address", s.http.Addr)
-		errCh <- s.http.ListenAndServe()
-	}()
+	if s.tlsEnabled {
+		go func() {
+			logger.Info("https server listening (HTTP/2)", "address", s.httpServer.Addr)
+			errCh <- s.httpServer.ListenAndServeTLS("", "")
+		}()
+		go func() {
+			logger.Info("http/3 (QUIC) server listening", "address", s.h3Server.Addr)
+			errCh <- s.h3Server.ListenAndServe()
+		}()
+	} else {
+		go func() {
+			logger.Info("http server listening", "address", s.httpServer.Addr)
+			errCh <- s.httpServer.ListenAndServe()
+		}()
+	}
 
 	select {
 	case <-ctx.Done():
@@ -191,12 +227,17 @@ func (s *servers) run(ctx context.Context, logger *slog.Logger) {
 	}
 
 	logger.Info("shutting down...")
-	s.grpc.GracefulStop()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := s.http.Shutdown(shutdownCtx); err != nil {
+
+	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Error("http server shutdown error", "error", err)
+	}
+	if s.h3Server != nil {
+		if err := s.h3Server.Shutdown(shutdownCtx); err != nil {
+			logger.Error("http/3 server shutdown error", "error", err)
+		}
 	}
 
 	logger.Info("shutdown complete")

@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	CollectionName   = "entries"
-	EmbeddingDim     = 1536
+	CollectionName = "entries"
+	EmbeddingDim   = 1536
 )
 
 // NewClient creates and returns a Typesense client configured from the application config.
@@ -60,7 +60,7 @@ func EnsureCollections(ctx context.Context, client *typesense.Client) error {
 			{Name: "created_at", Type: "int64", Facet: pointer.False()},
 			{
 				Name:     "embedding",
-				Type:     fmt.Sprintf("float[]"),
+				Type:     "float[]",
 				NumDim:   pointer.Int(EmbeddingDim),
 				Facet:    pointer.False(),
 				Optional: pointer.True(),

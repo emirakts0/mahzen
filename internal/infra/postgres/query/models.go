@@ -26,6 +26,14 @@ type EntryTag struct {
 	TagID   pgtype.UUID `json:"tag_id"`
 }
 
+type RefreshToken struct {
+	ID        pgtype.UUID        `json:"id"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	TokenHash string             `json:"token_hash"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type Tag struct {
 	ID        pgtype.UUID        `json:"id"`
 	Name      string             `json:"name"`
@@ -34,9 +42,9 @@ type Tag struct {
 }
 
 type User struct {
-	ID          pgtype.UUID        `json:"id"`
-	KratosID    string             `json:"kratos_id"`
-	Email       string             `json:"email"`
-	DisplayName string             `json:"display_name"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ID           pgtype.UUID        `json:"id"`
+	Email        string             `json:"email"`
+	DisplayName  string             `json:"display_name"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	PasswordHash string             `json:"password_hash"`
 }

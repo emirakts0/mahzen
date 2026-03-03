@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -15,12 +16,12 @@ import (
 
 // EntryService contains business logic for managing entries.
 type EntryService struct {
-	entries       domain.EntryRepository
-	tags          domain.TagRepository
-	storage       domain.ObjectStorage
-	indexer       domain.Indexer
-	embedder      domain.Embedder
-	s3Threshold   int64
+	entries     domain.EntryRepository
+	tags        domain.TagRepository
+	storage     domain.ObjectStorage
+	indexer     domain.Indexer
+	embedder    domain.Embedder
+	s3Threshold int64
 }
 
 // NewEntryService creates a new EntryService.
@@ -44,6 +45,15 @@ func NewEntryService(
 
 // CreateEntry creates a new entry, optionally storing content in S3 and indexing it.
 func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, path string, visibility domain.Visibility, tagIDs []string) (*domain.Entry, error) {
+	slog.Info("creating entry",
+		"user_id", userID,
+		"title", title,
+		"path", path,
+		"visibility", visibility.String(),
+		"content_length", len(content),
+		"tag_count", len(tagIDs),
+	)
+
 	normalizedPath, err := domain.NormalizePath(path)
 	if err != nil {
 		return nil, fmt.Errorf("invalid path: %w", err)
@@ -68,8 +78,21 @@ func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, 
 	}
 
 	if err := s.entries.Create(ctx, entry); err != nil {
+		slog.Error("failed to create entry in db",
+			"user_id", userID,
+			"title", title,
+			"error", err,
+		)
 		return nil, fmt.Errorf("creating entry: %w", err)
 	}
+
+	slog.Info("entry created",
+		"entry_id", entry.ID,
+		"user_id", userID,
+		"title", title,
+		"path", normalizedPath,
+		"stored_in_s3", entry.IsStoredInS3(),
+	)
 
 	// Attach tags.
 	for _, tagID := range tagIDs {
@@ -79,19 +102,26 @@ func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, 
 	}
 
 	// Async: generate embedding and index in Typesense.
-	go s.indexEntryAsync(entry, tagIDs, content)
+	go s.indexEntryAsync(entry, tagIDs, content, false)
 
 	return entry, nil
 }
 
 // GetEntry retrieves an entry by ID, fetching content from S3 if needed.
 func (s *EntryService) GetEntry(ctx context.Context, id string) (*domain.Entry, error) {
+	slog.Info("getting entry", "entry_id", id)
+
 	entry, err := s.entries.GetByID(ctx, id)
 	if err != nil {
+		slog.Warn("entry not found", "entry_id", id, "error", err)
 		return nil, fmt.Errorf("getting entry: %w", err)
 	}
 
 	if entry.IsStoredInS3() {
+		slog.Info("fetching entry content from s3",
+			"entry_id", id,
+			"s3_key", entry.S3Key,
+		)
 		reader, err := s.storage.Download(ctx, entry.S3Key)
 		if err != nil {
 			return nil, fmt.Errorf("downloading entry content: %w", err)
@@ -110,6 +140,15 @@ func (s *EntryService) GetEntry(ctx context.Context, id string) (*domain.Entry, 
 
 // UpdateEntry updates an existing entry.
 func (s *EntryService) UpdateEntry(ctx context.Context, id, title, content, path string, visibility domain.Visibility, tagIDs []string) (*domain.Entry, error) {
+	slog.Info("updating entry",
+		"entry_id", id,
+		"title", title,
+		"path", path,
+		"visibility", visibility.String(),
+		"content_length", len(content),
+		"tag_count", len(tagIDs),
+	)
+
 	entry, err := s.entries.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("getting entry for update: %w", err)
@@ -149,8 +188,16 @@ func (s *EntryService) UpdateEntry(ctx context.Context, id, title, content, path
 	}
 
 	if err := s.entries.Update(ctx, entry); err != nil {
+		slog.Error("failed to update entry in db", "entry_id", id, "error", err)
 		return nil, fmt.Errorf("updating entry: %w", err)
 	}
+
+	slog.Info("entry updated",
+		"entry_id", id,
+		"title", entry.Title,
+		"path", entry.Path,
+		"stored_in_s3", entry.IsStoredInS3(),
+	)
 
 	// Re-sync tags: detach all existing, then attach new ones.
 	existingTags, err := s.tags.ListByEntry(ctx, id)
@@ -165,13 +212,15 @@ func (s *EntryService) UpdateEntry(ctx context.Context, id, title, content, path
 		}
 	}
 
-	go s.indexEntryAsync(entry, tagIDs, content)
+	go s.indexEntryAsync(entry, tagIDs, content, true)
 
 	return entry, nil
 }
 
 // DeleteEntry deletes an entry and its associated S3 content and search index.
 func (s *EntryService) DeleteEntry(ctx context.Context, id string) error {
+	slog.Info("deleting entry", "entry_id", id)
+
 	entry, err := s.entries.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("getting entry for deletion: %w", err)
@@ -184,8 +233,11 @@ func (s *EntryService) DeleteEntry(ctx context.Context, id string) error {
 	}
 
 	if err := s.entries.Delete(ctx, id); err != nil {
+		slog.Error("failed to delete entry from db", "entry_id", id, "error", err)
 		return fmt.Errorf("deleting entry: %w", err)
 	}
+
+	slog.Info("entry deleted", "entry_id", id)
 
 	if err := s.indexer.DeleteEntry(ctx, id); err != nil {
 		slog.Warn("failed to delete entry from index", "entry_id", id, "error", err)
@@ -196,13 +248,35 @@ func (s *EntryService) DeleteEntry(ctx context.Context, id string) error {
 
 // ListEntries lists entries accessible to the given user, optionally filtered by path prefix.
 func (s *EntryService) ListEntries(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error) {
-	return s.entries.ListAccessible(ctx, userID, pathPrefix, limit, offset)
+	slog.Info("listing entries",
+		"user_id", userID,
+		"path_prefix", pathPrefix,
+		"limit", limit,
+		"offset", offset,
+	)
+
+	entries, total, err := s.entries.ListAccessible(ctx, userID, pathPrefix, limit, offset)
+	if err != nil {
+		slog.Error("failed to list entries", "user_id", userID, "error", err)
+		return nil, 0, err
+	}
+
+	slog.Info("entries listed",
+		"user_id", userID,
+		"total", total,
+		"returned", len(entries),
+	)
+	return entries, total, nil
 }
 
 // indexEntryAsync generates an embedding and indexes the entry in Typesense.
 // Runs in a background goroutine — errors are logged, not returned.
-func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, content string) {
-	ctx := context.Background()
+// isUpdate controls whether to call UpdateEntry (for updates) or IndexEntry (for creates).
+func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, content string, isUpdate bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	slog.Info("async indexing started", "entry_id", entry.ID, "title", entry.Title, "is_update", isUpdate)
 
 	// Resolve tag objects.
 	tags := make([]*domain.Tag, 0, len(tagIDs))
@@ -224,13 +298,31 @@ func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, con
 		}
 	}
 
+	slog.Info("generating embedding for entry",
+		"entry_id", entry.ID,
+		"embed_text_length", len(embedText),
+	)
+
 	embedding, err := s.embedder.Embed(ctx, embedText)
 	if err != nil {
 		slog.Error("failed to generate embedding", "entry_id", entry.ID, "error", err)
 		embedding = nil // Index without embedding.
+	} else {
+		slog.Info("embedding generated",
+			"entry_id", entry.ID,
+			"dimensions", len(embedding),
+		)
 	}
 
-	if err := s.indexer.IndexEntry(ctx, entry, tags, embedding); err != nil {
-		slog.Error("failed to index entry", "entry_id", entry.ID, "error", err)
+	var indexErr error
+	if isUpdate {
+		indexErr = s.indexer.UpdateEntry(ctx, entry, tags, embedding)
+	} else {
+		indexErr = s.indexer.IndexEntry(ctx, entry, tags, embedding)
+	}
+	if indexErr != nil {
+		slog.Error("failed to index entry", "entry_id", entry.ID, "is_update", isUpdate, "error", indexErr)
+	} else {
+		slog.Info("async indexing completed", "entry_id", entry.ID)
 	}
 }
