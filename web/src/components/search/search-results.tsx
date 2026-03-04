@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { BookText, Sparkles, SearchX } from "lucide-react"
 import { KeywordResultCard } from "./keyword-result-card"
 import { SemanticResultCard } from "./semantic-result-card"
-import { SearchSkeleton } from "./search-skeleton"
+import { SearchLoading } from "./search-loading"
 import type { SearchResult } from "@/types/api"
 
 // ─────────────────────────────────────────────
@@ -36,14 +36,20 @@ function ColumnHeader({
 }) {
   return (
     <div className="flex items-center gap-2 pb-1">
-      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/15 backdrop-blur-sm">
-        <Icon className="h-4 w-4 text-primary" />
+      <div
+        className="flex h-7 w-7 items-center justify-center rounded-lg backdrop-blur-sm"
+        style={{ background: "var(--glass-hover)" }}
+      >
+        <Icon className="h-4 w-4" style={{ color: "var(--glass-accent, var(--glass-text))" }} />
       </div>
-      <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+      <span
+        className="text-sm font-semibold uppercase tracking-widest"
+        style={{ color: "var(--glass-text-muted)" }}
+      >
         {title}
       </span>
       {count !== undefined && count > 0 && (
-        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+        <span className="ml-auto text-xs tabular-nums" style={{ color: "var(--glass-text-muted)" }}>
           {count} result{count !== 1 ? "s" : ""}
         </span>
       )}
@@ -57,9 +63,15 @@ function ColumnHeader({
 
 function EmptyColumn({ label }: { label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/50 bg-card/30 backdrop-blur-sm py-10 text-center">
-      <SearchX className="h-8 w-8 text-muted-foreground/40" />
-      <p className="text-sm text-muted-foreground">No {label} results</p>
+    <div
+      className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-10 text-center backdrop-blur-sm"
+      style={{
+        borderColor: "var(--glass-border)",
+        background: "var(--glass-bg)",
+      }}
+    >
+      <SearchX className="h-8 w-8" style={{ color: "var(--glass-text-muted)", opacity: 0.4 }} />
+      <p className="text-sm" style={{ color: "var(--glass-text-muted)" }}>No {label} results</p>
     </div>
   )
 }
@@ -99,7 +111,7 @@ export function SearchResults({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.15 }}
       >
-        <SearchSkeleton count={3} />
+        <SearchLoading />
       </motion.div>
     )
   }
@@ -112,10 +124,10 @@ export function SearchResults({
     <AnimatePresence mode="wait">
       <motion.div
         key={query}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18 }}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 10 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
         className="grid grid-cols-1 gap-6 md:grid-cols-2"
       >
         {/* ── Keyword column ── */}
@@ -127,8 +139,14 @@ export function SearchResults({
           />
 
           {keywordError ? (
-            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4">
-              <p className="text-sm text-destructive">
+            <div
+              className="rounded-xl border p-4"
+              style={{
+                borderColor: "var(--glass-error, #ef4444)",
+                background: "rgba(239, 68, 68, 0.1)",
+              }}
+            >
+              <p className="text-sm" style={{ color: "var(--glass-error, #ef4444)" }}>
                 Failed to load keyword results.
               </p>
             </div>
@@ -154,17 +172,29 @@ export function SearchResults({
           />
 
           {wordCount < 2 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/50 bg-card/30 backdrop-blur-sm py-10 text-center">
-              <Sparkles className="h-8 w-8 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">
+            <div
+              className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-10 text-center backdrop-blur-sm"
+              style={{
+                borderColor: "var(--glass-border)",
+                background: "var(--glass-bg)",
+              }}
+            >
+              <Sparkles className="h-8 w-8" style={{ color: "var(--glass-text-muted)", opacity: 0.3 }} />
+              <p className="text-sm" style={{ color: "var(--glass-text-muted)" }}>
                 Type at least{" "}
-                <span className="font-semibold text-foreground">2 words</span>{" "}
+                <span className="font-semibold" style={{ color: "var(--glass-text)" }}>2 words</span>{" "}
                 for semantic search
               </p>
             </div>
           ) : semanticError ? (
-            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4">
-              <p className="text-sm text-destructive">
+            <div
+              className="rounded-xl border p-4"
+              style={{
+                borderColor: "var(--glass-error, #ef4444)",
+                background: "rgba(239, 68, 68, 0.1)",
+              }}
+            >
+              <p className="text-sm" style={{ color: "var(--glass-error, #ef4444)" }}>
                 Failed to load semantic results.
               </p>
             </div>

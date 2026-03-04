@@ -81,19 +81,19 @@ export default function SearchPage() {
       style={{
         display: "flex",
         flexDirection: "column",
-        height: "calc(100vh - 5rem)",
+        minHeight: "calc(100vh - 5rem)",
         overflowY: "auto",
       }}
     >
-      {/* Hero — takes all remaining height, centers content */}
+      {/* Hero — fixed height, centers content */}
       <div
         style={{
-          flex: 1,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          padding: "0 1rem 1rem",
+          padding: "4rem 1rem 2rem",
+          flexShrink: 0,
         }}
       >
         {/* Title */}

@@ -116,9 +116,10 @@
   }
 
   html {
-    /* Prevent scrollbar layout shift */
+    /* Prevent scrollbar layout shift - always reserve space */
     scrollbar-gutter: stable;
     height: 100%;
+    overflow-y: scroll;
   }
 
   body {
@@ -133,5 +134,30 @@
   input::placeholder {
     color: var(--glass-text-muted);
     opacity: 1;
+  }
+
+  /* Custom scrollbar - always visible but subtle */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--glass-icon);
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--glass-border) transparent;
   }
 }
