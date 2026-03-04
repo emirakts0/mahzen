@@ -1,11 +1,9 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Copy, ExternalLink, ChevronRight, Calendar, WrapText, ArrowLeftRight } from "lucide-react"
+import { Copy, ExternalLink, ChevronRight, Calendar, WrapText, ArrowLeftRight, X } from "lucide-react"
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { getEntry } from "@/api/entries"
@@ -58,7 +56,8 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
   return (
     <Dialog open={!!entryId} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-h-[80vh] overflow-y-auto"
+        showCloseButton={false}
+        className="flex max-h-[80vh] flex-col overflow-hidden p-4"
         style={{
           background: "var(--glass-bg)",
           border: "1px solid var(--glass-border)",
@@ -66,14 +65,25 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
           maxWidth: "800px",
         }}
       >
-        <DialogHeader>
-          <DialogTitle
+        <div
+          className="flex shrink-0 items-center justify-between pb-1.5"
+        >
+          <h2
             style={{ color: "var(--glass-text)" }}
-            className="text-lg leading-none font-semibold"
+            className="text-lg font-semibold"
           >
             {isLoading ? "Loading..." : entry?.title || "Untitled"}
-          </DialogTitle>
-        </DialogHeader>
+          </h2>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 transition-colors hover:opacity-70"
+            style={{ color: "var(--glass-text-muted)" }}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto pt-2">
 
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
@@ -104,30 +114,45 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
               </span>
             </div>
 
-            <div
-              className="rounded-lg p-4 text-sm leading-relaxed"
-              style={{
-                background: "var(--glass-hover)",
-                color: "var(--glass-text-muted)",
-                whiteSpace: wrap ? "pre-wrap" : "pre",
-                overflowX: wrap ? "visible" : "auto",
-              }}
-            >
-              {entry.content}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setWrap(!wrap)}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors"
+            <div className="relative">
+              <div
+                className="rounded-lg p-4 pt-10 text-sm leading-relaxed"
                 style={{
                   background: "var(--glass-hover)",
-                  color: "var(--glass-text)",
+                  color: "var(--glass-text-muted)",
+                  whiteSpace: wrap ? "pre-wrap" : "pre",
+                  overflowX: wrap ? "visible" : "auto",
                 }}
               >
-                {wrap ? <WrapText className="h-3.5 w-3.5" /> : <ArrowLeftRight className="h-3.5 w-3.5" />}
-                {wrap ? "Wrap" : "No Wrap"}
-              </button>
+                {entry.content}
+              </div>
+              
+              <div className="absolute top-2 right-2 flex items-center gap-1">
+                <button
+                  onClick={() => setWrap(!wrap)}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors"
+                  style={{
+                    background: "var(--glass-bg)",
+                    color: "var(--glass-text-muted)",
+                    border: "1px solid var(--glass-border)",
+                  }}
+                >
+                  {wrap ? <WrapText className="h-3 w-3" /> : <ArrowLeftRight className="h-3 w-3" />}
+                  {wrap ? "Wrap" : "No Wrap"}
+                </button>
+                <button
+                  onClick={handleCopy}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors"
+                  style={{
+                    background: "var(--glass-bg)",
+                    color: "var(--glass-text-muted)",
+                    border: "1px solid var(--glass-border)",
+                  }}
+                >
+                  <Copy className="h-3 w-3" />
+                  {copied ? "Copied!" : "Copy"}
+                </button>
+              </div>
             </div>
 
             {entry.tags && entry.tags.length > 0 && (
@@ -149,17 +174,6 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
             )}
 
             <div className="flex gap-2 pt-2">
-              <button
-                onClick={handleCopy}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors"
-                style={{
-                  background: "var(--glass-hover)",
-                  color: "var(--glass-text)",
-                }}
-              >
-                <Copy className="h-3.5 w-3.5" />
-                {copied ? "Copied!" : "Copy"}
-              </button>
               <a
                 href={`/entries/${entry.id}`}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors"
@@ -174,6 +188,7 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
             </div>
           </div>
         ) : null}
+        </div>
       </DialogContent>
     </Dialog>
   )
