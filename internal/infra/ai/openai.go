@@ -43,7 +43,7 @@ func newOpenAI(cfg config.OpenAIConfig) *OpenAIProvider {
 func (p *OpenAIProvider) Embed(ctx context.Context, text string) ([]float32, error) {
 	if p.client == nil {
 		slog.Debug("openai embed skipped (no-op mode)", "text_length", len(text))
-		return make([]float32, 1536), nil
+		return nil, nil
 	}
 
 	slog.Info("openai embed request",

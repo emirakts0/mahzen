@@ -121,6 +121,8 @@ paths:
       responses:
         "200":
           description: Logged out successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -165,6 +167,7 @@ paths:
         entries at `/notes`, `/notes/work`, `/notes/work/meeting`, etc.
       tags: [Entries]
       security:
+        - {}
         - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/PathFilter"
@@ -180,7 +183,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /v1/entries/{id}:
+  /v1/entries/{entry_id}:
     get:
       operationId: GetEntry
       summary: Get a single entry by ID
@@ -365,6 +368,7 @@ paths:
         caller owns them.
       tags: [Search]
       security:
+        - {}
         - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/SearchQuery"
@@ -390,6 +394,7 @@ paths:
         in Typesense. Results respect visibility rules.
       tags: [Search]
       security:
+        - {}
         - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/SearchQuery"
@@ -443,7 +448,7 @@ components:
   # ---------------------------------------------------------------------------
   parameters:
     EntryID:
-      name: id
+      name: entry_id
       in: path
       required: true
       description: Entry UUID
@@ -729,16 +734,32 @@ components:
           type: string
         snippet:
           type: string
-          description: Relevant content excerpt
+          description: AI-generated summary of the entry
         score:
           type: number
           format: double
-          description: Relevance score (keyword) or vector distance (semantic)
+          description: |
+            Cosine similarity score (0.0–1.0). Only present in semantic search
+            results. Omitted in keyword search responses.
         highlights:
           type: array
           items:
             type: string
-          description: Highlighted matching fragments
+          description: Highlighted matching fragments (keyword search only)
+        path:
+          type: string
+          description: Hierarchical path of the entry
+          example: /notes/work
+        visibility:
+          $ref: "#/components/schemas/Visibility"
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tag names associated with the entry
+        created_at:
+          type: string
+          format: date-time
 
     SearchResponse:
       type: object

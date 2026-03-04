@@ -246,6 +246,32 @@ func (s *EntryService) DeleteEntry(ctx context.Context, id string) error {
 	return nil
 }
 
+// GetEntryTags returns the tag names attached to the given entry.
+func (s *EntryService) GetEntryTags(ctx context.Context, entryID string) ([]string, error) {
+	tags, err := s.tags.ListByEntry(ctx, entryID)
+	if err != nil {
+		return nil, fmt.Errorf("listing tags for entry: %w", err)
+	}
+	names := make([]string, len(tags))
+	for i, t := range tags {
+		names[i] = t.Name
+	}
+	return names, nil
+}
+
+// GetEntryTagsBatch fetches tags for multiple entries in a single DB query.
+// Returns a map of entryID -> tag names.
+func (s *EntryService) GetEntryTagsBatch(ctx context.Context, entryIDs []string) (map[string][]string, error) {
+	if len(entryIDs) == 0 {
+		return map[string][]string{}, nil
+	}
+	result, err := s.tags.ListByEntries(ctx, entryIDs)
+	if err != nil {
+		return nil, fmt.Errorf("batch listing tags for entries: %w", err)
+	}
+	return result, nil
+}
+
 // ListEntries lists entries accessible to the given user, optionally filtered by path prefix.
 func (s *EntryService) ListEntries(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error) {
 	slog.Info("listing entries",
@@ -314,11 +340,16 @@ func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, con
 		)
 	}
 
+	indexedEntry := *entry
+	if content != "" {
+		indexedEntry.Content = content
+	}
+
 	var indexErr error
 	if isUpdate {
-		indexErr = s.indexer.UpdateEntry(ctx, entry, tags, embedding)
+		indexErr = s.indexer.UpdateEntry(ctx, &indexedEntry, tags, embedding)
 	} else {
-		indexErr = s.indexer.IndexEntry(ctx, entry, tags, embedding)
+		indexErr = s.indexer.IndexEntry(ctx, &indexedEntry, tags, embedding)
 	}
 	if indexErr != nil {
 		slog.Error("failed to index entry", "entry_id", entry.ID, "is_update", isUpdate, "error", indexErr)

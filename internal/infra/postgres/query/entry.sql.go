@@ -67,22 +67,9 @@ FROM entries
 WHERE id = $1
 `
 
-type GetEntryByIDRow struct {
-	ID         pgtype.UUID        `json:"id"`
-	UserID     pgtype.UUID        `json:"user_id"`
-	Title      string             `json:"title"`
-	Content    string             `json:"content"`
-	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
-	Path       string             `json:"path"`
-	Visibility string             `json:"visibility"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) GetEntryByID(ctx context.Context, id pgtype.UUID) (GetEntryByIDRow, error) {
+func (q *Queries) GetEntryByID(ctx context.Context, id pgtype.UUID) (Entry, error) {
 	row := q.db.QueryRow(ctx, getEntryByID, id)
-	var i GetEntryByIDRow
+	var i Entry
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -114,20 +101,7 @@ type InsertEntryParams struct {
 	Visibility string      `json:"visibility"`
 }
 
-type InsertEntryRow struct {
-	ID         pgtype.UUID        `json:"id"`
-	UserID     pgtype.UUID        `json:"user_id"`
-	Title      string             `json:"title"`
-	Content    string             `json:"content"`
-	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
-	Path       string             `json:"path"`
-	Visibility string             `json:"visibility"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (InsertEntryRow, error) {
+func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Entry, error) {
 	row := q.db.QueryRow(ctx, insertEntry,
 		arg.UserID,
 		arg.Title,
@@ -137,7 +111,7 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Inser
 		arg.Path,
 		arg.Visibility,
 	)
-	var i InsertEntryRow
+	var i Entry
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -167,28 +141,15 @@ type ListAccessibleEntriesParams struct {
 	Offset int32       `json:"offset"`
 }
 
-type ListAccessibleEntriesRow struct {
-	ID         pgtype.UUID        `json:"id"`
-	UserID     pgtype.UUID        `json:"user_id"`
-	Title      string             `json:"title"`
-	Content    string             `json:"content"`
-	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
-	Path       string             `json:"path"`
-	Visibility string             `json:"visibility"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) ListAccessibleEntries(ctx context.Context, arg ListAccessibleEntriesParams) ([]ListAccessibleEntriesRow, error) {
+func (q *Queries) ListAccessibleEntries(ctx context.Context, arg ListAccessibleEntriesParams) ([]Entry, error) {
 	rows, err := q.db.Query(ctx, listAccessibleEntries, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListAccessibleEntriesRow{}
+	items := []Entry{}
 	for rows.Next() {
-		var i ListAccessibleEntriesRow
+		var i Entry
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -227,20 +188,7 @@ type ListAccessibleEntriesByPathParams struct {
 	Offset int32       `json:"offset"`
 }
 
-type ListAccessibleEntriesByPathRow struct {
-	ID         pgtype.UUID        `json:"id"`
-	UserID     pgtype.UUID        `json:"user_id"`
-	Title      string             `json:"title"`
-	Content    string             `json:"content"`
-	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
-	Path       string             `json:"path"`
-	Visibility string             `json:"visibility"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAccessibleEntriesByPathParams) ([]ListAccessibleEntriesByPathRow, error) {
+func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAccessibleEntriesByPathParams) ([]Entry, error) {
 	rows, err := q.db.Query(ctx, listAccessibleEntriesByPath,
 		arg.UserID,
 		arg.Path,
@@ -251,9 +199,9 @@ func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAcces
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListAccessibleEntriesByPathRow{}
+	items := []Entry{}
 	for rows.Next() {
-		var i ListAccessibleEntriesByPathRow
+		var i Entry
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -290,28 +238,15 @@ type ListEntriesByUserParams struct {
 	Offset int32       `json:"offset"`
 }
 
-type ListEntriesByUserRow struct {
-	ID         pgtype.UUID        `json:"id"`
-	UserID     pgtype.UUID        `json:"user_id"`
-	Title      string             `json:"title"`
-	Content    string             `json:"content"`
-	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
-	Path       string             `json:"path"`
-	Visibility string             `json:"visibility"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserParams) ([]ListEntriesByUserRow, error) {
+func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserParams) ([]Entry, error) {
 	rows, err := q.db.Query(ctx, listEntriesByUser, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListEntriesByUserRow{}
+	items := []Entry{}
 	for rows.Next() {
-		var i ListEntriesByUserRow
+		var i Entry
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -351,20 +286,7 @@ type UpdateEntryParams struct {
 	Visibility string      `json:"visibility"`
 }
 
-type UpdateEntryRow struct {
-	ID         pgtype.UUID        `json:"id"`
-	UserID     pgtype.UUID        `json:"user_id"`
-	Title      string             `json:"title"`
-	Content    string             `json:"content"`
-	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
-	Path       string             `json:"path"`
-	Visibility string             `json:"visibility"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) UpdateEntry(ctx context.Context, arg UpdateEntryParams) (UpdateEntryRow, error) {
+func (q *Queries) UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Entry, error) {
 	row := q.db.QueryRow(ctx, updateEntry,
 		arg.ID,
 		arg.Title,
@@ -374,7 +296,7 @@ func (q *Queries) UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Updat
 		arg.Path,
 		arg.Visibility,
 	)
-	var i UpdateEntryRow
+	var i Entry
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,

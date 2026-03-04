@@ -19,12 +19,7 @@ func TestNoOpEmbed(t *testing.T) {
 
 	embedding, err := p.Embed(context.Background(), "test text")
 	require.NoError(t, err)
-	assert.Len(t, embedding, 1536, "no-op embedding should return 1536-dimensional zero vector")
-
-	// All values should be zero.
-	for i, v := range embedding {
-		assert.Equal(t, float32(0), v, "embedding[%d] should be zero", i)
-	}
+	assert.Nil(t, embedding, "no-op embedding should return nil (no API key configured)")
 }
 
 func TestNoOpSummarize(t *testing.T) {

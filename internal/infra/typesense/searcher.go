@@ -72,7 +72,7 @@ func (s *Searcher) KeywordSearch(ctx context.Context, query, userID string, limi
 
 func (s *Searcher) SemanticSearch(ctx context.Context, embedding []float32, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
 	filterBy := buildVisibilityFilter(userID)
-	vectorQuery := fmt.Sprintf("embedding:([%s], k:%d)", floatsToString(embedding), limit)
+	vectorQuery := fmt.Sprintf("embedding:([%s], k:%d)", floatsToString(embedding), max(limit+offset, limit))
 
 	slog.Info("typesense semantic search",
 		"user_id", userID,
@@ -161,15 +161,19 @@ func mapSearchResults(result *api.SearchResult) ([]*domain.SearchResult, int, er
 	for _, hit := range *result.Hits {
 		doc := *hit.Document
 		sr := &domain.SearchResult{
-			EntryID: stringFromDoc(doc, "entry_id"),
-			Title:   stringFromDoc(doc, "title"),
-			Snippet: stringFromDoc(doc, "summary"),
+			EntryID:    stringFromDoc(doc, "entry_id"),
+			Title:      stringFromDoc(doc, "title"),
+			Snippet:    stringFromDoc(doc, "summary"),
+			Path:       stringFromDoc(doc, "path"),
+			Visibility: stringFromDoc(doc, "visibility"),
+			Tags:       stringsFromDoc(doc, "tags"),
 		}
 
-		if hit.TextMatch != nil {
-			// Send raw TextMatch score; normalization is done on the frontend.
-			sr.Score = float64(*hit.TextMatch)
+		// Convert Unix timestamp to RFC3339 string.
+		if ts := int64FromDoc(doc, "created_at"); ts > 0 {
+			sr.CreatedAt = time.Unix(ts, 0).UTC().Format(time.RFC3339)
 		}
+
 		if hit.VectorDistance != nil {
 			// Convert distance to similarity score (lower distance = higher relevance)
 			sr.Score = float64(1.0 - *hit.VectorDistance)
@@ -202,6 +206,44 @@ func stringFromDoc(doc map[string]interface{}, key string) string {
 	return s
 }
 
+// stringsFromDoc safely extracts a []string value from a document map.
+// Typesense returns string arrays as []interface{} with string elements.
+func stringsFromDoc(doc map[string]interface{}, key string) []string {
+	v, ok := doc[key]
+	if !ok {
+		return nil
+	}
+	raw, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	result := make([]string, 0, len(raw))
+	for _, elem := range raw {
+		if s, ok := elem.(string); ok {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// int64FromDoc safely extracts an int64 value from a document map.
+// Typesense returns numbers as float64 in JSON.
+func int64FromDoc(doc map[string]interface{}, key string) int64 {
+	v, ok := doc[key]
+	if !ok {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64:
+		return int64(n)
+	case int64:
+		return n
+	case int:
+		return int64(n)
+	}
+	return 0
+}
+
 // floatsToString converts a float32 slice to a comma-separated string for vector queries.
 func floatsToString(fs []float32) string {
 	if len(fs) == 0 {
@@ -215,4 +257,11 @@ func floatsToString(fs []float32) string {
 		b.WriteString(strconv.FormatFloat(float64(f), 'f', -1, 32))
 	}
 	return b.String()
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

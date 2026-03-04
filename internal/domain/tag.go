@@ -23,4 +23,7 @@ type TagRepository interface {
 	AttachToEntry(ctx context.Context, entryID, tagID string) error
 	DetachFromEntry(ctx context.Context, entryID, tagID string) error
 	ListByEntry(ctx context.Context, entryID string) ([]*Tag, error)
+	// ListByEntries fetches tags for multiple entries in a single query.
+	// Returns a map of entryID -> tag names.
+	ListByEntries(ctx context.Context, entryIDs []string) (map[string][]string, error)
 }

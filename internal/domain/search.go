@@ -9,6 +9,10 @@ type SearchResult struct {
 	Snippet    string
 	Score      float64
 	Highlights []string
+	Path       string
+	Visibility string
+	Tags       []string
+	CreatedAt  string
 }
 
 // Indexer defines operations for indexing entries in the search engine.

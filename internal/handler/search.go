@@ -24,8 +24,12 @@ type searchResultResponse struct {
 	EntryID    string   `json:"entry_id"`
 	Title      string   `json:"title"`
 	Snippet    string   `json:"snippet"`
-	Score      float64  `json:"score"`
+	Score      float64  `json:"score,omitempty"`
 	Highlights []string `json:"highlights,omitempty"`
+	Path       string   `json:"path"`
+	Visibility string   `json:"visibility"`
+	Tags       []string `json:"tags,omitempty"`
+	CreatedAt  string   `json:"created_at"`
 }
 
 func (h *searchHandler) keywordSearch(c *gin.Context) {
@@ -58,8 +62,11 @@ func (h *searchHandler) keywordSearch(c *gin.Context) {
 			EntryID:    r.EntryID,
 			Title:      r.Title,
 			Snippet:    r.Snippet,
-			Score:      r.Score,
 			Highlights: r.Highlights,
+			Path:       r.Path,
+			Visibility: r.Visibility,
+			Tags:       r.Tags,
+			CreatedAt:  r.CreatedAt,
 		}
 	}
 
@@ -101,6 +108,10 @@ func (h *searchHandler) semanticSearch(c *gin.Context) {
 			Snippet:    r.Snippet,
 			Score:      r.Score,
 			Highlights: r.Highlights,
+			Path:       r.Path,
+			Visibility: r.Visibility,
+			Tags:       r.Tags,
+			CreatedAt:  r.CreatedAt,
 		}
 	}
 

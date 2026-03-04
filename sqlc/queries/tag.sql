@@ -40,3 +40,10 @@ FROM tags t
 INNER JOIN entry_tags et ON et.tag_id = t.id
 WHERE et.entry_id = $1
 ORDER BY t.name;
+
+-- name: ListTagsByEntries :many
+SELECT et.entry_id, t.id, t.name, t.slug, t.created_at
+FROM tags t
+INNER JOIN entry_tags et ON et.tag_id = t.id
+WHERE et.entry_id = ANY($1::uuid[])
+ORDER BY et.entry_id, t.name;

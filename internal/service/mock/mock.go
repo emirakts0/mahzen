@@ -61,6 +61,7 @@ type TagRepository struct {
 	AttachToEntryFn   func(ctx context.Context, entryID, tagID string) error
 	DetachFromEntryFn func(ctx context.Context, entryID, tagID string) error
 	ListByEntryFn     func(ctx context.Context, entryID string) ([]*domain.Tag, error)
+	ListByEntriesFn   func(ctx context.Context, entryIDs []string) (map[string][]string, error)
 }
 
 func (m *TagRepository) Create(ctx context.Context, tag *domain.Tag) error {
@@ -93,6 +94,10 @@ func (m *TagRepository) DetachFromEntry(ctx context.Context, entryID, tagID stri
 
 func (m *TagRepository) ListByEntry(ctx context.Context, entryID string) ([]*domain.Tag, error) {
 	return m.ListByEntryFn(ctx, entryID)
+}
+
+func (m *TagRepository) ListByEntries(ctx context.Context, entryIDs []string) (map[string][]string, error) {
+	return m.ListByEntriesFn(ctx, entryIDs)
 }
 
 // ---------------------------------------------------------------------------

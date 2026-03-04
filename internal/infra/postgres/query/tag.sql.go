@@ -158,6 +158,48 @@ func (q *Queries) ListTags(ctx context.Context, arg ListTagsParams) ([]Tag, erro
 	return items, nil
 }
 
+const listTagsByEntries = `-- name: ListTagsByEntries :many
+SELECT et.entry_id, t.id, t.name, t.slug, t.created_at
+FROM tags t
+INNER JOIN entry_tags et ON et.tag_id = t.id
+WHERE et.entry_id = ANY($1::uuid[])
+ORDER BY et.entry_id, t.name
+`
+
+type ListTagsByEntriesRow struct {
+	EntryID   pgtype.UUID        `json:"entry_id"`
+	ID        pgtype.UUID        `json:"id"`
+	Name      string             `json:"name"`
+	Slug      string             `json:"slug"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) ListTagsByEntries(ctx context.Context, dollar_1 []pgtype.UUID) ([]ListTagsByEntriesRow, error) {
+	rows, err := q.db.Query(ctx, listTagsByEntries, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTagsByEntriesRow{}
+	for rows.Next() {
+		var i ListTagsByEntriesRow
+		if err := rows.Scan(
+			&i.EntryID,
+			&i.ID,
+			&i.Name,
+			&i.Slug,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTagsByEntry = `-- name: ListTagsByEntry :many
 SELECT t.id, t.name, t.slug, t.created_at
 FROM tags t

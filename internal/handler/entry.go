@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -89,8 +90,13 @@ func (h *entryHandler) createEntry(c *gin.Context) {
 		return
 	}
 
+	tags, err := h.svc.GetEntryTags(c.Request.Context(), entry.ID)
+	if err != nil {
+		slog.Warn("failed to fetch tags for created entry", "entry_id", entry.ID, "error", err)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"entry": domainEntryToResponse(entry, nil),
+		"entry": domainEntryToResponse(entry, tags),
 	})
 }
 
@@ -103,8 +109,13 @@ func (h *entryHandler) getEntry(c *gin.Context) {
 		return
 	}
 
+	tags, err := h.svc.GetEntryTags(c.Request.Context(), id)
+	if err != nil {
+		slog.Warn("failed to fetch tags for entry", "entry_id", id, "error", err)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"entry": domainEntryToResponse(entry, nil),
+		"entry": domainEntryToResponse(entry, tags),
 	})
 }
 
@@ -125,8 +136,13 @@ func (h *entryHandler) updateEntry(c *gin.Context) {
 		return
 	}
 
+	tags, err := h.svc.GetEntryTags(c.Request.Context(), id)
+	if err != nil {
+		slog.Warn("failed to fetch tags for updated entry", "entry_id", id, "error", err)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"entry": domainEntryToResponse(entry, nil),
+		"entry": domainEntryToResponse(entry, tags),
 	})
 }
 
@@ -165,9 +181,19 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 		return
 	}
 
+	entryIDs := make([]string, len(entries))
+	for i, e := range entries {
+		entryIDs[i] = e.ID
+	}
+	tagsByEntry, err := h.svc.GetEntryTagsBatch(c.Request.Context(), entryIDs)
+	if err != nil {
+		slog.Warn("failed to batch fetch tags for entries", "error", err)
+		tagsByEntry = map[string][]string{}
+	}
+
 	items := make([]*entryResponse, len(entries))
 	for i, e := range entries {
-		items[i] = domainEntryToResponse(e, nil)
+		items[i] = domainEntryToResponse(e, tagsByEntry[e.ID])
 	}
 
 	c.JSON(http.StatusOK, gin.H{

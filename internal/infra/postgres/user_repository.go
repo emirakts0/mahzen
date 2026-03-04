@@ -56,34 +56,12 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 	return mapUserRow(row), nil
 }
 
-func mapUserRow[T query.CreateUserRow | query.GetUserByIDRow | query.GetUserByEmailRow](row T) *domain.User {
-	// All three row types share identical fields; cast through any to access them.
-	switch v := any(row).(type) {
-	case query.CreateUserRow:
-		return &domain.User{
-			ID:           uuidToString(v.ID),
-			Email:        v.Email,
-			DisplayName:  v.DisplayName,
-			PasswordHash: v.PasswordHash,
-			CreatedAt:    v.CreatedAt.Time,
-		}
-	case query.GetUserByIDRow:
-		return &domain.User{
-			ID:           uuidToString(v.ID),
-			Email:        v.Email,
-			DisplayName:  v.DisplayName,
-			PasswordHash: v.PasswordHash,
-			CreatedAt:    v.CreatedAt.Time,
-		}
-	case query.GetUserByEmailRow:
-		return &domain.User{
-			ID:           uuidToString(v.ID),
-			Email:        v.Email,
-			DisplayName:  v.DisplayName,
-			PasswordHash: v.PasswordHash,
-			CreatedAt:    v.CreatedAt.Time,
-		}
-	default:
-		return nil
+func mapUserRow(row query.User) *domain.User {
+	return &domain.User{
+		ID:           uuidToString(row.ID),
+		Email:        row.Email,
+		DisplayName:  row.DisplayName,
+		PasswordHash: row.PasswordHash,
+		CreatedAt:    row.CreatedAt.Time,
 	}
 }

@@ -15,10 +15,10 @@ type Entry struct {
 	Content    string             `json:"content"`
 	Summary    string             `json:"summary"`
 	S3Key      string             `json:"s3_key"`
+	Path       string             `json:"path"`
 	Visibility string             `json:"visibility"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-	Path       string             `json:"path"`
 }
 
 type EntryTag struct {
@@ -45,6 +45,6 @@ type User struct {
 	ID           pgtype.UUID        `json:"id"`
 	Email        string             `json:"email"`
 	DisplayName  string             `json:"display_name"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	PasswordHash string             `json:"password_hash"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }

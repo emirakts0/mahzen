@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/emirakts0/mahzen/internal/domain"
@@ -151,6 +152,29 @@ func (r *TagRepository) ListByEntry(ctx context.Context, entryID string) ([]*dom
 		mapTagRow(&rows[i], tags[i])
 	}
 	return tags, nil
+}
+
+func (r *TagRepository) ListByEntries(ctx context.Context, entryIDs []string) (map[string][]string, error) {
+	uuids := make([]pgtype.UUID, 0, len(entryIDs))
+	for _, id := range entryIDs {
+		uid, err := parseUUID(id)
+		if err != nil {
+			return nil, fmt.Errorf("parsing entry id: %w", err)
+		}
+		uuids = append(uuids, uid)
+	}
+
+	rows, err := r.q.ListTagsByEntries(ctx, uuids)
+	if err != nil {
+		return nil, fmt.Errorf("listing tags by entries: %w", err)
+	}
+
+	result := make(map[string][]string, len(entryIDs))
+	for _, row := range rows {
+		eid := uuidToString(row.EntryID)
+		result[eid] = append(result[eid], row.Name)
+	}
+	return result, nil
 }
 
 // mapTagRow maps a sqlc-generated Tag row to a domain Tag.
