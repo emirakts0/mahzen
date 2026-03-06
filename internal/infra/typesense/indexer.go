@@ -104,6 +104,9 @@ func (idx *Indexer) DeleteEntry(ctx context.Context, id string) error {
 }
 
 // buildDocument converts a domain entry into a Typesense document map.
+// For binary file types (e.g. mp4, zip) the content field is omitted from the
+// index so only the summary is searchable. Text-readable entries always have
+// their full content indexed (the caller passes original content before S3 upload).
 func buildDocument(entry *domain.Entry, tags []*domain.Tag, embedding []float32) map[string]interface{} {
 	tagNames := make([]string, len(tags))
 	for i, t := range tags {
@@ -115,12 +118,23 @@ func buildDocument(entry *domain.Entry, tags []*domain.Tag, embedding []float32)
 		"entry_id":   entry.ID,
 		"user_id":    entry.UserID,
 		"title":      entry.Title,
-		"content":    entry.Content,
 		"summary":    entry.Summary,
 		"path":       entry.Path,
 		"visibility": entry.Visibility.String(),
 		"tags":       tagNames,
 		"created_at": entry.CreatedAt.Unix(),
+		"file_type":  entry.FileType,
+		"file_size":  entry.FileSize,
+		"s3_key":     entry.S3Key,
+	}
+
+	// Only index content for text-readable entries.
+	// Binary files (mp4, zip, pdf, etc.) should not have their content indexed;
+	// only their AI-generated summary will be searchable.
+	if isTextReadable(entry.FileType) {
+		doc["content"] = entry.Content
+	} else {
+		doc["content"] = ""
 	}
 
 	if len(embedding) > 0 {
@@ -128,4 +142,57 @@ func buildDocument(entry *domain.Entry, tags []*domain.Tag, embedding []float32)
 	}
 
 	return doc
+}
+
+// textReadableTypes is the set of file extensions that contain human-readable text
+// and whose content should be indexed for full-text search.
+var textReadableTypes = map[string]bool{
+	"":      true, // plain text entry (no file type)
+	"txt":   true,
+	"md":    true,
+	"go":    true,
+	"java":  true,
+	"py":    true,
+	"js":    true,
+	"ts":    true,
+	"jsx":   true,
+	"tsx":   true,
+	"css":   true,
+	"html":  true,
+	"htm":   true,
+	"xml":   true,
+	"json":  true,
+	"yaml":  true,
+	"yml":   true,
+	"toml":  true,
+	"ini":   true,
+	"sh":    true,
+	"bash":  true,
+	"zsh":   true,
+	"rs":    true,
+	"c":     true,
+	"cpp":   true,
+	"h":     true,
+	"hpp":   true,
+	"cs":    true,
+	"rb":    true,
+	"php":   true,
+	"sql":   true,
+	"r":     true,
+	"kt":    true,
+	"swift": true,
+	"scala": true,
+	"lua":   true,
+	"pl":    true,
+	"csv":   true,
+	"log":   true,
+	"conf":  true,
+	"env":   true,
+	"tf":    true,
+}
+
+// isTextReadable reports whether the given file extension corresponds to a
+// human-readable text format that should have its content indexed.
+func isTextReadable(fileType string) bool {
+	return textReadableTypes[fileType]
 }

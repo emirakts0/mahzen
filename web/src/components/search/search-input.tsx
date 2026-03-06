@@ -19,7 +19,8 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
       <div className={cn("relative w-full", className)}>
         <div className="relative flex items-center">
           <Search
-            className="absolute left-4 z-10 h-5 w-5 shrink-0 text-foreground opacity-60"
+            className="absolute left-4 z-10 h-5 w-5 shrink-0"
+            style={{ color: "var(--glass-text-muted)" }}
           />
           <input
             ref={ref}

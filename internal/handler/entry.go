@@ -29,6 +29,7 @@ type createEntryRequest struct {
 	Path       string   `json:"path"`
 	Visibility string   `json:"visibility"`
 	TagIDs     []string `json:"tag_ids"`
+	FileType   string   `json:"file_type"`
 }
 
 // updateEntryRequest is the JSON body for PUT /v1/entries/:id.
@@ -38,6 +39,7 @@ type updateEntryRequest struct {
 	Path       string   `json:"path"`
 	Visibility string   `json:"visibility"`
 	TagIDs     []string `json:"tag_ids"`
+	FileType   string   `json:"file_type"`
 }
 
 // entryResponse is the JSON representation of an entry.
@@ -50,6 +52,8 @@ type entryResponse struct {
 	Path       string   `json:"path"`
 	Visibility string   `json:"visibility"`
 	Tags       []string `json:"tags,omitempty"`
+	FileType   string   `json:"file_type,omitempty"`
+	FileSize   int64    `json:"file_size,omitempty"`
 	CreatedAt  string   `json:"created_at"`
 	UpdatedAt  string   `json:"updated_at"`
 }
@@ -64,6 +68,8 @@ func domainEntryToResponse(e *domain.Entry, tags []string) *entryResponse {
 		Path:       e.Path,
 		Visibility: e.Visibility.String(),
 		Tags:       tags,
+		FileType:   e.FileType,
+		FileSize:   e.FileSize,
 		CreatedAt:  e.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  e.UpdatedAt.Format(time.RFC3339),
 	}
@@ -84,7 +90,7 @@ func (h *entryHandler) createEntry(c *gin.Context) {
 
 	vis := domain.ParseVisibility(req.Visibility)
 
-	entry, err := h.svc.CreateEntry(c.Request.Context(), userID, req.Title, req.Content, req.Path, vis, req.TagIDs)
+	entry, err := h.svc.CreateEntry(c.Request.Context(), userID, req.Title, req.Content, req.Path, req.FileType, vis, req.TagIDs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "creating entry: " + err.Error()})
 		return
@@ -130,7 +136,7 @@ func (h *entryHandler) updateEntry(c *gin.Context) {
 
 	vis := domain.ParseVisibility(req.Visibility)
 
-	entry, err := h.svc.UpdateEntry(c.Request.Context(), id, req.Title, req.Content, req.Path, vis, req.TagIDs)
+	entry, err := h.svc.UpdateEntry(c.Request.Context(), id, req.Title, req.Content, req.Path, req.FileType, vis, req.TagIDs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "updating entry: " + err.Error()})
 		return

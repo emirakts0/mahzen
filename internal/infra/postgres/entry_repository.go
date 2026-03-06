@@ -35,6 +35,8 @@ func (r *EntryRepository) Create(ctx context.Context, entry *domain.Entry) error
 		S3Key:      entry.S3Key,
 		Path:       entry.Path,
 		Visibility: entry.Visibility.String(),
+		FileType:   entry.FileType,
+		FileSize:   entry.FileSize,
 	})
 	if err != nil {
 		return fmt.Errorf("inserting entry: %w", err)
@@ -48,6 +50,8 @@ func (r *EntryRepository) Create(ctx context.Context, entry *domain.Entry) error
 	entry.S3Key = row.S3Key
 	entry.Path = row.Path
 	entry.Visibility = domain.ParseVisibility(row.Visibility)
+	entry.FileType = row.FileType
+	entry.FileSize = row.FileSize
 	entry.CreatedAt = row.CreatedAt.Time
 	entry.UpdatedAt = row.UpdatedAt.Time
 	return nil
@@ -73,6 +77,8 @@ func (r *EntryRepository) GetByID(ctx context.Context, id string) (*domain.Entry
 		S3Key:      row.S3Key,
 		Path:       row.Path,
 		Visibility: domain.ParseVisibility(row.Visibility),
+		FileType:   row.FileType,
+		FileSize:   row.FileSize,
 		CreatedAt:  row.CreatedAt.Time,
 		UpdatedAt:  row.UpdatedAt.Time,
 	}, nil
@@ -92,6 +98,8 @@ func (r *EntryRepository) Update(ctx context.Context, entry *domain.Entry) error
 		S3Key:      entry.S3Key,
 		Path:       entry.Path,
 		Visibility: entry.Visibility.String(),
+		FileType:   entry.FileType,
+		FileSize:   entry.FileSize,
 	})
 	if err != nil {
 		return fmt.Errorf("updating entry: %w", err)
@@ -105,6 +113,8 @@ func (r *EntryRepository) Update(ctx context.Context, entry *domain.Entry) error
 	entry.S3Key = row.S3Key
 	entry.Path = row.Path
 	entry.Visibility = domain.ParseVisibility(row.Visibility)
+	entry.FileType = row.FileType
+	entry.FileSize = row.FileSize
 	entry.CreatedAt = row.CreatedAt.Time
 	entry.UpdatedAt = row.UpdatedAt.Time
 	return nil
@@ -153,6 +163,8 @@ func (r *EntryRepository) ListByUser(ctx context.Context, userID string, limit, 
 			S3Key:      row.S3Key,
 			Path:       row.Path,
 			Visibility: domain.ParseVisibility(row.Visibility),
+			FileType:   row.FileType,
+			FileSize:   row.FileSize,
 			CreatedAt:  row.CreatedAt.Time,
 			UpdatedAt:  row.UpdatedAt.Time,
 		}
@@ -204,6 +216,8 @@ func (r *EntryRepository) ListAccessible(ctx context.Context, userID, pathPrefix
 				S3Key:      row.S3Key,
 				Path:       row.Path,
 				Visibility: domain.ParseVisibility(row.Visibility),
+				FileType:   row.FileType,
+				FileSize:   row.FileSize,
 				CreatedAt:  row.CreatedAt.Time,
 				UpdatedAt:  row.UpdatedAt.Time,
 			}
@@ -237,6 +251,8 @@ func (r *EntryRepository) ListAccessible(ctx context.Context, userID, pathPrefix
 			S3Key:      row.S3Key,
 			Path:       row.Path,
 			Visibility: domain.ParseVisibility(row.Visibility),
+			FileType:   row.FileType,
+			FileSize:   row.FileSize,
 			CreatedAt:  row.CreatedAt.Time,
 			UpdatedAt:  row.UpdatedAt.Time,
 		}

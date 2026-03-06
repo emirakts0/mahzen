@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import { SearchInput } from "@/components/search/search-input"
@@ -57,16 +57,37 @@ export default function SearchPage() {
     inputRef.current?.focus()
   }, [])
 
+  // Track whether the hero search bar has scrolled out of view
+  const heroSearchRef = useRef<HTMLDivElement>(null)
+  const [isSearchSticky, setIsSearchSticky] = useState(false)
+  const [headerBottom, setHeaderBottom] = useState(72) // fallback px
+  const headerBottomRef = useRef(72)
+
+  useEffect(() => {
+    // measure the floating header's bottom edge
+    const header = document.querySelector("header")
+    if (header) {
+      const rect = header.getBoundingClientRect()
+      const val = rect.bottom + 8
+      setHeaderBottom(val)
+      headerBottomRef.current = val
+    }
+
+    const check = () => {
+      const el = heroSearchRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      setIsSearchSticky(rect.bottom < headerBottomRef.current)
+    }
+    window.addEventListener("scroll", check, { passive: true })
+    check()
+    return () => window.removeEventListener("scroll", check)
+  }, [])
+
   const keywordResults: SearchResult[] = keywordData?.results ?? []
   const semanticResults: SearchResult[] = semanticData?.results ?? []
 
   const showResults = isAuthenticated && trimmedQuery.length > 0
-  const isLoading = isKeywordFetching || isSemanticFetching
-
-  const hint =
-    query.trim().length > 0 && wordCount < MIN_SEMANTIC_WORDS
-      ? "Type at least 2 words to enable semantic search"
-      : null
 
   if (authLoading) {
     return (
@@ -82,7 +103,6 @@ export default function SearchPage() {
         display: "flex",
         flexDirection: "column",
         minHeight: "calc(100vh - 5rem)",
-        overflowY: "auto",
       }}
     >
       {/* Hero — fixed height, centers content */}
@@ -121,14 +141,13 @@ export default function SearchPage() {
         </div>
 
         {/* Search bar — fixed width, centered */}
-        <div style={{ width: "100%", maxWidth: "640px" }}>
+        <div ref={heroSearchRef} style={{ width: "100%", maxWidth: "640px" }}>
           {isAuthenticated ? (
             <SearchInput
               ref={inputRef}
               value={query}
               onChange={handleChange}
               onClear={handleClear}
-              hint={hint}
               autoFocus
             />
           ) : (
@@ -189,6 +208,37 @@ export default function SearchPage() {
         </div>
       </div>
 
+      {/* Sticky search bar — appears when hero scrolls out */}
+      <AnimatePresence>
+        {isSearchSticky && isAuthenticated && (
+          <motion.div
+            key="sticky-search"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            style={{
+              position: "fixed",
+              top: `${headerBottom}px`,
+              left: 0,
+              right: 0,
+              zIndex: 40,
+              display: "flex",
+              justifyContent: "center",
+              padding: "0 1rem",
+            }}
+          >
+            <div style={{ width: "100%", maxWidth: "640px" }}>
+              <SearchInput
+                value={query}
+                onChange={handleChange}
+                onClear={handleClear}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Results */}
       <AnimatePresence>
         {showResults && (
@@ -202,13 +252,15 @@ export default function SearchPage() {
               width: "100%",
               maxWidth: "72rem",
               margin: "0 auto",
-              padding: "0 1rem 3rem",
+              padding: isSearchSticky ? "3.5rem 1rem 3rem" : "0 1rem 3rem",
+              transition: "padding 0.2s ease",
             }}
           >
             <SearchResults
               keywordResults={keywordResults}
               semanticResults={semanticResults}
-              isKeywordLoading={isLoading}
+              isKeywordLoading={isKeywordFetching}
+              isSemanticLoading={isSemanticFetching}
               keywordError={keywordError instanceof Error ? keywordError : null}
               semanticError={semanticError instanceof Error ? semanticError : null}
               query={trimmedQuery}

@@ -84,6 +84,7 @@ interface SearchResultsProps {
   keywordResults: SearchResult[]
   semanticResults: SearchResult[]
   isKeywordLoading: boolean
+  isSemanticLoading: boolean
   keywordError: Error | null
   semanticError: Error | null
   query: string
@@ -97,6 +98,7 @@ export function SearchResults({
   keywordResults,
   semanticResults,
   isKeywordLoading,
+  isSemanticLoading,
   keywordError,
   semanticError,
   query,
@@ -185,6 +187,10 @@ export function SearchResults({
                 <span className="font-semibold" style={{ color: "var(--glass-text)" }}>2 words</span>{" "}
                 for semantic search
               </p>
+            </div>
+          ) : isSemanticLoading ? (
+            <div className="flex justify-center py-10">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           ) : semanticError ? (
             <div

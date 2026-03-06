@@ -110,6 +110,74 @@ create_entry() {
   fi
 }
 
+# Dosya entry'si oluşturma (file_type + büyük içerik → S3'e gider)
+# Kullanım: create_file_entry <title> <path> <visibility> <file_type> <content_file> [tag_ids...]
+# content_file: içeriğin yazılı olduğu geçici dosya yolu
+create_file_entry() {
+  local title=$1
+  local path=$2
+  local visibility=$3
+  local file_type=$4
+  local content_file=$5
+  shift 5
+  local tag_ids_json="[]"
+  if [ $# -gt 0 ] && [ -n "$1" ]; then
+    tag_ids_json=$(printf '"%s",' "$@" | sed 's/,$//' | sed 's/^/[/' | sed 's/$/]/')
+  fi
+
+  local payload_file
+  payload_file=$(mktemp)
+  python3 - "$title" "$path" "$visibility" "$file_type" "$content_file" "$tag_ids_json" > "$payload_file" <<'PYEOF'
+import json, sys
+title, path, visibility, file_type, content_file, tag_ids_json = sys.argv[1:]
+with open(content_file) as f:
+    content = f.read()
+import ast
+tag_ids = ast.literal_eval(tag_ids_json) if tag_ids_json != "[]" else []
+print(json.dumps({
+    "title": title,
+    "path": path,
+    "visibility": visibility,
+    "file_type": file_type,
+    "content": content,
+    "tag_ids": tag_ids,
+}))
+PYEOF
+
+  local res
+  res=$($CURL -X POST "$BASE/v1/entries" \
+    -H "Authorization: Bearer $ACCESS" \
+    -H "Content-Type: application/json" \
+    --data-binary "@$payload_file")
+  rm -f "$payload_file"
+
+  local id
+  id=$(echo "$res" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+  if [ -n "$id" ]; then
+    created=$((created + 1))
+    echo "$id"
+  else
+    warn "Dosya entry'si oluşturulamadı: $title | $res"
+    echo ""
+  fi
+}
+
+# 70KB+ lorem ipsum benzeri içerik üreteci (S3 threshold'unu aşmak için)
+big_content() {
+  python3 -c "
+import random, string
+words = ['veri', 'dosya', 'sistem', 'bellek', 'disk', 'ağ', 'sunucu', 'istemci',
+         'protokol', 'paket', 'bağlantı', 'güvenlik', 'şifreleme', 'performans',
+         'önbellek', 'dizin', 'kayıt', 'yapı', 'akış', 'tampon', 'byte', 'bit',
+         'arayüz', 'sürücü', 'çekirdek', 'kullanıcı', 'oturum', 'yetki', 'erişim']
+lines = []
+for _ in range(900):
+    n = random.randint(12, 20)
+    lines.append(' '.join(random.choices(words, k=n)))
+print('\n'.join(lines))
+"
+}
+
 # ─── Entryler ─────────────────────────────────────────────────────────────────
 info "Entry'ler oluşturuluyor..."
 
@@ -1403,6 +1471,40 @@ Workspace (çoklu modül geliştirme):
 
 info "Entryler oluşturuldu: $created"
 
+# ─── Dosya entry'leri (binary / S3) ──────────────────────────────────────────
+info "Dosya entry'leri oluşturuluyor (S3'e gidecekler)..."
+
+# Geçici büyük içerik dosyası oluştur (her seferinde yeniden üretmek yerine bir kez)
+_big=$(mktemp)
+big_content > "$_big"
+
+# ZIP — dağıtım paketi (~100KB içerik → S3)
+create_file_entry "mahzen-v0.3.2-linux-amd64.zip" "/dosyalar/dagitim" "public"   "zip"  "$_big" "$TAG_DEVOPS" "$TAG_GO"
+big_content > "$_big"
+create_file_entry "frontend-dist-2026-03-05.zip"   "/dosyalar/dagitim" "private"  "zip"  "$_big" "$TAG_FRONTEND" "$TAG_DEVOPS"
+big_content > "$_big"
+create_file_entry "mahzen-mimari-dokumani.pdf"      "/dosyalar/belgeler" "public"  "pdf"  "$_big" "$TAG_ARCH"
+big_content > "$_big"
+create_file_entry "guvenlik-denetim-raporu-2026.pdf" "/dosyalar/belgeler" "private" "pdf" "$_big" "$TAG_SECURITY"
+big_content > "$_big"
+create_file_entry "gophercon-2024-context-konusmasi.mp4" "/dosyalar/videolar" "private" "mp4" "$_big" "$TAG_GO"
+big_content > "$_big"
+create_file_entry "mahzen-demo-ekran-kaydi.mp4"    "/dosyalar/videolar" "public"  "mp4"  "$_big" "$TAG_ARCH" "$TAG_DEVOPS"
+big_content > "$_big"
+create_file_entry "context-ornek-implementasyon.go" "/dosyalar/kod"    "public"  "go"   "$_big" "$TAG_GO"
+big_content > "$_big"
+create_file_entry "pg-yedek-2026-03-05.tar.gz"     "/dosyalar/yedekler" "private" "gz"  "$_big" "$TAG_DB" "$TAG_DEVOPS"
+
+# Küçük içerikli (inline DB'de kalır)
+_small=$(mktemp)
+printf 'PNG diyagram: handler → service → domain ← infra katman şeması. Bağımlılık yönleri ok ile gösterilmiş.' > "$_small"
+create_file_entry "sistem-mimarisi-diyagrami.png"  "/dosyalar/gorseller" "public" "png"  "$_small" "$TAG_ARCH"
+printf 'Yük testi sonuçları: endpoint, p50, p95, p99, hata oranı, RPS. /v1/search/semantic p99=120ms.' > "$_small"
+create_file_entry "yuk-testi-sonuclari.xlsx"        "/dosyalar/belgeler" "private" "xlsx" "$_small" "$TAG_PERF"
+
+rm -f "$_big" "$_small"
+info "Dosya entry'leri oluşturuldu."
+
 # ─── Özet ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -1410,11 +1512,12 @@ echo -e "${GREEN}  Seed tamamlandı!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "  Kullanıcı  : emir@mahzen.dev / mahzen123"
 echo -e "  Taglar     : 15"
-echo -e "  Entry'ler  : $created"
+echo -e "  Entry'ler  : $created (metin + dosya)"
 echo -e "  Yollar     : /notlar/golang, /notlar/veritabani,"
 echo -e "               /notlar/linux, /notlar/git, /notlar/api,"
 echo -e "               /notlar/docker, /notlar/guvenik,"
 echo -e "               /notlar/performans, /notlar/mimari,"
 echo -e "               /notlar/yapay-zeka, /notlar/frontend,"
-echo -e "               /gunluk, /referans, /projeler/mahzen"
+echo -e "               /gunluk, /referans, /projeler/mahzen,"
+echo -e "               /dosyalar/{dagitim,belgeler,videolar,gorseller,kod,yedekler}"
 echo ""

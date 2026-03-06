@@ -40,16 +40,25 @@ export interface UserResponse {
 // Search
 // ─────────────────────────────────────────────
 
+export interface Highlight {
+  field: "title" | "content" | "summary"
+  snippet: string
+}
+
 export interface SearchResult {
   entry_id: string
   title: string
-  snippet: string
+  summary?: string
+  content?: string
   score: number
-  highlights: string[]
+  highlights?: Highlight[]
   path: string
   visibility: "public" | "private"
   tags: string[]
   created_at: string
+  file_type?: string
+  file_size?: number
+  s3_key?: string
 }
 
 export interface SearchResponse {
@@ -78,6 +87,9 @@ export interface Entry {
   tags?: string[]
   created_at: string
   updated_at: string
+  file_type?: string
+  file_size?: number
+  s3_key?: string
 }
 
 export interface EntryResponse {
@@ -95,6 +107,7 @@ export interface CreateEntryRequest {
   path?: string
   visibility?: "public" | "private"
   tag_ids?: string[]
+  file_type?: string
 }
 
 export interface UpdateEntryRequest {
@@ -103,6 +116,7 @@ export interface UpdateEntryRequest {
   path?: string
   visibility?: "public" | "private"
   tag_ids?: string[]
+  file_type?: string
 }
 
 export interface ListEntriesParams {

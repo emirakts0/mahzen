@@ -62,14 +62,29 @@ func (q *Queries) DeleteEntry(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getEntryByID = `-- name: GetEntryByID :one
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, created_at, updated_at
+SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
 FROM entries
 WHERE id = $1
 `
 
-func (q *Queries) GetEntryByID(ctx context.Context, id pgtype.UUID) (Entry, error) {
+type GetEntryByIDRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Title      string             `json:"title"`
+	Content    string             `json:"content"`
+	Summary    string             `json:"summary"`
+	S3Key      string             `json:"s3_key"`
+	Path       string             `json:"path"`
+	Visibility string             `json:"visibility"`
+	FileType   string             `json:"file_type"`
+	FileSize   int64              `json:"file_size"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetEntryByID(ctx context.Context, id pgtype.UUID) (GetEntryByIDRow, error) {
 	row := q.db.QueryRow(ctx, getEntryByID, id)
-	var i Entry
+	var i GetEntryByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -79,6 +94,8 @@ func (q *Queries) GetEntryByID(ctx context.Context, id pgtype.UUID) (Entry, erro
 		&i.S3Key,
 		&i.Path,
 		&i.Visibility,
+		&i.FileType,
+		&i.FileSize,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -86,9 +103,9 @@ func (q *Queries) GetEntryByID(ctx context.Context, id pgtype.UUID) (Entry, erro
 }
 
 const insertEntry = `-- name: InsertEntry :one
-INSERT INTO entries (user_id, title, content, summary, s3_key, path, visibility)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, user_id, title, content, summary, s3_key, path, visibility, created_at, updated_at
+INSERT INTO entries (user_id, title, content, summary, s3_key, path, visibility, file_type, file_size)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
 `
 
 type InsertEntryParams struct {
@@ -99,9 +116,26 @@ type InsertEntryParams struct {
 	S3Key      string      `json:"s3_key"`
 	Path       string      `json:"path"`
 	Visibility string      `json:"visibility"`
+	FileType   string      `json:"file_type"`
+	FileSize   int64       `json:"file_size"`
 }
 
-func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Entry, error) {
+type InsertEntryRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Title      string             `json:"title"`
+	Content    string             `json:"content"`
+	Summary    string             `json:"summary"`
+	S3Key      string             `json:"s3_key"`
+	Path       string             `json:"path"`
+	Visibility string             `json:"visibility"`
+	FileType   string             `json:"file_type"`
+	FileSize   int64              `json:"file_size"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (InsertEntryRow, error) {
 	row := q.db.QueryRow(ctx, insertEntry,
 		arg.UserID,
 		arg.Title,
@@ -110,8 +144,10 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Entry
 		arg.S3Key,
 		arg.Path,
 		arg.Visibility,
+		arg.FileType,
+		arg.FileSize,
 	)
-	var i Entry
+	var i InsertEntryRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -121,6 +157,8 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Entry
 		&i.S3Key,
 		&i.Path,
 		&i.Visibility,
+		&i.FileType,
+		&i.FileSize,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -128,7 +166,7 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Entry
 }
 
 const listAccessibleEntries = `-- name: ListAccessibleEntries :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, created_at, updated_at
+SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
 FROM entries
 WHERE (visibility = 'public' OR user_id = $1)
 ORDER BY path ASC, created_at DESC
@@ -141,15 +179,30 @@ type ListAccessibleEntriesParams struct {
 	Offset int32       `json:"offset"`
 }
 
-func (q *Queries) ListAccessibleEntries(ctx context.Context, arg ListAccessibleEntriesParams) ([]Entry, error) {
+type ListAccessibleEntriesRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Title      string             `json:"title"`
+	Content    string             `json:"content"`
+	Summary    string             `json:"summary"`
+	S3Key      string             `json:"s3_key"`
+	Path       string             `json:"path"`
+	Visibility string             `json:"visibility"`
+	FileType   string             `json:"file_type"`
+	FileSize   int64              `json:"file_size"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListAccessibleEntries(ctx context.Context, arg ListAccessibleEntriesParams) ([]ListAccessibleEntriesRow, error) {
 	rows, err := q.db.Query(ctx, listAccessibleEntries, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Entry{}
+	items := []ListAccessibleEntriesRow{}
 	for rows.Next() {
-		var i Entry
+		var i ListAccessibleEntriesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -159,6 +212,8 @@ func (q *Queries) ListAccessibleEntries(ctx context.Context, arg ListAccessibleE
 			&i.S3Key,
 			&i.Path,
 			&i.Visibility,
+			&i.FileType,
+			&i.FileSize,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -173,7 +228,7 @@ func (q *Queries) ListAccessibleEntries(ctx context.Context, arg ListAccessibleE
 }
 
 const listAccessibleEntriesByPath = `-- name: ListAccessibleEntriesByPath :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, created_at, updated_at
+SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
 FROM entries
 WHERE (visibility = 'public' OR user_id = $1)
   AND (path = $2 OR path LIKE $2 || '/%')
@@ -188,7 +243,22 @@ type ListAccessibleEntriesByPathParams struct {
 	Offset int32       `json:"offset"`
 }
 
-func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAccessibleEntriesByPathParams) ([]Entry, error) {
+type ListAccessibleEntriesByPathRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Title      string             `json:"title"`
+	Content    string             `json:"content"`
+	Summary    string             `json:"summary"`
+	S3Key      string             `json:"s3_key"`
+	Path       string             `json:"path"`
+	Visibility string             `json:"visibility"`
+	FileType   string             `json:"file_type"`
+	FileSize   int64              `json:"file_size"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAccessibleEntriesByPathParams) ([]ListAccessibleEntriesByPathRow, error) {
 	rows, err := q.db.Query(ctx, listAccessibleEntriesByPath,
 		arg.UserID,
 		arg.Path,
@@ -199,9 +269,9 @@ func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAcces
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Entry{}
+	items := []ListAccessibleEntriesByPathRow{}
 	for rows.Next() {
-		var i Entry
+		var i ListAccessibleEntriesByPathRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -211,6 +281,8 @@ func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAcces
 			&i.S3Key,
 			&i.Path,
 			&i.Visibility,
+			&i.FileType,
+			&i.FileSize,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -225,7 +297,7 @@ func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAcces
 }
 
 const listEntriesByUser = `-- name: ListEntriesByUser :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, created_at, updated_at
+SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
 FROM entries
 WHERE user_id = $1
 ORDER BY created_at DESC
@@ -238,15 +310,30 @@ type ListEntriesByUserParams struct {
 	Offset int32       `json:"offset"`
 }
 
-func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserParams) ([]Entry, error) {
+type ListEntriesByUserRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Title      string             `json:"title"`
+	Content    string             `json:"content"`
+	Summary    string             `json:"summary"`
+	S3Key      string             `json:"s3_key"`
+	Path       string             `json:"path"`
+	Visibility string             `json:"visibility"`
+	FileType   string             `json:"file_type"`
+	FileSize   int64              `json:"file_size"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserParams) ([]ListEntriesByUserRow, error) {
 	rows, err := q.db.Query(ctx, listEntriesByUser, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Entry{}
+	items := []ListEntriesByUserRow{}
 	for rows.Next() {
-		var i Entry
+		var i ListEntriesByUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -256,6 +343,8 @@ func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserPa
 			&i.S3Key,
 			&i.Path,
 			&i.Visibility,
+			&i.FileType,
+			&i.FileSize,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -271,9 +360,9 @@ func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserPa
 
 const updateEntry = `-- name: UpdateEntry :one
 UPDATE entries
-SET title = $2, content = $3, summary = $4, s3_key = $5, path = $6, visibility = $7, updated_at = now()
+SET title = $2, content = $3, summary = $4, s3_key = $5, path = $6, visibility = $7, file_type = $8, file_size = $9, updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, title, content, summary, s3_key, path, visibility, created_at, updated_at
+RETURNING id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
 `
 
 type UpdateEntryParams struct {
@@ -284,9 +373,26 @@ type UpdateEntryParams struct {
 	S3Key      string      `json:"s3_key"`
 	Path       string      `json:"path"`
 	Visibility string      `json:"visibility"`
+	FileType   string      `json:"file_type"`
+	FileSize   int64       `json:"file_size"`
 }
 
-func (q *Queries) UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Entry, error) {
+type UpdateEntryRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Title      string             `json:"title"`
+	Content    string             `json:"content"`
+	Summary    string             `json:"summary"`
+	S3Key      string             `json:"s3_key"`
+	Path       string             `json:"path"`
+	Visibility string             `json:"visibility"`
+	FileType   string             `json:"file_type"`
+	FileSize   int64              `json:"file_size"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpdateEntry(ctx context.Context, arg UpdateEntryParams) (UpdateEntryRow, error) {
 	row := q.db.QueryRow(ctx, updateEntry,
 		arg.ID,
 		arg.Title,
@@ -295,8 +401,10 @@ func (q *Queries) UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Entry
 		arg.S3Key,
 		arg.Path,
 		arg.Visibility,
+		arg.FileType,
+		arg.FileSize,
 	)
-	var i Entry
+	var i UpdateEntryRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -306,6 +414,8 @@ func (q *Queries) UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Entry
 		&i.S3Key,
 		&i.Path,
 		&i.Visibility,
+		&i.FileType,
+		&i.FileSize,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

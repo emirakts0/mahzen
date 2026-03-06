@@ -44,13 +44,15 @@ func NewEntryService(
 }
 
 // CreateEntry creates a new entry, optionally storing content in S3 and indexing it.
-func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, path string, visibility domain.Visibility, tagIDs []string) (*domain.Entry, error) {
+// fileType is the client-provided file extension (e.g. "mp4", "zip"). Empty string means plain text.
+func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, path, fileType string, visibility domain.Visibility, tagIDs []string) (*domain.Entry, error) {
 	slog.Info("creating entry",
 		"user_id", userID,
 		"title", title,
 		"path", path,
 		"visibility", visibility.String(),
 		"content_length", len(content),
+		"file_type", fileType,
 		"tag_count", len(tagIDs),
 	)
 
@@ -65,6 +67,8 @@ func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, 
 		Content:    content,
 		Path:       normalizedPath,
 		Visibility: visibility,
+		FileType:   fileType,
+		FileSize:   int64(len(content)),
 	}
 
 	// Store large content in S3.
@@ -139,13 +143,15 @@ func (s *EntryService) GetEntry(ctx context.Context, id string) (*domain.Entry, 
 }
 
 // UpdateEntry updates an existing entry.
-func (s *EntryService) UpdateEntry(ctx context.Context, id, title, content, path string, visibility domain.Visibility, tagIDs []string) (*domain.Entry, error) {
+// fileType is the client-provided file extension. Empty string keeps the existing value.
+func (s *EntryService) UpdateEntry(ctx context.Context, id, title, content, path, fileType string, visibility domain.Visibility, tagIDs []string) (*domain.Entry, error) {
 	slog.Info("updating entry",
 		"entry_id", id,
 		"title", title,
 		"path", path,
 		"visibility", visibility.String(),
 		"content_length", len(content),
+		"file_type", fileType,
 		"tag_count", len(tagIDs),
 	)
 
@@ -165,6 +171,10 @@ func (s *EntryService) UpdateEntry(ctx context.Context, id, title, content, path
 
 	entry.Title = title
 	entry.Visibility = visibility
+	if fileType != "" {
+		entry.FileType = fileType
+	}
+	entry.FileSize = int64(len(content))
 
 	// Handle content storage changes.
 	if int64(len(content)) >= s.s3Threshold {

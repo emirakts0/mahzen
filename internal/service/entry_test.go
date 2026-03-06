@@ -64,7 +64,7 @@ func TestCreateEntry_InlineContent(t *testing.T) {
 
 	svc := newTestEntryService(entries, tags, storage, indexer, embedder, 65536)
 
-	entry, err := svc.CreateEntry(context.Background(), "user-1", "Test Title", "short content", "/notes", domain.VisibilityPublic, []string{"tag-1"})
+	entry, err := svc.CreateEntry(context.Background(), "user-1", "Test Title", "short content", "/notes", "", domain.VisibilityPublic, []string{"tag-1"})
 	require.NoError(t, err)
 	assert.Equal(t, "entry-1", entry.ID)
 	assert.Equal(t, "Test Title", entry.Title)
@@ -115,7 +115,7 @@ func TestCreateEntry_S3Content(t *testing.T) {
 	svc := newTestEntryService(entries, tags, storage, indexer, embedder, 10)
 	largeContent := "this content is well above 10 bytes threshold"
 
-	entry, err := svc.CreateEntry(context.Background(), "user-1", "Big Entry", largeContent, "/docs", domain.VisibilityPrivate, nil)
+	entry, err := svc.CreateEntry(context.Background(), "user-1", "Big Entry", largeContent, "/docs", "", domain.VisibilityPrivate, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, uploadedKey, "should have uploaded to S3")
 	assert.Equal(t, largeContent, uploadedData)
@@ -135,7 +135,7 @@ func TestCreateEntry_RepoError(t *testing.T) {
 	embedder := &mock.Embedder{}
 
 	svc := newTestEntryService(entries, tags, storage, indexer, embedder, 65536)
-	_, err := svc.CreateEntry(context.Background(), "user-1", "Title", "content", "/", domain.VisibilityPublic, nil)
+	_, err := svc.CreateEntry(context.Background(), "user-1", "Title", "content", "/", "", domain.VisibilityPublic, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "creating entry")
 }
@@ -152,7 +152,7 @@ func TestCreateEntry_S3UploadError(t *testing.T) {
 	embedder := &mock.Embedder{}
 
 	svc := newTestEntryService(entries, tags, storage, indexer, embedder, 10)
-	_, err := svc.CreateEntry(context.Background(), "user-1", "Title", "large enough content", "/", domain.VisibilityPublic, nil)
+	_, err := svc.CreateEntry(context.Background(), "user-1", "Title", "large enough content", "/", "", domain.VisibilityPublic, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "uploading content to s3")
 }
@@ -186,7 +186,7 @@ func TestCreateEntry_TagAttachError_NonFatal(t *testing.T) {
 
 	svc := newTestEntryService(entries, tags, storage, indexer, embedder, 65536)
 	// Tag attach fails but CreateEntry should still succeed.
-	entry, err := svc.CreateEntry(context.Background(), "user-1", "Title", "content", "/", domain.VisibilityPublic, []string{"bad-tag"})
+	entry, err := svc.CreateEntry(context.Background(), "user-1", "Title", "content", "/", "", domain.VisibilityPublic, []string{"bad-tag"})
 	require.NoError(t, err)
 	assert.Equal(t, "entry-3", entry.ID)
 }
@@ -307,7 +307,7 @@ func TestUpdateEntry_InlineToInline(t *testing.T) {
 
 	svc := newTestEntryService(entries, tags, &mock.ObjectStorage{}, indexer, embedder, 65536)
 
-	entry, err := svc.UpdateEntry(context.Background(), "entry-1", "Updated Title", "new content", "/projects", domain.VisibilityPrivate, nil)
+	entry, err := svc.UpdateEntry(context.Background(), "entry-1", "Updated Title", "new content", "/projects", "", domain.VisibilityPrivate, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Title", entry.Title)
 	assert.Equal(t, "new content", updatedEntry.Content)
@@ -352,7 +352,7 @@ func TestUpdateEntry_InlineToS3(t *testing.T) {
 
 	svc := newTestEntryService(entries, tags, storage, indexer, embedder, 10)
 
-	entry, err := svc.UpdateEntry(context.Background(), "entry-1", "Title", "this is now large enough for s3", "", domain.VisibilityPublic, nil)
+	entry, err := svc.UpdateEntry(context.Background(), "entry-1", "Title", "this is now large enough for s3", "", "", domain.VisibilityPublic, nil)
 	require.NoError(t, err)
 	assert.True(t, uploadCalled, "should upload to S3")
 	assert.NotEmpty(t, entry.S3Key)
@@ -397,7 +397,7 @@ func TestUpdateEntry_S3ToInline(t *testing.T) {
 
 	svc := newTestEntryService(entries, tags, storage, indexer, embedder, 65536)
 
-	entry, err := svc.UpdateEntry(context.Background(), "entry-1", "Title", "small now", "", domain.VisibilityPublic, nil)
+	entry, err := svc.UpdateEntry(context.Background(), "entry-1", "Title", "small now", "", "", domain.VisibilityPublic, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "entries/user-1/old-key", deletedKey, "old S3 object should be deleted")
 	assert.Empty(t, entry.S3Key, "S3 key should be cleared")
@@ -446,7 +446,7 @@ func TestUpdateEntry_ReTagging(t *testing.T) {
 	}
 
 	svc := newTestEntryService(entries, tags, &mock.ObjectStorage{}, indexer, embedder, 65536)
-	_, err := svc.UpdateEntry(context.Background(), "entry-1", "Title", "content", "", domain.VisibilityPublic, []string{"new-tag-1", "new-tag-2"})
+	_, err := svc.UpdateEntry(context.Background(), "entry-1", "Title", "content", "", "", domain.VisibilityPublic, []string{"new-tag-1", "new-tag-2"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"old-tag-1"}, detachedTags, "old tags should be detached")
 	assert.Equal(t, []string{"new-tag-1", "new-tag-2"}, attachedTags, "new tags should be attached")

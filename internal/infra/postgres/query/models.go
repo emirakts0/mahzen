@@ -19,6 +19,8 @@ type Entry struct {
 	Visibility string             `json:"visibility"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	FileType   string             `json:"file_type"`
+	FileSize   int64              `json:"file_size"`
 }
 
 type EntryTag struct {
