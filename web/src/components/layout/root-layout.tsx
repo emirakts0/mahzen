@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import GrainientBackground from "@/components/layout/grainient-background"
 import { PageScrollbar } from "@/components/layout/page-scrollbar"
+import { AuthModal } from "@/components/auth/auth-modal"
 
 export default function RootLayout() {
   return (
@@ -21,6 +22,9 @@ export default function RootLayout() {
 
       {/* Overlay scrollbar — floats above Grainient, never touches the background */}
       <PageScrollbar />
+
+      {/* Global Auth Modal based on URL ?auth=login|signup */}
+      <AuthModal />
 
       <Toaster richColors position="top-right" />
     </TooltipProvider>

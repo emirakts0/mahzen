@@ -57,7 +57,7 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
     <Dialog open={!!entryId} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="flex max-h-[80vh] flex-col overflow-hidden p-4"
+        className="flex max-h-[80vh] flex-col overflow-hidden p-0 sm:p-0 gap-0"
         style={{
           background: "var(--glass-bg)",
           border: "1px solid var(--glass-border)",
@@ -66,7 +66,8 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
         }}
       >
         <div
-          className="flex shrink-0 items-center justify-between pb-1.5"
+          className="flex shrink-0 items-center justify-between px-6 pt-6 pb-4 border-b"
+          style={{ borderColor: "var(--glass-border)" }}
         >
           <h2
             style={{ color: "var(--glass-text)" }}
@@ -83,7 +84,7 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
           </button>
         </div>
 
-        <div className="overflow-y-auto pt-2">
+        <div className="overflow-y-auto px-6 py-6">
 
         {isLoading ? (
           <div className="flex items-center justify-center py-8">

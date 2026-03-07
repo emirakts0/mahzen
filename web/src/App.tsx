@@ -4,8 +4,6 @@ import SearchPage from "@/pages/search-page"
 import EntriesPage from "@/pages/entries-page"
 import EntryDetailPage from "@/pages/entry-detail-page"
 import TagsPage from "@/pages/tags-page"
-import LoginPage from "@/pages/login-page"
-import SignupPage from "@/pages/signup-page"
 
 const router = createBrowserRouter([
   {
@@ -32,15 +30,15 @@ const router = createBrowserRouter([
         path: "tags",
         element: <TagsPage />,
       },
+      {
+        path: "login",
+        element: <Navigate to="/search?auth=login" replace />,
+      },
+      {
+        path: "signup",
+        element: <Navigate to="/search?auth=signup" replace />,
+      },
     ],
-  },
-  {
-    path: "/login",
-    element: <LoginPage />,
-  },
-  {
-    path: "/signup",
-    element: <SignupPage />,
   },
 ])
 

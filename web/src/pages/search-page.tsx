@@ -6,9 +6,6 @@ import { SearchResults } from "@/components/search/search-results"
 import { useDebounce } from "@/hooks/use-debounce"
 import { keywordSearch, semanticSearch } from "@/api/search"
 import { useAuth } from "@/hooks/use-auth"
-import { Button } from "@/components/ui/button"
-import { Link } from "react-router"
-import { Lock } from "lucide-react"
 import type { SearchResult } from "@/types/api"
 
 const DEBOUNCE_MS = 350
@@ -59,29 +56,29 @@ export default function SearchPage() {
 
   // Track whether the hero search bar has scrolled out of view
   const heroSearchRef = useRef<HTMLDivElement>(null)
-  const [isSearchSticky, setIsSearchSticky] = useState(false)
-  const [headerBottom, setHeaderBottom] = useState(72) // fallback px
-  const headerBottomRef = useRef(72)
+  const isSearchStickyRef = useRef(false)
 
   useEffect(() => {
-    // measure the floating header's bottom edge
-    const header = document.querySelector("header")
-    if (header) {
-      const rect = header.getBoundingClientRect()
-      const val = rect.bottom + 8
-      setHeaderBottom(val)
-      headerBottomRef.current = val
-    }
-
     const check = () => {
       const el = heroSearchRef.current
       if (!el) return
       const rect = el.getBoundingClientRect()
-      setIsSearchSticky(rect.bottom < headerBottomRef.current)
+      // The header is at top: 1rem (16px).
+      // We want to trigger when the search bar's top reaches 16px.
+      const isSticky = rect.top <= 16
+
+      if (isSticky !== isSearchStickyRef.current) {
+        isSearchStickyRef.current = isSticky
+        // Dispatch event to tell header to hide
+        window.dispatchEvent(new CustomEvent("search-sticky", { detail: isSticky }))
+      }
     }
     window.addEventListener("scroll", check, { passive: true })
-    check()
-    return () => window.removeEventListener("scroll", check)
+    check() // initial check
+    return () => {
+      window.removeEventListener("scroll", check)
+      window.dispatchEvent(new CustomEvent("search-sticky", { detail: false })) // reset on unmount
+    }
   }, [])
 
   const keywordResults: SearchResult[] = keywordData?.results ?? []
@@ -112,7 +109,7 @@ export default function SearchPage() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          padding: "4rem 1rem 2rem",
+          padding: "4rem 1rem 1rem",
           flexShrink: 0,
         }}
       >
@@ -139,9 +136,23 @@ export default function SearchPage() {
             Discover insights across your knowledge base
           </p>
         </div>
+      </div>
 
-        {/* Search bar — fixed width, centered */}
-        <div ref={heroSearchRef} style={{ width: "100%", maxWidth: "640px" }}>
+      {/* Sticky Search bar — naturally follows hero, sticks to top when scrolling */}
+      <div
+        ref={heroSearchRef}
+        style={{
+          position: "sticky",
+          top: "1rem", // Stops exactly where the header was
+          zIndex: 40,
+          width: "100%",
+          display: "flex",
+          justifyContent: "center",
+          padding: "0 1rem 2rem", // Padding acts as a visual spacer below
+          pointerEvents: "none", // Let clicks pass through the padding area to results
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: "640px", pointerEvents: "auto" }}>
           {isAuthenticated ? (
             <SearchInput
               ref={inputRef}
@@ -151,93 +162,15 @@ export default function SearchPage() {
               autoFocus
             />
           ) : (
-            <>
-              <SearchInput
-                value=""
-                onChange={() => undefined}
-                disabled
-                placeholder="Sign in to search your knowledge base..."
-              />
-              <div
-                style={{
-                  marginTop: "1rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    fontSize: "0.875rem",
-                    color: "var(--glass-text-muted)",
-                  }}
-                >
-                  <Lock style={{ width: "1rem", height: "1rem" }} />
-                  <span>Search requires authentication</span>
-                </div>
-                <div style={{ display: "flex", gap: "0.75rem" }}>
-                  <Button
-                    asChild
-                    style={{
-                      background: "var(--glass-bg)",
-                      border: "1px solid var(--glass-border)",
-                      color: "var(--glass-text)",
-                    }}
-                  >
-                    <Link to="/login">Sign in</Link>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    asChild
-                    style={{
-                      background: "var(--glass-bg)",
-                      border: "1px solid var(--glass-border)",
-                      color: "var(--glass-text)",
-                    }}
-                  >
-                    <Link to="/signup">Create account</Link>
-                  </Button>
-                </div>
-              </div>
-            </>
+            <SearchInput
+              value=""
+              onChange={() => undefined}
+              disabled
+              placeholder="Sign in to search your knowledge base..."
+            />
           )}
         </div>
       </div>
-
-      {/* Sticky search bar — appears when hero scrolls out */}
-      <AnimatePresence>
-        {isSearchSticky && isAuthenticated && (
-          <motion.div
-            key="sticky-search"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            style={{
-              position: "fixed",
-              top: `${headerBottom}px`,
-              left: 0,
-              right: 0,
-              zIndex: 40,
-              display: "flex",
-              justifyContent: "center",
-              padding: "0 1rem",
-            }}
-          >
-            <div style={{ width: "100%", maxWidth: "640px" }}>
-              <SearchInput
-                value={query}
-                onChange={handleChange}
-                onClear={handleClear}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Results */}
       <AnimatePresence>
@@ -252,8 +185,7 @@ export default function SearchPage() {
               width: "100%",
               maxWidth: "72rem",
               margin: "0 auto",
-              padding: isSearchSticky ? "3.5rem 1rem 3rem" : "0 1rem 3rem",
-              transition: "padding 0.2s ease",
+              padding: "0 1rem 3rem",
             }}
           >
             <SearchResults

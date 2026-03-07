@@ -293,8 +293,8 @@ export default function EntriesPage() {
         <BookOpen className="h-12 w-12 text-muted-foreground/40" />
         <p className="text-muted-foreground">Sign in to view your entries</p>
         <div className="flex gap-3">
-          <Button asChild><Link to="/login">Sign in</Link></Button>
-          <Button variant="outline" asChild><Link to="/signup">Create account</Link></Button>
+          <Button asChild><Link to="?auth=login" replace>Sign in</Link></Button>
+          <Button variant="outline" asChild><Link to="?auth=signup" replace>Create account</Link></Button>
         </div>
       </div>
     )
