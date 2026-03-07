@@ -188,6 +188,8 @@ paths:
       operationId: GetEntry
       summary: Get a single entry by ID
       tags: [Entries]
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/EntryID"
       responses:
@@ -197,6 +199,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EntryResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -221,6 +225,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EntryResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -235,8 +243,35 @@ paths:
       responses:
         "200":
           description: Entry deleted successfully
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /v1/entries/{entry_id}/download-url:
+    get:
+      operationId: GetEntryDownloadURL
+      summary: Get a pre-signed URL to download entry content from S3
+      description: |
+        Returns a pre-signed URL for downloading the entry's content from object
+        storage. Only applicable for entries with content stored in S3 (i.e., entries
+        where `file_size` >= 64KB or `s3_key` is set).
+      tags: [Entries]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/EntryID"
+      responses:
+        "200":
+          description: Pre-signed URL returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DownloadURLResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   # ---------------------------------------------------------------------------
   # Tags
@@ -261,6 +296,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TagResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -309,6 +348,8 @@ paths:
       responses:
         "200":
           description: Tag deleted successfully
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -330,6 +371,8 @@ paths:
       responses:
         "200":
           description: Tag attached successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -352,6 +395,8 @@ paths:
       responses:
         "200":
           description: Tag detached successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -606,6 +651,16 @@ components:
           items:
             type: string
           description: Tag names associated with this entry
+        file_type:
+          type: string
+          description: MIME type extension (e.g. "mp4", "zip", "pdf"). Empty for plain text.
+        file_size:
+          type: integer
+          format: int64
+          description: Size of the content in bytes
+        s3_key:
+          type: string
+          description: S3 object key when content is stored in object storage (64KB+ files)
         created_at:
           type: string
           format: date-time
@@ -635,12 +690,26 @@ components:
             type: string
             format: uuid
           description: Tag IDs to attach to the entry
+        file_type:
+          type: string
+          description: |
+            MIME type extension provided by the client (e.g. "mp4", "zip", "pdf").
+            Empty string means plain text entry. When set, the content is treated
+            as binary for indexing purposes (not indexed in Typesense, but AI
+            summary and embeddings are generated).
 
     EntryResponse:
       type: object
       properties:
         entry:
           $ref: "#/components/schemas/Entry"
+
+    DownloadURLResponse:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Pre-signed URL for downloading the entry content from S3
 
     UpdateEntryRequest:
       type: object
@@ -662,6 +731,9 @@ components:
           items:
             type: string
             format: uuid
+        file_type:
+          type: string
+          description: MIME type extension (e.g. "mp4", "zip", "pdf").
 
     ListEntriesResponse:
       type: object
@@ -724,6 +796,16 @@ components:
           description: ID of the tag to attach
 
     # -- Search ----------------------------------------------------------------
+    Highlight:
+      type: object
+      properties:
+        field:
+          type: string
+          description: The field this highlight applies to (title, content, or summary)
+        snippet:
+          type: string
+          description: Text with <mark> tags around matched query tokens
+
     SearchResult:
       type: object
       properties:
@@ -732,9 +814,12 @@ components:
           format: uuid
         title:
           type: string
-        snippet:
+        summary:
           type: string
           description: AI-generated summary of the entry
+        content:
+          type: string
+          description: Inline text content; absent for S3/binary entries
         score:
           type: number
           format: double
@@ -744,8 +829,8 @@ components:
         highlights:
           type: array
           items:
-            type: string
-          description: Highlighted matching fragments (keyword search only)
+            $ref: "#/components/schemas/Highlight"
+          description: Highlighted matching fragments with field attribution (keyword search only)
         path:
           type: string
           description: Hierarchical path of the entry
@@ -757,6 +842,16 @@ components:
           items:
             type: string
           description: Tag names associated with the entry
+        file_type:
+          type: string
+          description: MIME type extension (e.g. "mp4", "zip"). Empty for plain text.
+        file_size:
+          type: integer
+          format: int64
+          description: Size of the content in bytes
+        s3_key:
+          type: string
+          description: S3 object key for content stored in object storage
         created_at:
           type: string
           format: date-time

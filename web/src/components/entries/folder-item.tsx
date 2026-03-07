@@ -7,9 +7,7 @@ interface FolderItemProps {
   node: TreeNode
   depth: number
   isExpanded: boolean
-  isSelected: boolean
   onToggle: () => void
-  onSelect: () => void
   children?: React.ReactNode
 }
 
@@ -17,27 +15,22 @@ export function FolderItem({
   node,
   depth,
   isExpanded,
-  isSelected,
   onToggle,
-  onSelect,
   children,
 }: FolderItemProps) {
   return (
     <div>
       <motion.button
-        onClick={() => {
-          onToggle()
-          onSelect()
-        }}
+        onClick={onToggle}
         className={cn(
           "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-all duration-200"
         )}
         style={{
           paddingLeft: depth * 16 + 8,
-          background: isSelected ? "rgba(var(--color-primary), 0.15)" : "transparent",
+          background: "transparent",
           color: "var(--glass-text)",
         }}
-        whileHover={{ x: 2, background: isSelected ? undefined : "var(--glass-hover)" }}
+        whileHover={{ x: 2, background: "var(--glass-hover)" }}
         whileTap={{ scale: 0.99 }}
       >
         <motion.div
@@ -55,18 +48,13 @@ export function FolderItem({
           transition={{ duration: 0.15 }}
         >
           {isExpanded ? (
-            <FolderOpen className="h-4 w-4 text-primary" />
+            <FolderOpen className="h-4 w-4" style={{ color: "var(--glass-icon)" }} />
           ) : (
             <Folder className="h-4 w-4" style={{ color: "var(--glass-icon)" }} />
           )}
         </motion.div>
 
-        <span
-          className={cn(
-            "text-sm font-medium truncate",
-            isSelected && "text-primary"
-          )}
-        >
+        <span className="text-sm font-medium truncate">
           {node.name || "root"}
         </span>
 

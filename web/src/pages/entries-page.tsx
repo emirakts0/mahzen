@@ -7,11 +7,12 @@ import { listEntries } from "@/api/entries"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
 import { FolderTree, CreateEntryDialog } from "@/components/entries"
+import { EntryPreviewModal } from "@/components/search/entry-preview-modal"
 
 export default function EntriesPage() {
   const { isAuthenticated } = useAuth()
   const [createOpen, setCreateOpen] = useState(false)
-  const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const [previewEntryId, setPreviewEntryId] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const { data, isLoading, isRefetching } = useQuery({
@@ -132,8 +133,7 @@ export default function EntriesPage() {
             style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
           >
             <FolderTree
-              selectedPath={selectedPath}
-              onPathSelect={setSelectedPath}
+              onEntrySelect={setPreviewEntryId}
             />
           </motion.div>
         )}
@@ -142,7 +142,12 @@ export default function EntriesPage() {
       <CreateEntryDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        defaultPath={selectedPath || "/"}
+        defaultPath="/"
+      />
+
+      <EntryPreviewModal
+        entryId={previewEntryId}
+        onClose={() => setPreviewEntryId(null)}
       />
     </div>
   )

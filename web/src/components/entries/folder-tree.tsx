@@ -4,17 +4,14 @@ import { motion } from "framer-motion"
 import { listEntries } from "@/api/entries"
 import { FolderItem } from "./folder-item"
 import { EntryItem } from "./entry-item"
-import { EntryPreviewModal } from "@/components/search/entry-preview-modal"
 import type { Entry } from "@/types/api"
 
 interface FolderTreeProps {
-  selectedPath: string | null
-  onPathSelect: (path: string) => void
+  onEntrySelect: (entryId: string) => void
 }
 
-export function FolderTree({ selectedPath, onPathSelect }: FolderTreeProps) {
+export function FolderTree({ onEntrySelect }: FolderTreeProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["/"]))
-  const [previewEntryId, setPreviewEntryId] = useState<string | null>(null)
 
   const toggleFolder = useCallback((path: string) => {
     setExpandedFolders((prev) => {
@@ -28,10 +25,6 @@ export function FolderTree({ selectedPath, onPathSelect }: FolderTreeProps) {
     })
   }, [])
 
-  const handleEntrySelect = useCallback((entryId: string) => {
-    setPreviewEntryId(entryId)
-  }, [])
-
   return (
     <>
       <div className="py-2">
@@ -39,17 +32,10 @@ export function FolderTree({ selectedPath, onPathSelect }: FolderTreeProps) {
           path="/"
           depth={0}
           expandedFolders={expandedFolders}
-          selectedPath={selectedPath}
           onToggle={toggleFolder}
-          onPathSelect={onPathSelect}
-          onEntrySelect={handleEntrySelect}
+          onEntrySelect={onEntrySelect}
         />
       </div>
-
-      <EntryPreviewModal
-        entryId={previewEntryId}
-        onClose={() => setPreviewEntryId(null)}
-      />
     </>
   )
 }
@@ -58,9 +44,7 @@ interface FolderNodeProps {
   path: string
   depth: number
   expandedFolders: Set<string>
-  selectedPath: string | null
   onToggle: (path: string) => void
-  onPathSelect: (path: string) => void
   onEntrySelect: (entryId: string) => void
 }
 
@@ -68,13 +52,10 @@ function FolderNode({
   path,
   depth,
   expandedFolders,
-  selectedPath,
   onToggle,
-  onPathSelect,
   onEntrySelect,
 }: FolderNodeProps) {
   const isExpanded = expandedFolders.has(path)
-  const isSelected = selectedPath === path
 
   const { data, isLoading } = useQuery({
     queryKey: ["entries", path],
@@ -101,9 +82,7 @@ function FolderNode({
           node={node}
           depth={depth}
           isExpanded={isExpanded}
-          isSelected={isSelected}
           onToggle={() => onToggle(path)}
-          onSelect={() => onPathSelect(path)}
         >
           <div className="space-y-0.5">
             {isLoading && (
@@ -124,9 +103,7 @@ function FolderNode({
                 path={folderPath}
                 depth={depth + 1}
                 expandedFolders={expandedFolders}
-                selectedPath={selectedPath}
                 onToggle={onToggle}
-                onPathSelect={onPathSelect}
                 onEntrySelect={onEntrySelect}
               />
             ))}
@@ -136,7 +113,6 @@ function FolderNode({
                 key={entry.id}
                 entry={entry}
                 depth={depth + 1}
-                isSelected={false}
                 onSelect={() => onEntrySelect(entry.id)}
               />
             ))}
@@ -164,9 +140,7 @@ function FolderNode({
               path={folderPath}
               depth={depth}
               expandedFolders={expandedFolders}
-              selectedPath={selectedPath}
               onToggle={onToggle}
-              onPathSelect={onPathSelect}
               onEntrySelect={onEntrySelect}
             />
           ))}
@@ -176,7 +150,6 @@ function FolderNode({
               key={entry.id}
               entry={entry}
               depth={depth + 1}
-              isSelected={false}
               onSelect={() => onEntrySelect(entry.id)}
             />
           ))}
