@@ -7,6 +7,7 @@ interface FolderItemProps {
   node: TreeNode
   depth: number
   isExpanded: boolean
+  count?: number
   onToggle: () => void
   children?: React.ReactNode
 }
@@ -15,6 +16,7 @@ export function FolderItem({
   node,
   depth,
   isExpanded,
+  count,
   onToggle,
   children,
 }: FolderItemProps) {
@@ -58,9 +60,9 @@ export function FolderItem({
           {node.name || "root"}
         </span>
 
-        {node.children.length > 0 && (
+        {count !== undefined && count > 0 && (
           <span className="ml-auto text-xs" style={{ color: "var(--glass-text-muted)" }}>
-            {node.children.length}
+            {count}
           </span>
         )}
       </motion.button>

@@ -12,6 +12,12 @@ import (
 	"github.com/emirakts0/mahzen/internal/service"
 )
 
+// folderResponse represents folder information in the API response.
+type folderResponse struct {
+	Path  string `json:"path"`
+	Count int    `json:"count"`
+}
+
 // entryHandler implements the entry HTTP handlers.
 type entryHandler struct {
 	svc *service.EntryService
@@ -171,7 +177,7 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 
 	limit := 20
 	if l := c.Query("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+		if v, err := strconv.Atoi(l); err == nil && v >= 0 {
 			limit = v
 		}
 	}
@@ -185,7 +191,7 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 
 	// When path is specified, use ListChildren which returns entries AND folders
 	if path != "" {
-		entries, folders, total, err := h.svc.ListChildren(c.Request.Context(), userID, path, limit, offset)
+		entries, folderInfos, total, err := h.svc.ListChildren(c.Request.Context(), userID, path, limit, offset)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "listing children: " + err.Error()})
 			return
@@ -206,6 +212,11 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 			items[i] = domainEntryToResponse(e, tagsByEntry[e.ID])
 		}
 
+		folders := make([]folderResponse, len(folderInfos))
+		for i, f := range folderInfos {
+			folders[i] = folderResponse{Path: f.Path, Count: f.Count}
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"entries": items,
 			"folders": folders,
@@ -214,8 +225,12 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 		return
 	}
 
-	// No path specified - list all entries (original behavior)
-	entries, total, err := h.svc.ListEntries(c.Request.Context(), userID, "", limit, offset)
+	// No path specified - list all entries and root-level folders with counts
+	rootPath := path
+	if rootPath == "" {
+		rootPath = "/"
+	}
+	entries, folderInfos, total, err := h.svc.ListChildren(c.Request.Context(), userID, rootPath, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "listing entries: " + err.Error()})
 		return
@@ -236,8 +251,14 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 		items[i] = domainEntryToResponse(e, tagsByEntry[e.ID])
 	}
 
+	folders := make([]folderResponse, len(folderInfos))
+	for i, f := range folderInfos {
+		folders[i] = folderResponse{Path: f.Path, Count: f.Count}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"entries": items,
+		"folders": folders,
 		"total":   total,
 	})
 }

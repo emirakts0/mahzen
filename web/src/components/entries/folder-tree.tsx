@@ -44,6 +44,7 @@ interface FolderNodeProps {
   path: string
   depth: number
   expandedFolders: Set<string>
+  folderCount?: number
   onToggle: (path: string) => void
   onEntrySelect: (entryId: string) => void
 }
@@ -52,6 +53,7 @@ function FolderNode({
   path,
   depth,
   expandedFolders,
+  folderCount,
   onToggle,
   onEntrySelect,
 }: FolderNodeProps) {
@@ -82,6 +84,7 @@ function FolderNode({
           node={node}
           depth={depth}
           isExpanded={isExpanded}
+          count={folderCount}
           onToggle={() => onToggle(path)}
         >
           <div className="space-y-0.5">
@@ -97,12 +100,13 @@ function FolderNode({
               </div>
             )}
 
-            {!isLoading && folders.map((folderPath) => (
+            {!isLoading && folders.map((folder) => (
               <FolderNode
-                key={folderPath}
-                path={folderPath}
+                key={folder.path}
+                path={folder.path}
                 depth={depth + 1}
                 expandedFolders={expandedFolders}
+                folderCount={folder.count}
                 onToggle={onToggle}
                 onEntrySelect={onEntrySelect}
               />
@@ -134,12 +138,13 @@ function FolderNode({
             </div>
           )}
 
-          {!isLoading && folders.map((folderPath) => (
+          {!isLoading && folders.map((folder) => (
             <FolderNode
-              key={folderPath}
-              path={folderPath}
+              key={folder.path}
+              path={folder.path}
               depth={depth}
               expandedFolders={expandedFolders}
+              folderCount={folder.count}
               onToggle={onToggle}
               onEntrySelect={onEntrySelect}
             />

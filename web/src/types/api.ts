@@ -96,9 +96,14 @@ export interface EntryResponse {
   entry: Entry
 }
 
+export interface FolderInfo {
+  path: string
+  count: number
+}
+
 export interface EntriesResponse {
   entries: Entry[]
-  folders?: string[]
+  folders: FolderInfo[]
   total: number
 }
 

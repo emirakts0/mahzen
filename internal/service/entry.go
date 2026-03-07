@@ -14,6 +14,12 @@ import (
 	"github.com/emirakts0/mahzen/internal/domain"
 )
 
+// FolderInfo represents information about a folder in the entry tree.
+type FolderInfo struct {
+	Path  string
+	Count int
+}
+
 // EntryService contains business logic for managing entries.
 type EntryService struct {
 	entries     domain.EntryRepository
@@ -416,12 +422,12 @@ func (s *EntryService) GetEntryDownloadURL(ctx context.Context, id string) (stri
 	return url, nil
 }
 
-// ListChildren returns entries directly in a path and direct subfolder names.
+// ListChildren returns entries directly in a path and direct subfolders with counts.
 // For path "/abc", returns entries where path="/abc" and folders like "/abc/def" (not recursive).
-func (s *EntryService) ListChildren(ctx context.Context, userID, path string, limit, offset int) ([]*domain.Entry, []string, int, error) {
+func (s *EntryService) ListChildren(ctx context.Context, userID, path string, limit, offset int) ([]*domain.Entry, []FolderInfo, int, error) {
 	slog.Info("listing children", "user_id", userID, "path", path, "limit", limit, "offset", offset)
 
-	entries, total, err := s.entries.ListInPath(ctx, userID, path, limit, offset)
+	entries, directCount, err := s.entries.ListInPath(ctx, userID, path, limit, offset)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("listing entries in path: %w", err)
 	}
@@ -431,17 +437,20 @@ func (s *EntryService) ListChildren(ctx context.Context, userID, path string, li
 		return nil, nil, 0, fmt.Errorf("listing paths under prefix: %w", err)
 	}
 
-	directFolders := extractDirectSubfolders(path, allPaths)
+	folderInfos := extractFolderInfos(path, allPaths)
 
-	slog.Info("children listed", "user_id", userID, "path", path, "entries", len(entries), "folders", len(directFolders), "total", total)
-	return entries, directFolders, total, nil
+	// Total includes entries directly at this path + all entries in subfolders
+	total := directCount + len(allPaths)
+
+	slog.Info("children listed", "user_id", userID, "path", path, "entries", len(entries), "folders", len(folderInfos), "total", total)
+	return entries, folderInfos, total, nil
 }
 
-// extractDirectSubfolders extracts direct subfolder paths from paths under a prefix.
+// extractFolderInfos extracts direct subfolder paths with counts from paths under a prefix.
 // For prefix "/abc" and paths ["/abc/def/file", "/abc/def/sub/file", "/abc/ghi/file"],
-// returns ["/abc/def", "/abc/ghi"].
-func extractDirectSubfolders(prefix string, paths []string) []string {
-	folderSet := make(map[string]struct{})
+// returns [{Path: "/abc/def", Count: 2}, {Path: "/abc/ghi", Count: 1}].
+func extractFolderInfos(prefix string, paths []string) []FolderInfo {
+	folderCounts := make(map[string]int)
 
 	for _, p := range paths {
 		if prefix == "/" {
@@ -452,7 +461,7 @@ func extractDirectSubfolders(prefix string, paths []string) []string {
 			parts := strings.SplitN(remaining, "/", 2)
 			if parts[0] != "" {
 				fullPath := "/" + parts[0]
-				folderSet[fullPath] = struct{}{}
+				folderCounts[fullPath]++
 			}
 		} else {
 			remaining := strings.TrimPrefix(p, prefix+"/")
@@ -462,16 +471,19 @@ func extractDirectSubfolders(prefix string, paths []string) []string {
 			parts := strings.SplitN(remaining, "/", 2)
 			if parts[0] != "" {
 				fullPath := prefix + "/" + parts[0]
-				folderSet[fullPath] = struct{}{}
+				folderCounts[fullPath]++
 			}
 		}
 	}
 
-	folders := make([]string, 0, len(folderSet))
-	for f := range folderSet {
-		folders = append(folders, f)
+	folderInfos := make([]FolderInfo, 0, len(folderCounts))
+	for path, count := range folderCounts {
+		folderInfos = append(folderInfos, FolderInfo{Path: path, Count: count})
 	}
 
-	sort.Strings(folders)
-	return folders
+	sort.Slice(folderInfos, func(i, j int) bool {
+		return folderInfos[i].Path < folderInfos[j].Path
+	})
+
+	return folderInfos
 }

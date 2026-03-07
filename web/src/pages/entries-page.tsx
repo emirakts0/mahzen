@@ -15,14 +15,17 @@ export default function EntriesPage() {
   const [previewEntryId, setPreviewEntryId] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
-  const { data, isLoading, isRefetching } = useQuery({
-    queryKey: ["entries"],
-    queryFn: () => listEntries({ limit: 1 }),
+  // Use same query key as FolderTree to share cache
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["entries", "/"],
+    queryFn: () => listEntries({ path: "/", limit: 0 }),
     enabled: isAuthenticated,
   })
 
+  const total = data?.total ?? 0
+  const isRefetching = isFetching && !isLoading
+
   const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["folders"] })
     queryClient.invalidateQueries({ queryKey: ["entries"] })
   }
 
@@ -46,7 +49,7 @@ export default function EntriesPage() {
     )
   }
 
-  const total = data?.total ?? 0
+
 
   return (
     <div className="min-h-screen">
