@@ -1,0 +1,95 @@
+import { motion, AnimatePresence } from "framer-motion"
+import { Folder, FolderOpen, ChevronRight } from "lucide-react"
+import { cn } from "@/lib/utils"
+import type { TreeNode } from "./tree-utils"
+
+interface FolderItemProps {
+  node: TreeNode
+  depth: number
+  isExpanded: boolean
+  isSelected: boolean
+  onToggle: () => void
+  onSelect: () => void
+  children?: React.ReactNode
+}
+
+export function FolderItem({
+  node,
+  depth,
+  isExpanded,
+  isSelected,
+  onToggle,
+  onSelect,
+  children,
+}: FolderItemProps) {
+  return (
+    <div>
+      <motion.button
+        onClick={() => {
+          onToggle()
+          onSelect()
+        }}
+        className={cn(
+          "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-all duration-200"
+        )}
+        style={{
+          paddingLeft: depth * 16 + 8,
+          background: isSelected ? "rgba(var(--color-primary), 0.15)" : "transparent",
+          color: "var(--glass-text)",
+        }}
+        whileHover={{ x: 2, background: isSelected ? undefined : "var(--glass-hover)" }}
+        whileTap={{ scale: 0.99 }}
+      >
+        <motion.div
+          animate={{ rotate: isExpanded ? 90 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="shrink-0"
+          style={{ color: "var(--glass-icon)" }}
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </motion.div>
+
+        <motion.div
+          initial={false}
+          animate={{ scale: isExpanded ? 1.1 : 1 }}
+          transition={{ duration: 0.15 }}
+        >
+          {isExpanded ? (
+            <FolderOpen className="h-4 w-4 text-primary" />
+          ) : (
+            <Folder className="h-4 w-4" style={{ color: "var(--glass-icon)" }} />
+          )}
+        </motion.div>
+
+        <span
+          className={cn(
+            "text-sm font-medium truncate",
+            isSelected && "text-primary"
+          )}
+        >
+          {node.name || "root"}
+        </span>
+
+        {node.children.length > 0 && (
+          <span className="ml-auto text-xs" style={{ color: "var(--glass-text-muted)" }}>
+            {node.children.length}
+          </span>
+        )}
+      </motion.button>
+
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="overflow-hidden"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}

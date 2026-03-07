@@ -260,6 +260,102 @@ func (r *EntryRepository) ListAccessible(ctx context.Context, userID, pathPrefix
 	return entries, int(count), nil
 }
 
+func (r *EntryRepository) ListDistinctPaths(ctx context.Context, userID string) ([]string, error) {
+	var uid pgtype.UUID
+	if userID != "" {
+		var err error
+		uid, err = parseUUID(userID)
+		if err != nil {
+			return nil, fmt.Errorf("parsing user id: %w", err)
+		}
+	}
+
+	paths, err := r.q.ListDistinctPaths(ctx, uid)
+	if err != nil {
+		return nil, fmt.Errorf("listing distinct paths: %w", err)
+	}
+
+	return paths, nil
+}
+
+func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, limit, offset int) ([]*domain.Entry, int, error) {
+	var uid pgtype.UUID
+	if userID != "" {
+		var err error
+		uid, err = parseUUID(userID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("parsing user id: %w", err)
+		}
+	}
+
+	entries, err := r.q.ListEntriesInPath(ctx, query.ListEntriesInPathParams{
+		UserID: uid,
+		Path:   path,
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("listing entries in path: %w", err)
+	}
+
+	count, err := r.q.CountEntriesInPath(ctx, query.CountEntriesInPathParams{
+		UserID: uid,
+		Path:   path,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("counting entries in path: %w", err)
+	}
+
+	result := make([]*domain.Entry, len(entries))
+	for i, e := range entries {
+		result[i] = &domain.Entry{
+			ID:         uuidToString(e.ID),
+			UserID:     uuidToString(e.UserID),
+			Title:      e.Title,
+			Content:    e.Content,
+			Summary:    e.Summary,
+			S3Key:      e.S3Key,
+			Path:       e.Path,
+			Visibility: domain.ParseVisibility(e.Visibility),
+			FileType:   e.FileType,
+			FileSize:   e.FileSize,
+			CreatedAt:  e.CreatedAt.Time,
+			UpdatedAt:  e.UpdatedAt.Time,
+		}
+	}
+
+	return result, int(count), nil
+}
+
+func (r *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, prefix string) ([]string, error) {
+	var uid pgtype.UUID
+	if userID != "" {
+		var err error
+		uid, err = parseUUID(userID)
+		if err != nil {
+			return nil, fmt.Errorf("parsing user id: %w", err)
+		}
+	}
+
+	var paths []string
+	var err error
+
+	if prefix == "/" {
+		paths, err = r.q.ListAllPaths(ctx, uid)
+	} else {
+		paths, err = r.q.ListPathsUnderPrefix(ctx, query.ListPathsUnderPrefixParams{
+			UserID: uid,
+			Prefix: prefix,
+		})
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("listing paths under prefix: %w", err)
+	}
+
+	return paths, nil
+}
+
 // parseUUID converts a string UUID to pgtype.UUID.
 func parseUUID(s string) (pgtype.UUID, error) {
 	var u pgtype.UUID

@@ -98,6 +98,7 @@ export interface EntryResponse {
 
 export interface EntriesResponse {
   entries: Entry[]
+  folders?: string[]
   total: number
 }
 

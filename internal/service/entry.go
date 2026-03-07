@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -111,7 +111,8 @@ func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, 
 	return entry, nil
 }
 
-// GetEntry retrieves an entry by ID, fetching content from S3 if needed.
+// GetEntry retrieves an entry by ID.
+// For S3-stored entries, content is NOT fetched - use GetEntryDownloadURL instead.
 func (s *EntryService) GetEntry(ctx context.Context, id string) (*domain.Entry, error) {
 	slog.Info("getting entry", "entry_id", id)
 
@@ -119,24 +120,6 @@ func (s *EntryService) GetEntry(ctx context.Context, id string) (*domain.Entry, 
 	if err != nil {
 		slog.Warn("entry not found", "entry_id", id, "error", err)
 		return nil, fmt.Errorf("getting entry: %w", err)
-	}
-
-	if entry.IsStoredInS3() {
-		slog.Info("fetching entry content from s3",
-			"entry_id", id,
-			"s3_key", entry.S3Key,
-		)
-		reader, err := s.storage.Download(ctx, entry.S3Key)
-		if err != nil {
-			return nil, fmt.Errorf("downloading entry content: %w", err)
-		}
-		defer reader.Close()
-
-		data, err := io.ReadAll(reader)
-		if err != nil {
-			return nil, fmt.Errorf("reading entry content: %w", err)
-		}
-		entry.Content = string(data)
 	}
 
 	return entry, nil
@@ -366,4 +349,129 @@ func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, con
 	} else {
 		slog.Info("async indexing completed", "entry_id", entry.ID)
 	}
+}
+
+// ListFolders returns all distinct folder paths accessible to the user.
+func (s *EntryService) ListFolders(ctx context.Context, userID string) ([]string, error) {
+	slog.Info("listing folders", "user_id", userID)
+
+	paths, err := s.entries.ListDistinctPaths(ctx, userID)
+	if err != nil {
+		slog.Error("failed to list folders", "user_id", userID, "error", err)
+		return nil, fmt.Errorf("listing folders: %w", err)
+	}
+
+	folderSet := make(map[string]struct{})
+	for _, p := range paths {
+		folderSet[p] = struct{}{}
+		segments := strings.Split(p, "/")
+		for i := 1; i < len(segments); i++ {
+			parent := strings.Join(segments[:i], "/")
+			if parent == "" {
+				parent = "/"
+			}
+			folderSet[parent] = struct{}{}
+		}
+	}
+
+	folders := make([]string, 0, len(folderSet))
+	for f := range folderSet {
+		folders = append(folders, f)
+	}
+
+	sortFolders(folders)
+
+	slog.Info("folders listed", "user_id", userID, "count", len(folders))
+	return folders, nil
+}
+
+func sortFolders(folders []string) {
+	for i := 0; i < len(folders)-1; i++ {
+		for j := i + 1; j < len(folders); j++ {
+			if folders[i] > folders[j] {
+				folders[i], folders[j] = folders[j], folders[i]
+			}
+		}
+	}
+}
+
+// GetEntryDownloadURL returns a presigned S3 URL for downloading the entry content.
+// Returns an error if the entry is not stored in S3.
+func (s *EntryService) GetEntryDownloadURL(ctx context.Context, id string) (string, error) {
+	entry, err := s.entries.GetByID(ctx, id)
+	if err != nil {
+		return "", fmt.Errorf("getting entry: %w", err)
+	}
+
+	if !entry.IsStoredInS3() {
+		return "", fmt.Errorf("entry is not stored in s3")
+	}
+
+	url, err := s.storage.GetPresignedURL(ctx, entry.S3Key, 15*time.Minute)
+	if err != nil {
+		return "", fmt.Errorf("generating presigned url: %w", err)
+	}
+
+	slog.Info("generated download url", "entry_id", id, "s3_key", entry.S3Key)
+	return url, nil
+}
+
+// ListChildren returns entries directly in a path and direct subfolder names.
+// For path "/abc", returns entries where path="/abc" and folders like "/abc/def" (not recursive).
+func (s *EntryService) ListChildren(ctx context.Context, userID, path string, limit, offset int) ([]*domain.Entry, []string, int, error) {
+	slog.Info("listing children", "user_id", userID, "path", path, "limit", limit, "offset", offset)
+
+	entries, total, err := s.entries.ListInPath(ctx, userID, path, limit, offset)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("listing entries in path: %w", err)
+	}
+
+	allPaths, err := s.entries.ListPathsUnderPrefix(ctx, userID, path)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("listing paths under prefix: %w", err)
+	}
+
+	directFolders := extractDirectSubfolders(path, allPaths)
+
+	slog.Info("children listed", "user_id", userID, "path", path, "entries", len(entries), "folders", len(directFolders), "total", total)
+	return entries, directFolders, total, nil
+}
+
+// extractDirectSubfolders extracts direct subfolder paths from paths under a prefix.
+// For prefix "/abc" and paths ["/abc/def/file", "/abc/def/sub/file", "/abc/ghi/file"],
+// returns ["/abc/def", "/abc/ghi"].
+func extractDirectSubfolders(prefix string, paths []string) []string {
+	folderSet := make(map[string]struct{})
+
+	for _, p := range paths {
+		if prefix == "/" {
+			remaining := strings.TrimPrefix(p, "/")
+			if remaining == "" {
+				continue
+			}
+			parts := strings.SplitN(remaining, "/", 2)
+			if parts[0] != "" {
+				fullPath := "/" + parts[0]
+				folderSet[fullPath] = struct{}{}
+			}
+		} else {
+			remaining := strings.TrimPrefix(p, prefix+"/")
+			if remaining == "" || remaining == p {
+				continue
+			}
+			parts := strings.SplitN(remaining, "/", 2)
+			if parts[0] != "" {
+				fullPath := prefix + "/" + parts[0]
+				folderSet[fullPath] = struct{}{}
+			}
+		}
+	}
+
+	folders := make([]string, 0, len(folderSet))
+	for f := range folderSet {
+		folders = append(folders, f)
+	}
+
+	sort.Strings(folders)
+	return folders
 }

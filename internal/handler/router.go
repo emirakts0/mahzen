@@ -57,6 +57,7 @@ func SetupRouter(deps RouterDeps) *gin.Engine {
 		{
 			entryGroup.GET("", entries.listEntries)
 			entryGroup.GET("/:entry_id", entries.getEntry)
+			entryGroup.GET("/:entry_id/download-url", entries.getDownloadURL)
 			entryGroup.POST("", entries.createEntry)
 			entryGroup.PUT("/:entry_id", entries.updateEntry)
 			entryGroup.DELETE("/:entry_id", entries.deleteEntry)

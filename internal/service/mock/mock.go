@@ -15,12 +15,15 @@ import (
 
 // EntryRepository is a test double for domain.EntryRepository.
 type EntryRepository struct {
-	CreateFn         func(ctx context.Context, entry *domain.Entry) error
-	GetByIDFn        func(ctx context.Context, id string) (*domain.Entry, error)
-	UpdateFn         func(ctx context.Context, entry *domain.Entry) error
-	DeleteFn         func(ctx context.Context, id string) error
-	ListByUserFn     func(ctx context.Context, userID string, limit, offset int) ([]*domain.Entry, int, error)
-	ListAccessibleFn func(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error)
+	CreateFn               func(ctx context.Context, entry *domain.Entry) error
+	GetByIDFn              func(ctx context.Context, id string) (*domain.Entry, error)
+	UpdateFn               func(ctx context.Context, entry *domain.Entry) error
+	DeleteFn               func(ctx context.Context, id string) error
+	ListByUserFn           func(ctx context.Context, userID string, limit, offset int) ([]*domain.Entry, int, error)
+	ListAccessibleFn       func(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error)
+	ListDistinctPathsFn    func(ctx context.Context, userID string) ([]string, error)
+	ListInPathFn           func(ctx context.Context, userID, path string, limit, offset int) ([]*domain.Entry, int, error)
+	ListPathsUnderPrefixFn func(ctx context.Context, userID, prefix string) ([]string, error)
 }
 
 func (m *EntryRepository) Create(ctx context.Context, entry *domain.Entry) error {
@@ -47,6 +50,20 @@ func (m *EntryRepository) ListAccessible(ctx context.Context, userID, pathPrefix
 	return m.ListAccessibleFn(ctx, userID, pathPrefix, limit, offset)
 }
 
+func (m *EntryRepository) ListDistinctPaths(ctx context.Context, userID string) ([]string, error) {
+	return m.ListDistinctPathsFn(ctx, userID)
+}
+
+func (m *EntryRepository) ListInPath(ctx context.Context, userID, path string, limit, offset int) ([]*domain.Entry, int, error) {
+	return m.ListInPathFn(ctx, userID, path, limit, offset)
+}
+
+func (m *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, prefix string) ([]string, error) {
+	return m.ListPathsUnderPrefixFn(ctx, userID, prefix)
+}
+
+// ---------------------------------------------------------------------------
+// TagRepository
 // ---------------------------------------------------------------------------
 // TagRepository
 // ---------------------------------------------------------------------------

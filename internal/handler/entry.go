@@ -54,6 +54,7 @@ type entryResponse struct {
 	Tags       []string `json:"tags,omitempty"`
 	FileType   string   `json:"file_type,omitempty"`
 	FileSize   int64    `json:"file_size,omitempty"`
+	S3Key      string   `json:"s3_key,omitempty"`
 	CreatedAt  string   `json:"created_at"`
 	UpdatedAt  string   `json:"updated_at"`
 }
@@ -70,6 +71,7 @@ func domainEntryToResponse(e *domain.Entry, tags []string) *entryResponse {
 		Tags:       tags,
 		FileType:   e.FileType,
 		FileSize:   e.FileSize,
+		S3Key:      e.S3Key,
 		CreatedAt:  e.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  e.UpdatedAt.Format(time.RFC3339),
 	}
@@ -181,7 +183,39 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 		}
 	}
 
-	entries, total, err := h.svc.ListEntries(c.Request.Context(), userID, path, limit, offset)
+	// When path is specified, use ListChildren which returns entries AND folders
+	if path != "" {
+		entries, folders, total, err := h.svc.ListChildren(c.Request.Context(), userID, path, limit, offset)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "listing children: " + err.Error()})
+			return
+		}
+
+		entryIDs := make([]string, len(entries))
+		for i, e := range entries {
+			entryIDs[i] = e.ID
+		}
+		tagsByEntry, err := h.svc.GetEntryTagsBatch(c.Request.Context(), entryIDs)
+		if err != nil {
+			slog.Warn("failed to batch fetch tags for entries", "error", err)
+			tagsByEntry = map[string][]string{}
+		}
+
+		items := make([]*entryResponse, len(entries))
+		for i, e := range entries {
+			items[i] = domainEntryToResponse(e, tagsByEntry[e.ID])
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"entries": items,
+			"folders": folders,
+			"total":   total,
+		})
+		return
+	}
+
+	// No path specified - list all entries (original behavior)
+	entries, total, err := h.svc.ListEntries(c.Request.Context(), userID, "", limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "listing entries: " + err.Error()})
 		return
@@ -205,5 +239,19 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"entries": items,
 		"total":   total,
+	})
+}
+
+func (h *entryHandler) getDownloadURL(c *gin.Context) {
+	id := c.Param("entry_id")
+
+	url, err := h.svc.GetEntryDownloadURL(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"url": url,
 	})
 }

@@ -52,6 +52,24 @@ func (q *Queries) CountEntriesByUser(ctx context.Context, userID pgtype.UUID) (i
 	return count, err
 }
 
+const countEntriesInPath = `-- name: CountEntriesInPath :one
+SELECT count(*) FROM entries
+WHERE (visibility = 'public' OR user_id = $1::uuid)
+  AND path = $2::text
+`
+
+type CountEntriesInPathParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Path   string      `json:"path"`
+}
+
+func (q *Queries) CountEntriesInPath(ctx context.Context, arg CountEntriesInPathParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEntriesInPath, arg.UserID, arg.Path)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteEntry = `-- name: DeleteEntry :exec
 DELETE FROM entries WHERE id = $1
 `
@@ -296,6 +314,58 @@ func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAcces
 	return items, nil
 }
 
+const listAllPaths = `-- name: ListAllPaths :many
+SELECT DISTINCT path FROM entries
+WHERE (visibility = 'public' OR user_id = $1::uuid)
+ORDER BY path ASC
+`
+
+func (q *Queries) ListAllPaths(ctx context.Context, userID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listAllPaths, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		items = append(items, path)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDistinctPaths = `-- name: ListDistinctPaths :many
+SELECT DISTINCT path FROM entries
+WHERE (visibility = 'public' OR user_id = $1::uuid)
+ORDER BY path ASC
+`
+
+func (q *Queries) ListDistinctPaths(ctx context.Context, userID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listDistinctPaths, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		items = append(items, path)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEntriesByUser = `-- name: ListEntriesByUser :many
 SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
 FROM entries
@@ -351,6 +421,107 @@ func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserPa
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEntriesInPath = `-- name: ListEntriesInPath :many
+SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
+FROM entries
+WHERE (visibility = 'public' OR user_id = $1::uuid)
+  AND path = $2::text
+ORDER BY created_at DESC
+LIMIT $4::int OFFSET $3::int
+`
+
+type ListEntriesInPathParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Path   string      `json:"path"`
+	Offset int32       `json:"offset"`
+	Limit  int32       `json:"limit"`
+}
+
+type ListEntriesInPathRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Title      string             `json:"title"`
+	Content    string             `json:"content"`
+	Summary    string             `json:"summary"`
+	S3Key      string             `json:"s3_key"`
+	Path       string             `json:"path"`
+	Visibility string             `json:"visibility"`
+	FileType   string             `json:"file_type"`
+	FileSize   int64              `json:"file_size"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListEntriesInPath(ctx context.Context, arg ListEntriesInPathParams) ([]ListEntriesInPathRow, error) {
+	rows, err := q.db.Query(ctx, listEntriesInPath,
+		arg.UserID,
+		arg.Path,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEntriesInPathRow{}
+	for rows.Next() {
+		var i ListEntriesInPathRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Title,
+			&i.Content,
+			&i.Summary,
+			&i.S3Key,
+			&i.Path,
+			&i.Visibility,
+			&i.FileType,
+			&i.FileSize,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPathsUnderPrefix = `-- name: ListPathsUnderPrefix :many
+SELECT DISTINCT path FROM entries
+WHERE (visibility = 'public' OR user_id = $1::uuid)
+  AND path LIKE $2::text || '/%'
+ORDER BY path ASC
+`
+
+type ListPathsUnderPrefixParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Prefix string      `json:"prefix"`
+}
+
+func (q *Queries) ListPathsUnderPrefix(ctx context.Context, arg ListPathsUnderPrefixParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listPathsUnderPrefix, arg.UserID, arg.Prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		items = append(items, path)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
