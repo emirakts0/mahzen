@@ -59,23 +59,39 @@ ORDER BY path ASC;
 -- name: ListEntriesInPath :many
 SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
 FROM entries
-WHERE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+WHERE 
+  CASE 
+    WHEN sqlc.arg('own')::boolean THEN user_id = sqlc.narg('user_id')::uuid
+    ELSE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+  END
   AND path = sqlc.arg('path')::text
 ORDER BY created_at DESC
 LIMIT sqlc.arg('limit')::int OFFSET sqlc.arg('offset')::int;
 
 -- name: CountEntriesInPath :one
 SELECT count(*) FROM entries
-WHERE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+WHERE 
+  CASE 
+    WHEN sqlc.arg('own')::boolean THEN user_id = sqlc.narg('user_id')::uuid
+    ELSE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+  END
   AND path = sqlc.arg('path')::text;
 
 -- name: ListPathsUnderPrefix :many
 SELECT DISTINCT path FROM entries
-WHERE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+WHERE 
+  CASE 
+    WHEN sqlc.arg('own')::boolean THEN user_id = sqlc.narg('user_id')::uuid
+    ELSE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+  END
   AND path LIKE sqlc.arg('prefix')::text || '/%'
 ORDER BY path ASC;
 
 -- name: ListAllPaths :many
 SELECT DISTINCT path FROM entries
-WHERE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+WHERE 
+  CASE 
+    WHEN sqlc.arg('own')::boolean THEN user_id = sqlc.narg('user_id')::uuid
+    ELSE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+  END
 ORDER BY path ASC;

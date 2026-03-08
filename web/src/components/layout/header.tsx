@@ -9,12 +9,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { BookOpen, Tag, Search, LogOut, Moon, Sun, LogIn, UserPlus } from "lucide-react"
+import { BookOpen, Search, LogOut, Moon, Sun, LogIn, UserPlus } from "lucide-react"
 
 const NAV_ITEMS = [
   { to: "/search", label: "Search", icon: Search },
   { to: "/entries", label: "Entries", icon: BookOpen },
-  { to: "/tags", label: "Tags", icon: Tag },
 ] as const
 
 export function Header() {

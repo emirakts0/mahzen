@@ -34,7 +34,7 @@ type Querier interface {
 	InsertTag(ctx context.Context, arg InsertTagParams) (Tag, error)
 	ListAccessibleEntries(ctx context.Context, arg ListAccessibleEntriesParams) ([]ListAccessibleEntriesRow, error)
 	ListAccessibleEntriesByPath(ctx context.Context, arg ListAccessibleEntriesByPathParams) ([]ListAccessibleEntriesByPathRow, error)
-	ListAllPaths(ctx context.Context, userID pgtype.UUID) ([]string, error)
+	ListAllPaths(ctx context.Context, arg ListAllPathsParams) ([]string, error)
 	ListDistinctPaths(ctx context.Context, userID pgtype.UUID) ([]string, error)
 	ListEntriesByUser(ctx context.Context, arg ListEntriesByUserParams) ([]ListEntriesByUserRow, error)
 	ListEntriesInPath(ctx context.Context, arg ListEntriesInPathParams) ([]ListEntriesInPathRow, error)

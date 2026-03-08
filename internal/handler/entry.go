@@ -174,6 +174,7 @@ func (h *entryHandler) deleteEntry(c *gin.Context) {
 func (h *entryHandler) listEntries(c *gin.Context) {
 	userID := userIDFromContext(c)
 	path := c.Query("path")
+	own := c.Query("own") == "true"
 
 	limit := 20
 	if l := c.Query("limit"); l != "" {
@@ -191,7 +192,7 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 
 	// When path is specified, use ListChildren which returns entries AND folders
 	if path != "" {
-		entries, folderInfos, total, err := h.svc.ListChildren(c.Request.Context(), userID, path, limit, offset)
+		entries, folderInfos, total, err := h.svc.ListChildren(c.Request.Context(), userID, path, own, limit, offset)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "listing children: " + err.Error()})
 			return
@@ -230,7 +231,7 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 	if rootPath == "" {
 		rootPath = "/"
 	}
-	entries, folderInfos, total, err := h.svc.ListChildren(c.Request.Context(), userID, rootPath, limit, offset)
+	entries, folderInfos, total, err := h.svc.ListChildren(c.Request.Context(), userID, rootPath, own, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "listing entries: " + err.Error()})
 		return

@@ -8,9 +8,10 @@ import type { Entry } from "@/types/api"
 
 interface FolderTreeProps {
   onEntrySelect: (entryId: string) => void
+  ownOnly?: boolean
 }
 
-export function FolderTree({ onEntrySelect }: FolderTreeProps) {
+export function FolderTree({ onEntrySelect, ownOnly = false }: FolderTreeProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["/"]))
 
   const toggleFolder = useCallback((path: string) => {
@@ -34,6 +35,7 @@ export function FolderTree({ onEntrySelect }: FolderTreeProps) {
           expandedFolders={expandedFolders}
           onToggle={toggleFolder}
           onEntrySelect={onEntrySelect}
+          ownOnly={ownOnly}
         />
       </div>
     </>
@@ -45,6 +47,7 @@ interface FolderNodeProps {
   depth: number
   expandedFolders: Set<string>
   folderCount?: number
+  ownOnly: boolean
   onToggle: (path: string) => void
   onEntrySelect: (entryId: string) => void
 }
@@ -54,14 +57,15 @@ function FolderNode({
   depth,
   expandedFolders,
   folderCount,
+  ownOnly,
   onToggle,
   onEntrySelect,
 }: FolderNodeProps) {
   const isExpanded = expandedFolders.has(path)
 
   const { data, isLoading } = useQuery({
-    queryKey: ["entries", path],
-    queryFn: () => listEntries({ path, limit: 100 }),
+    queryKey: ["entries", path, ownOnly],
+    queryFn: () => listEntries({ path, limit: 100, own: ownOnly }),
     enabled: isExpanded,
     staleTime: 30000,
   })
@@ -107,6 +111,7 @@ function FolderNode({
                 depth={depth + 1}
                 expandedFolders={expandedFolders}
                 folderCount={folder.count}
+                ownOnly={ownOnly}
                 onToggle={onToggle}
                 onEntrySelect={onEntrySelect}
               />
@@ -145,6 +150,7 @@ function FolderNode({
               depth={depth}
               expandedFolders={expandedFolders}
               folderCount={folder.count}
+              ownOnly={ownOnly}
               onToggle={onToggle}
               onEntrySelect={onEntrySelect}
             />

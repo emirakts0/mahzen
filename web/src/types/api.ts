@@ -129,6 +129,7 @@ export interface ListEntriesParams {
   path?: string
   limit?: number
   offset?: number
+  own?: boolean
 }
 
 // ─────────────────────────────────────────────

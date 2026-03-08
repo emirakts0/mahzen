@@ -13,6 +13,7 @@ export function listEntries(params: ListEntriesParams = {}): Promise<EntriesResp
   if (params.path) sp.set("path", params.path)
   if (params.limit !== undefined) sp.set("limit", String(params.limit))
   if (params.offset !== undefined) sp.set("offset", String(params.offset))
+  if (params.own) sp.set("own", "true")
   const qs = sp.toString()
   return apiGet<EntriesResponse>(`/entries${qs ? `?${qs}` : ""}`)
 }

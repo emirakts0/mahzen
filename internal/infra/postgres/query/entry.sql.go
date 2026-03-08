@@ -54,17 +54,22 @@ func (q *Queries) CountEntriesByUser(ctx context.Context, userID pgtype.UUID) (i
 
 const countEntriesInPath = `-- name: CountEntriesInPath :one
 SELECT count(*) FROM entries
-WHERE (visibility = 'public' OR user_id = $1::uuid)
-  AND path = $2::text
+WHERE 
+  CASE 
+    WHEN $1::boolean THEN user_id = $2::uuid
+    ELSE (visibility = 'public' OR user_id = $2::uuid)
+  END
+  AND path = $3::text
 `
 
 type CountEntriesInPathParams struct {
+	Own    bool        `json:"own"`
 	UserID pgtype.UUID `json:"user_id"`
 	Path   string      `json:"path"`
 }
 
 func (q *Queries) CountEntriesInPath(ctx context.Context, arg CountEntriesInPathParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countEntriesInPath, arg.UserID, arg.Path)
+	row := q.db.QueryRow(ctx, countEntriesInPath, arg.Own, arg.UserID, arg.Path)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -316,12 +321,21 @@ func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAcces
 
 const listAllPaths = `-- name: ListAllPaths :many
 SELECT DISTINCT path FROM entries
-WHERE (visibility = 'public' OR user_id = $1::uuid)
+WHERE 
+  CASE 
+    WHEN $1::boolean THEN user_id = $2::uuid
+    ELSE (visibility = 'public' OR user_id = $2::uuid)
+  END
 ORDER BY path ASC
 `
 
-func (q *Queries) ListAllPaths(ctx context.Context, userID pgtype.UUID) ([]string, error) {
-	rows, err := q.db.Query(ctx, listAllPaths, userID)
+type ListAllPathsParams struct {
+	Own    bool        `json:"own"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) ListAllPaths(ctx context.Context, arg ListAllPathsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listAllPaths, arg.Own, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -431,13 +445,18 @@ func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserPa
 const listEntriesInPath = `-- name: ListEntriesInPath :many
 SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
 FROM entries
-WHERE (visibility = 'public' OR user_id = $1::uuid)
-  AND path = $2::text
+WHERE 
+  CASE 
+    WHEN $1::boolean THEN user_id = $2::uuid
+    ELSE (visibility = 'public' OR user_id = $2::uuid)
+  END
+  AND path = $3::text
 ORDER BY created_at DESC
-LIMIT $4::int OFFSET $3::int
+LIMIT $5::int OFFSET $4::int
 `
 
 type ListEntriesInPathParams struct {
+	Own    bool        `json:"own"`
 	UserID pgtype.UUID `json:"user_id"`
 	Path   string      `json:"path"`
 	Offset int32       `json:"offset"`
@@ -461,6 +480,7 @@ type ListEntriesInPathRow struct {
 
 func (q *Queries) ListEntriesInPath(ctx context.Context, arg ListEntriesInPathParams) ([]ListEntriesInPathRow, error) {
 	rows, err := q.db.Query(ctx, listEntriesInPath,
+		arg.Own,
 		arg.UserID,
 		arg.Path,
 		arg.Offset,
@@ -499,18 +519,23 @@ func (q *Queries) ListEntriesInPath(ctx context.Context, arg ListEntriesInPathPa
 
 const listPathsUnderPrefix = `-- name: ListPathsUnderPrefix :many
 SELECT DISTINCT path FROM entries
-WHERE (visibility = 'public' OR user_id = $1::uuid)
-  AND path LIKE $2::text || '/%'
+WHERE 
+  CASE 
+    WHEN $1::boolean THEN user_id = $2::uuid
+    ELSE (visibility = 'public' OR user_id = $2::uuid)
+  END
+  AND path LIKE $3::text || '/%'
 ORDER BY path ASC
 `
 
 type ListPathsUnderPrefixParams struct {
+	Own    bool        `json:"own"`
 	UserID pgtype.UUID `json:"user_id"`
 	Prefix string      `json:"prefix"`
 }
 
 func (q *Queries) ListPathsUnderPrefix(ctx context.Context, arg ListPathsUnderPrefixParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, listPathsUnderPrefix, arg.UserID, arg.Prefix)
+	rows, err := q.db.Query(ctx, listPathsUnderPrefix, arg.Own, arg.UserID, arg.Prefix)
 	if err != nil {
 		return nil, err
 	}

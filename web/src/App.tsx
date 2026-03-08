@@ -2,7 +2,6 @@ import { createBrowserRouter, RouterProvider, Navigate } from "react-router"
 import RootLayout from "@/components/layout/root-layout"
 import SearchPage from "@/pages/search-page"
 import EntriesPage from "@/pages/entries-page"
-import TagsPage from "@/pages/tags-page"
 
 const router = createBrowserRouter([
   {
@@ -20,10 +19,6 @@ const router = createBrowserRouter([
       {
         path: "entries",
         element: <EntriesPage />,
-      },
-      {
-        path: "tags",
-        element: <TagsPage />,
       },
       {
         path: "login",

@@ -143,6 +143,6 @@ type EntryRepository interface {
 	ListByUser(ctx context.Context, userID string, limit, offset int) ([]*Entry, int, error)
 	ListAccessible(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*Entry, int, error)
 	ListDistinctPaths(ctx context.Context, userID string) ([]string, error)
-	ListInPath(ctx context.Context, userID, path string, limit, offset int) ([]*Entry, int, error)
-	ListPathsUnderPrefix(ctx context.Context, userID, prefix string) ([]string, error)
+	ListInPath(ctx context.Context, userID, path string, own bool, limit, offset int) ([]*Entry, int, error)
+	ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool) ([]string, error)
 }

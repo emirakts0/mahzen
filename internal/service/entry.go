@@ -424,15 +424,15 @@ func (s *EntryService) GetEntryDownloadURL(ctx context.Context, id string) (stri
 
 // ListChildren returns entries directly in a path and direct subfolders with counts.
 // For path "/abc", returns entries where path="/abc" and folders like "/abc/def" (not recursive).
-func (s *EntryService) ListChildren(ctx context.Context, userID, path string, limit, offset int) ([]*domain.Entry, []FolderInfo, int, error) {
-	slog.Info("listing children", "user_id", userID, "path", path, "limit", limit, "offset", offset)
+func (s *EntryService) ListChildren(ctx context.Context, userID, path string, own bool, limit, offset int) ([]*domain.Entry, []FolderInfo, int, error) {
+	slog.Info("listing children", "user_id", userID, "path", path, "own", own, "limit", limit, "offset", offset)
 
-	entries, directCount, err := s.entries.ListInPath(ctx, userID, path, limit, offset)
+	entries, directCount, err := s.entries.ListInPath(ctx, userID, path, own, limit, offset)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("listing entries in path: %w", err)
 	}
 
-	allPaths, err := s.entries.ListPathsUnderPrefix(ctx, userID, path)
+	allPaths, err := s.entries.ListPathsUnderPrefix(ctx, userID, path, own)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("listing paths under prefix: %w", err)
 	}
@@ -442,7 +442,7 @@ func (s *EntryService) ListChildren(ctx context.Context, userID, path string, li
 	// Total includes entries directly at this path + all entries in subfolders
 	total := directCount + len(allPaths)
 
-	slog.Info("children listed", "user_id", userID, "path", path, "entries", len(entries), "folders", len(folderInfos), "total", total)
+	slog.Info("children listed", "user_id", userID, "path", path, "own", own, "entries", len(entries), "folders", len(folderInfos), "total", total)
 	return entries, folderInfos, total, nil
 }
 
