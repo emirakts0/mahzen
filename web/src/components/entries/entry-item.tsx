@@ -22,7 +22,7 @@ export function EntryItem({ entry, depth, onSelect }: EntryItemProps) {
         background: "transparent",
         color: "var(--glass-text)",
       }}
-      whileHover={{ x: 2, background: "var(--glass-hover)" }}
+      whileHover={{ background: "var(--glass-hover)" }}
       whileTap={{ scale: 0.99 }}
     >
       <FileIcon className="h-4 w-4 shrink-0" style={{ color: "var(--glass-icon)" }} />

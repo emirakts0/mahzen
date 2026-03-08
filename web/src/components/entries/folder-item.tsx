@@ -32,7 +32,7 @@ export function FolderItem({
           background: "transparent",
           color: "var(--glass-text)",
         }}
-        whileHover={{ x: 2, background: "var(--glass-hover)" }}
+        whileHover={{ background: "var(--glass-hover)" }}
         whileTap={{ scale: 0.99 }}
       >
         <motion.div

@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { motion } from "framer-motion";
 import {
   Plus,
   BookOpen,
-  RefreshCw,
-  FolderTree as FolderTreeIcon,
   Filter,
 } from "lucide-react";
 import { listEntries } from "@/api/entries";
@@ -17,7 +15,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
-import { useTheme } from "@/hooks/use-theme";
 import { FolderTree, CreateEntryDialog } from "@/components/entries";
 import { EntryPreviewModal } from "@/components/search/entry-preview-modal";
 import {
@@ -28,16 +25,14 @@ import {
 
 export default function EntriesPage() {
   const { isAuthenticated } = useAuth();
-  const { theme } = useTheme();
   const [createOpen, setCreateOpen] = useState(false);
   const [previewEntryId, setPreviewEntryId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<EntryFilters>({});
-  const queryClient = useQueryClient();
 
   const ownOnly = filters.only_mine ?? false;
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["entries", "/", ownOnly, filters],
     queryFn: () =>
       listEntries({
@@ -53,11 +48,6 @@ export default function EntriesPage() {
   });
 
   const total = data?.total ?? 0;
-  const isRefetching = isFetching && !isLoading;
-
-  const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["entries"] });
-  };
 
   const activeFilterCount = countActiveFilters(filters);
 
@@ -105,121 +95,86 @@ export default function EntriesPage() {
     <div className="flex flex-col h-full min-h-0">
       <div className="mx-auto w-full max-w-5xl px-4 py-6">
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-4 rounded-xl px-4 py-2"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="backdrop-blur-xl rounded-xl overflow-hidden"
           style={{
             background: "var(--glass-bg)",
             border: "1px solid var(--glass-border)",
           }}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h1
-                className="text-2xl font-bold flex items-center gap-2"
-                style={{ color: "var(--glass-text)" }}
-              >
-                <FolderTreeIcon className="h-6 w-6" style={{ color: theme === "dark" ? "var(--glass-text)" : "black" }} />
-                Entries
-              </h1>
-              <span
-                className="text-sm mt-1"
-                style={{ color: "var(--glass-text-muted)" }}
-              >
-                {total}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <DropdownMenu open={filtersOpen} onOpenChange={setFiltersOpen}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="flex items-center justify-center h-9 w-9 rounded-md transition-all hover:opacity-80 cursor-pointer backdrop-blur-md"
-                    style={{
-                      background: "var(--glass-bg)",
-                      border: "1px solid var(--glass-border)",
-                      color: "var(--glass-text)",
-                    }}
-                  >
-                    <Filter className="h-4 w-4" />
-                    {activeFilterCount > 0 && (
-                      <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full text-[10px] font-semibold" style={{ background: "var(--color-primary)", color: "var(--color-primary-foreground)" }}>
-                        {activeFilterCount}
-                      </span>
-                    )}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="p-0 border-0 shadow-none bg-transparent"
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h1
+                  className="text-2xl font-bold"
+                  style={{ color: "var(--glass-text)" }}
                 >
-                  <EntryFiltersPanel
-                    filters={filters}
-                    onFiltersChange={setFilters}
-                    isOpen={filtersOpen}
-                    onClose={() => setFiltersOpen(false)}
-                  />
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <button
-                onClick={handleRefresh}
-                disabled={isRefetching}
-                className="flex items-center justify-center h-9 w-9 rounded-md transition-all hover:opacity-80 cursor-pointer backdrop-blur-md disabled:opacity-50"
-                style={{
-                  background: "var(--glass-bg)",
-                  border: "1px solid var(--glass-border)",
-                  color: "var(--glass-text)",
-                }}
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
-                />
-              </button>
-              <button
-                onClick={() => setCreateOpen(true)}
-                className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium transition-all hover:opacity-80 cursor-pointer backdrop-blur-md"
-                style={{
-                  background: "var(--glass-bg)",
-                  border: "1px solid var(--glass-border)",
-                  color: "var(--glass-text)",
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                New
-              </button>
+                  {total === 1 ? "1 Entry" : `${total} Entries`}
+                </h1>
+              </div>
+              <div className="flex items-center gap-1">
+                <DropdownMenu open={filtersOpen} onOpenChange={setFiltersOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="flex items-center justify-center h-9 w-9 rounded-md transition-opacity hover:opacity-60 cursor-pointer"
+                      style={{
+                        color: "var(--glass-text)",
+                      }}
+                    >
+                      <Filter className="h-4 w-4" />
+                      {activeFilterCount > 0 && (
+                        <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full text-[10px] font-semibold" style={{ background: "var(--color-primary)", color: "var(--color-primary-foreground)" }}>
+                          {activeFilterCount}
+                        </span>
+                      )}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="p-0 border-0 shadow-none bg-transparent"
+                  >
+                    <EntryFiltersPanel
+                      filters={filters}
+                      onFiltersChange={setFilters}
+                      isOpen={filtersOpen}
+                      onClose={() => setFiltersOpen(false)}
+                    />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <button
+                  onClick={() => setCreateOpen(true)}
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium transition-opacity hover:opacity-60 cursor-pointer"
+                  style={{
+                    color: "var(--glass-text)",
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  New
+                </button>
+              </div>
             </div>
           </div>
-        </motion.div>
 
-        {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <motion.div
-                key={i}
-                className="h-10 rounded-md animate-pulse"
-                style={{
-                  background: "var(--glass-bg)",
-                  width: `${50 + Math.random() * 50}%`,
-                  marginLeft: `${Math.random() * 20}px`,
-                }}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.05 }}
-              />
-            ))}
-          </div>
-        ) : total === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center justify-center py-20"
-          >
-            <div
-              className="backdrop-blur-xl rounded-2xl p-8 text-center"
-              style={{
-                background: "var(--glass-bg)",
-                border: "1px solid var(--glass-border)",
-              }}
-            >
+          {isLoading ? (
+            <div className="space-y-2 p-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <motion.div
+                  key={i}
+                  className="h-10 rounded-md animate-pulse"
+                  style={{
+                    background: "var(--glass-bg)",
+                    width: `${50 + Math.random() * 50}%`,
+                    marginLeft: `${Math.random() * 20}px`,
+                  }}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                />
+              ))}
+            </div>
+          ) : total === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl mx-auto bg-primary/10">
                 <BookOpen className="h-8 w-8 text-primary" />
               </div>
@@ -248,18 +203,7 @@ export default function EntriesPage() {
                 New Entry
               </Button>
             </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="backdrop-blur-xl rounded-xl overflow-hidden"
-            style={{
-              background: "var(--glass-bg)",
-              border: "1px solid var(--glass-border)",
-            }}
-          >
+          ) : (
             <FolderTree
               onEntrySelect={setPreviewEntryId}
               filters={{
@@ -270,8 +214,8 @@ export default function EntriesPage() {
                 to_date: filters.to_date,
               }}
             />
-          </motion.div>
-        )}
+          )}
+        </motion.div>
       </div>
 
       <CreateEntryDialog
