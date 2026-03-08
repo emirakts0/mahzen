@@ -145,6 +145,10 @@ export interface ListEntriesParams {
   limit?: number
   offset?: number
   own?: boolean
+  visibility?: "public" | "private"
+  tags?: string[]
+  from_date?: string
+  to_date?: string
 }
 
 // ─────────────────────────────────────────────

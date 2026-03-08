@@ -1,19 +1,26 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Tag, Folder, Lock, Unlock, User, Search } from "lucide-react"
+import { X, Tag, Lock, Unlock, User, Search } from "lucide-react"
 import { listTags } from "@/api/tags"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
-import type { SearchFilters as SearchFiltersType } from "@/types/api"
 
-interface SearchFiltersProps {
-  filters: SearchFiltersType
-  onFiltersChange: (filters: SearchFiltersType) => void
+export interface EntryFilters {
+  tags?: string[]
+  visibility?: "public" | "private"
+  only_mine?: boolean
+  from_date?: string
+  to_date?: string
+}
+
+interface EntryFiltersPanelProps {
+  filters: EntryFilters
+  onFiltersChange: (filters: EntryFilters) => void
   isOpen: boolean
   onClose: () => void
 }
 
-export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: SearchFiltersProps) {
+export function EntryFiltersPanel({ filters, onFiltersChange, isOpen, onClose }: EntryFiltersPanelProps) {
   const [showAllTags, setShowAllTags] = useState(false)
   const [tagSearch, setTagSearch] = useState("")
 
@@ -34,11 +41,10 @@ export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: Sea
 
   const hasActiveFilters =
     (filters.tags?.length ?? 0) > 0 ||
-    filters.path ||
-    filters.from_date ||
-    filters.to_date ||
+    filters.visibility ||
     filters.only_mine ||
-    filters.visibility
+    filters.from_date ||
+    filters.to_date
 
   const clearFilters = () => {
     onFiltersChange({})
@@ -52,7 +58,7 @@ export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: Sea
     onFiltersChange({ ...filters, tags: newTags.length > 0 ? newTags : undefined })
   }
 
-  const updateFilter = <K extends keyof SearchFiltersType>(key: K, value: SearchFiltersType[K]) => {
+  const updateFilter = <K extends keyof EntryFilters>(key: K, value: EntryFilters[K]) => {
     onFiltersChange({ ...filters, [key]: value || undefined })
   }
 
@@ -81,7 +87,7 @@ export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: Sea
           >
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>
-                Search Filters
+                Filters
               </span>
               {hasActiveFilters && (
                 <button
@@ -96,47 +102,6 @@ export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: Sea
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label
-                  className="mb-1.5 flex items-center gap-1.5 text-xs font-medium"
-                  style={{ color: "var(--glass-text-muted)" }}
-                >
-                  <Folder className="h-3 w-3" />
-                  Path
-                </label>
-                <input
-                  type="text"
-                  placeholder="/notes/work"
-                  value={filters.path ?? ""}
-                  onChange={(e) => updateFilter("path", e.target.value)}
-                  className="h-8 w-full rounded-md px-2 text-sm outline-none backdrop-blur-sm"
-                  style={{
-                    background: "var(--glass-hover)",
-                    border: "1px solid var(--glass-border)",
-                    color: "var(--glass-text)",
-                  }}
-                />
-              </div>
-
-              <div>
-                <label
-                  className="mb-1.5 block text-xs font-medium"
-                  style={{ color: "var(--glass-text-muted)" }}
-                >
-                  Date Range
-                </label>
-                <DateRangePicker
-                  value={{ from: filters.from_date, to: filters.to_date }}
-                  onChange={(range) => {
-                    onFiltersChange({
-                      ...filters,
-                      from_date: range.from,
-                      to_date: range.to,
-                    })
-                  }}
-                />
-              </div>
-
               <div>
                 <label
                   className="mb-1.5 flex items-center gap-1.5 text-xs font-medium"
@@ -196,6 +161,25 @@ export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: Sea
                     />
                   </button>
                 </div>
+              </div>
+
+              <div>
+                <label
+                  className="mb-1.5 block text-xs font-medium"
+                  style={{ color: "var(--glass-text-muted)" }}
+                >
+                  Date Range
+                </label>
+                <DateRangePicker
+                  value={{ from: filters.from_date, to: filters.to_date }}
+                  onChange={(range) => {
+                    onFiltersChange({
+                      ...filters,
+                      from_date: range.from,
+                      to_date: range.to,
+                    })
+                  }}
+                />
               </div>
 
               <div>
@@ -278,5 +262,15 @@ export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: Sea
         </>
       )}
     </AnimatePresence>
+  )
+}
+
+export function countActiveFilters(filters: EntryFilters): number {
+  return (
+    (filters.tags?.length ?? 0) +
+    (filters.visibility ? 1 : 0) +
+    (filters.only_mine ? 1 : 0) +
+    (filters.from_date ? 1 : 0) +
+    (filters.to_date ? 1 : 0)
   )
 }

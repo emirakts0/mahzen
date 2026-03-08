@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -175,6 +176,10 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 	userID := userIDFromContext(c)
 	path := c.Query("path")
 	own := c.Query("own") == "true"
+	visibility := c.Query("visibility")
+	tags := c.Query("tags")
+	fromDate := c.Query("from_date")
+	toDate := c.Query("to_date")
 
 	limit := 20
 	if l := c.Query("limit"); l != "" {
@@ -190,48 +195,32 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 		}
 	}
 
-	// When path is specified, use ListChildren which returns entries AND folders
-	if path != "" {
-		entries, folderInfos, total, err := h.svc.ListChildren(c.Request.Context(), userID, path, own, limit, offset)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "listing children: " + err.Error()})
-			return
+	// Build filter
+	filter := &domain.ListEntriesFilter{}
+	if visibility != "" {
+		filter.Visibility = visibility
+	}
+	if tags != "" {
+		filter.Tags = strings.Split(tags, ",")
+	}
+	if fromDate != "" {
+		if t, err := time.Parse(time.DateOnly, fromDate); err == nil {
+			filter.FromDate = t
 		}
-
-		entryIDs := make([]string, len(entries))
-		for i, e := range entries {
-			entryIDs[i] = e.ID
+	}
+	if toDate != "" {
+		if t, err := time.Parse(time.DateOnly, toDate); err == nil {
+			filter.ToDate = t
 		}
-		tagsByEntry, err := h.svc.GetEntryTagsBatch(c.Request.Context(), entryIDs)
-		if err != nil {
-			slog.Warn("failed to batch fetch tags for entries", "error", err)
-			tagsByEntry = map[string][]string{}
-		}
-
-		items := make([]*entryResponse, len(entries))
-		for i, e := range entries {
-			items[i] = domainEntryToResponse(e, tagsByEntry[e.ID])
-		}
-
-		folders := make([]folderResponse, len(folderInfos))
-		for i, f := range folderInfos {
-			folders[i] = folderResponse{Path: f.Path, Count: f.Count}
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"entries": items,
-			"folders": folders,
-			"total":   total,
-		})
-		return
 	}
 
-	// No path specified - list all entries and root-level folders with counts
-	rootPath := path
-	if rootPath == "" {
-		rootPath = "/"
+	// Determine the path to list
+	listPath := path
+	if listPath == "" {
+		listPath = "/"
 	}
-	entries, folderInfos, total, err := h.svc.ListChildren(c.Request.Context(), userID, rootPath, own, limit, offset)
+
+	entries, folderInfos, total, err := h.svc.ListChildren(c.Request.Context(), userID, listPath, own, filter, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "listing entries: " + err.Error()})
 		return

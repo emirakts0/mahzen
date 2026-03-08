@@ -13,11 +13,10 @@ interface SearchInputProps {
   autoFocus?: boolean
   filterCount?: number
   onFilterClick?: () => void
-  isFilterOpen?: boolean
 }
 
 export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
-  ({ value, onChange, onClear, placeholder = "Search your knowledge base...", disabled = false, className, hint, autoFocus, filterCount, onFilterClick, isFilterOpen }, ref) => {
+  ({ value, onChange, onClear, placeholder = "Search your knowledge base...", disabled = false, className, hint, autoFocus, filterCount, onFilterClick }, ref) => {
     const hasFilters = filterCount !== undefined && filterCount > 0
 
     return (
@@ -52,9 +51,8 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
               <button
                 type="button"
                 onClick={onFilterClick}
-                className="flex items-center gap-1 rounded-md px-2 py-1 transition-all"
+                className="flex items-center gap-1 rounded-md px-2 py-1 transition-all hover:opacity-80 cursor-pointer"
                 style={{
-                  background: isFilterOpen || hasFilters ? "var(--glass-hover)" : "transparent",
                   color: hasFilters ? "var(--glass-text)" : "var(--glass-text-muted)",
                 }}
               >

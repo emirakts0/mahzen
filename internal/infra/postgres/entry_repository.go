@@ -284,7 +284,7 @@ func (r *EntryRepository) ListDistinctPaths(ctx context.Context, userID string) 
 	return paths, nil
 }
 
-func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, own bool, limit, offset int) ([]*domain.Entry, int, error) {
+func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, own bool, filter *domain.ListEntriesFilter, limit, offset int) ([]*domain.Entry, int, error) {
 	var uid pgtype.UUID
 	if userID != "" {
 		var err error
@@ -294,21 +294,49 @@ func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, o
 		}
 	}
 
+	// Build filter params
+	filterVisibility := ""
+	var fromDate, toDate pgtype.Timestamptz
+	var filterTags []string
+
+	if filter != nil {
+		if filter.Visibility != "" {
+			filterVisibility = filter.Visibility
+		}
+		if !filter.FromDate.IsZero() {
+			fromDate = pgtype.Timestamptz{Time: filter.FromDate, Valid: true}
+		}
+		if !filter.ToDate.IsZero() {
+			toDate = pgtype.Timestamptz{Time: filter.ToDate, Valid: true}
+		}
+		if len(filter.Tags) > 0 {
+			filterTags = filter.Tags
+		}
+	}
+
 	entries, err := r.q.ListEntriesInPath(ctx, query.ListEntriesInPathParams{
-		UserID: uid,
-		Path:   path,
-		Limit:  int32(limit),
-		Offset: int32(offset),
-		Own:    own,
+		UserID:           uid,
+		Path:             path,
+		Limit:            int32(limit),
+		Offset:           int32(offset),
+		Own:              own,
+		FilterVisibility: filterVisibility,
+		FromDate:         fromDate,
+		ToDate:           toDate,
+		FilterTags:       filterTags,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing entries in path: %w", err)
 	}
 
 	count, err := r.q.CountEntriesInPath(ctx, query.CountEntriesInPathParams{
-		UserID: uid,
-		Path:   path,
-		Own:    own,
+		UserID:           uid,
+		Path:             path,
+		Own:              own,
+		FilterVisibility: filterVisibility,
+		FromDate:         fromDate,
+		ToDate:           toDate,
+		FilterTags:       filterTags,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("counting entries in path: %w", err)
@@ -335,7 +363,7 @@ func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, o
 	return result, int(count), nil
 }
 
-func (r *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool) ([]string, error) {
+func (r *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool, filter *domain.ListEntriesFilter) ([]string, error) {
 	var uid pgtype.UUID
 	if userID != "" {
 		var err error
@@ -345,19 +373,47 @@ func (r *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, pref
 		}
 	}
 
+	// Build filter params
+	filterVisibility := ""
+	var fromDate, toDate pgtype.Timestamptz
+	var filterTags []string
+
+	if filter != nil {
+		if filter.Visibility != "" {
+			filterVisibility = filter.Visibility
+		}
+		if !filter.FromDate.IsZero() {
+			fromDate = pgtype.Timestamptz{Time: filter.FromDate, Valid: true}
+		}
+		if !filter.ToDate.IsZero() {
+			toDate = pgtype.Timestamptz{Time: filter.ToDate, Valid: true}
+		}
+		if len(filter.Tags) > 0 {
+			filterTags = filter.Tags
+		}
+	}
+
 	var paths []string
 	var err error
 
 	if prefix == "/" {
 		paths, err = r.q.ListAllPaths(ctx, query.ListAllPathsParams{
-			UserID: uid,
-			Own:    own,
+			UserID:           uid,
+			Own:              own,
+			FilterVisibility: filterVisibility,
+			FromDate:         fromDate,
+			ToDate:           toDate,
+			FilterTags:       filterTags,
 		})
 	} else {
 		paths, err = r.q.ListPathsUnderPrefix(ctx, query.ListPathsUnderPrefixParams{
-			UserID: uid,
-			Prefix: prefix,
-			Own:    own,
+			UserID:           uid,
+			Prefix:           prefix,
+			Own:              own,
+			FilterVisibility: filterVisibility,
+			FromDate:         fromDate,
+			ToDate:           toDate,
+			FilterTags:       filterTags,
 		})
 	}
 

@@ -10,10 +10,7 @@ import {
   Filter,
 } from "lucide-react";
 import { listEntries } from "@/api/entries";
-import { listTags } from "@/api/tags";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,46 +20,46 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { FolderTree, CreateEntryDialog } from "@/components/entries";
 import { EntryPreviewModal } from "@/components/search/entry-preview-modal";
+import {
+  EntryFiltersPanel,
+  countActiveFilters,
+  type EntryFilters,
+} from "@/components/shared/entry-filters";
 
 export default function EntriesPage() {
   const { isAuthenticated } = useAuth();
   const { theme } = useTheme();
   const [createOpen, setCreateOpen] = useState(false);
   const [previewEntryId, setPreviewEntryId] = useState<string | null>(null);
-  const [ownOnly, setOwnOnly] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [tagSearch, setTagSearch] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState<EntryFilters>({});
   const queryClient = useQueryClient();
 
-  // Use same query key as FolderTree to share cache
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["entries", "/", ownOnly],
-    queryFn: () => listEntries({ path: "/", limit: 0, own: ownOnly }),
-    enabled: isAuthenticated,
-  });
+  const ownOnly = filters.only_mine ?? false;
 
-  const { data: tagsData } = useQuery({
-    queryKey: ["tags"],
-    queryFn: () => listTags({ limit: 100 }),
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["entries", "/", ownOnly, filters],
+    queryFn: () =>
+      listEntries({
+        path: "/",
+        limit: 0,
+        own: ownOnly,
+        visibility: filters.visibility,
+        tags: filters.tags,
+        from_date: filters.from_date,
+        to_date: filters.to_date,
+      }),
     enabled: isAuthenticated,
   });
 
   const total = data?.total ?? 0;
   const isRefetching = isFetching && !isLoading;
 
-  const filteredTags = tagsData?.tags?.filter((t) =>
-    t.name.toLowerCase().includes(tagSearch.toLowerCase())
-  ) ?? [];
-
-  const toggleTag = (id: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
-    );
-  };
-
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["entries"] });
   };
+
+  const activeFilterCount = countActiveFilters(filters);
 
   if (!isAuthenticated) {
     return (
@@ -132,12 +129,11 @@ export default function EntriesPage() {
                 {total}
               </span>
             </div>
-            <div className="flex items-center gap-4">
-              <DropdownMenu>
+            <div className="flex items-center gap-2">
+              <DropdownMenu open={filtersOpen} onOpenChange={setFiltersOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="backdrop-blur-md gap-2"
+                  <button
+                    className="flex items-center justify-center h-9 w-9 rounded-md transition-all hover:opacity-80 cursor-pointer backdrop-blur-md"
                     style={{
                       background: "var(--glass-bg)",
                       border: "1px solid var(--glass-border)",
@@ -145,87 +141,29 @@ export default function EntriesPage() {
                     }}
                   >
                     <Filter className="h-4 w-4" />
-                    Filter
-                  </Button>
+                    {activeFilterCount > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full text-[10px] font-semibold" style={{ background: "var(--color-primary)", color: "var(--color-primary-foreground)" }}>
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="w-64 rounded-xl border-0 shadow-xl backdrop-blur-xl p-2"
-                  style={{
-                    background: "var(--glass-bg)",
-                    border: "1px solid var(--glass-border)",
-                  }}
+                  className="p-0 border-0 shadow-none bg-transparent"
                 >
-                  <div className="space-y-2 px-2 py-1.5">
-                    <label className="flex items-center justify-between cursor-pointer">
-                      <span className="text-sm" style={{ color: "var(--glass-text)" }}>
-                        Only My Entries
-                      </span>
-                      <Switch
-                        checked={ownOnly}
-                        onCheckedChange={setOwnOnly}
-                        className="data-[state=checked]:bg-[var(--glass-border)] data-[state=unchecked]:bg-white/10"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="h-px my-2" style={{ background: "var(--glass-divider)" }} />
-
-                  <div className="space-y-2 px-2">
-                    <Input
-                      value={tagSearch}
-                      onChange={(e) => setTagSearch(e.target.value)}
-                      placeholder="Search tags..."
-                      className="h-8 text-sm backdrop-blur-md placeholder:text-[var(--glass-text-muted)]"
-                      style={{
-                        background: "var(--glass-bg)",
-                        borderColor: "var(--glass-border)",
-                        color: "var(--glass-text)",
-                      }}
-                    />
-                  </div>
-
-                  {filteredTags.length > 0 && (
-                    <div className="mt-2 max-h-40 overflow-y-auto px-2 pb-2">
-                      <div className="flex flex-wrap gap-1.5">
-                        {filteredTags.map((t) => (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => toggleTag(t.id)}
-                            className="rounded-full border px-2 py-0.5 text-xs font-medium transition-colors backdrop-blur-sm"
-                            style={{
-                              background: selectedTags.includes(t.id)
-                                ? "var(--glass-hover)"
-                                : "transparent",
-                              borderColor: selectedTags.includes(t.id)
-                                ? "var(--glass-border)"
-                                : "var(--glass-border)",
-                              color: selectedTags.includes(t.id)
-                                ? "var(--glass-text)"
-                                : "var(--glass-text-muted)",
-                            }}
-                          >
-                            {t.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {filteredTags.length === 0 && tagSearch && (
-                    <div className="px-2 py-2 text-xs" style={{ color: "var(--glass-text-muted)" }}>
-                      No tags found
-                    </div>
-                  )}
+                  <EntryFiltersPanel
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    isOpen={filtersOpen}
+                    onClose={() => setFiltersOpen(false)}
+                  />
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button
-                variant="ghost"
-                size="icon"
+              <button
                 onClick={handleRefresh}
                 disabled={isRefetching}
-                className="backdrop-blur-md"
+                className="flex items-center justify-center h-9 w-9 rounded-md transition-all hover:opacity-80 cursor-pointer backdrop-blur-md disabled:opacity-50"
                 style={{
                   background: "var(--glass-bg)",
                   border: "1px solid var(--glass-border)",
@@ -235,19 +173,19 @@ export default function EntriesPage() {
                 <RefreshCw
                   className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
                 />
-              </Button>
-              <Button
+              </button>
+              <button
                 onClick={() => setCreateOpen(true)}
-                className="backdrop-blur-md"
+                className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium transition-all hover:opacity-80 cursor-pointer backdrop-blur-md"
                 style={{
                   background: "var(--glass-bg)",
                   border: "1px solid var(--glass-border)",
                   color: "var(--glass-text)",
                 }}
               >
-                <Plus className="mr-2 h-4 w-4" />
-                New Entry
-              </Button>
+                <Plus className="h-4 w-4" />
+                New
+              </button>
             </div>
           </div>
         </motion.div>
@@ -322,7 +260,16 @@ export default function EntriesPage() {
               border: "1px solid var(--glass-border)",
             }}
           >
-            <FolderTree onEntrySelect={setPreviewEntryId} ownOnly={ownOnly} />
+            <FolderTree
+              onEntrySelect={setPreviewEntryId}
+              filters={{
+                own: filters.only_mine,
+                visibility: filters.visibility,
+                tags: filters.tags,
+                from_date: filters.from_date,
+                to_date: filters.to_date,
+              }}
+            />
           </motion.div>
         )}
       </div>

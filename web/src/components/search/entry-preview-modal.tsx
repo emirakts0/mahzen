@@ -178,7 +178,7 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
 
               <div className="relative">
                 <div
-                  className="rounded-lg p-4 text-sm leading-relaxed font-mono"
+                  className="selectable rounded-lg p-4 text-sm leading-relaxed font-mono"
                   style={{
                     background: "var(--glass-hover)",
                     color: "var(--glass-text)",

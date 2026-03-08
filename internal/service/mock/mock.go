@@ -22,8 +22,8 @@ type EntryRepository struct {
 	ListByUserFn           func(ctx context.Context, userID string, limit, offset int) ([]*domain.Entry, int, error)
 	ListAccessibleFn       func(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error)
 	ListDistinctPathsFn    func(ctx context.Context, userID string) ([]string, error)
-	ListInPathFn           func(ctx context.Context, userID, path string, own bool, limit, offset int) ([]*domain.Entry, int, error)
-	ListPathsUnderPrefixFn func(ctx context.Context, userID, prefix string, own bool) ([]string, error)
+	ListInPathFn           func(ctx context.Context, userID, path string, own bool, filter *domain.ListEntriesFilter, limit, offset int) ([]*domain.Entry, int, error)
+	ListPathsUnderPrefixFn func(ctx context.Context, userID, prefix string, own bool, filter *domain.ListEntriesFilter) ([]string, error)
 	ListAllFn              func(ctx context.Context) ([]*domain.Entry, error)
 	UpdateEmbeddingFn      func(ctx context.Context, entryID string, embedding []float32) error
 }
@@ -56,12 +56,12 @@ func (m *EntryRepository) ListDistinctPaths(ctx context.Context, userID string) 
 	return m.ListDistinctPathsFn(ctx, userID)
 }
 
-func (m *EntryRepository) ListInPath(ctx context.Context, userID, path string, own bool, limit, offset int) ([]*domain.Entry, int, error) {
-	return m.ListInPathFn(ctx, userID, path, own, limit, offset)
+func (m *EntryRepository) ListInPath(ctx context.Context, userID, path string, own bool, filter *domain.ListEntriesFilter, limit, offset int) ([]*domain.Entry, int, error) {
+	return m.ListInPathFn(ctx, userID, path, own, filter, limit, offset)
 }
 
-func (m *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool) ([]string, error) {
-	return m.ListPathsUnderPrefixFn(ctx, userID, prefix, own)
+func (m *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool, filter *domain.ListEntriesFilter) ([]string, error) {
+	return m.ListPathsUnderPrefixFn(ctx, userID, prefix, own, filter)
 }
 
 func (m *EntryRepository) ListAll(ctx context.Context) ([]*domain.Entry, error) {

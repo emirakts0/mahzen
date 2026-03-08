@@ -135,6 +135,14 @@ func isPathRune(r rune) bool {
 	return false
 }
 
+// ListEntriesFilter contains optional filters for listing entries.
+type ListEntriesFilter struct {
+	Visibility string
+	Tags       []string
+	FromDate   time.Time
+	ToDate     time.Time
+}
+
 // EntryRepository defines persistence operations for entries.
 type EntryRepository interface {
 	Create(ctx context.Context, entry *Entry) error
@@ -144,8 +152,8 @@ type EntryRepository interface {
 	ListByUser(ctx context.Context, userID string, limit, offset int) ([]*Entry, int, error)
 	ListAccessible(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*Entry, int, error)
 	ListDistinctPaths(ctx context.Context, userID string) ([]string, error)
-	ListInPath(ctx context.Context, userID, path string, own bool, limit, offset int) ([]*Entry, int, error)
-	ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool) ([]string, error)
+	ListInPath(ctx context.Context, userID, path string, own bool, filter *ListEntriesFilter, limit, offset int) ([]*Entry, int, error)
+	ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool, filter *ListEntriesFilter) ([]string, error)
 	ListAll(ctx context.Context) ([]*Entry, error)
 	UpdateEmbedding(ctx context.Context, entryID string, embedding []float32) error
 }

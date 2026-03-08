@@ -60,44 +60,132 @@ WHERE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
 ORDER BY path ASC;
 
 -- name: ListEntriesInPath :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
-FROM entries
+SELECT e.id, e.user_id, e.title, e.content, e.summary, e.s3_key, e.path, e.visibility, e.file_type, e.file_size, e.embedding, e.created_at, e.updated_at
+FROM entries e
 WHERE 
   CASE 
-    WHEN sqlc.arg('own')::boolean THEN user_id = sqlc.narg('user_id')::uuid
-    ELSE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+    WHEN sqlc.arg('own')::boolean THEN e.user_id = sqlc.narg('user_id')::uuid
+    ELSE (e.visibility = 'public' OR e.user_id = sqlc.narg('user_id')::uuid)
   END
-  AND path = sqlc.arg('path')::text
-ORDER BY created_at DESC
+  AND e.path = sqlc.arg('path')::text
+  AND (
+    sqlc.arg('filter_visibility')::text IS NULL OR 
+    sqlc.arg('filter_visibility')::text = '' OR 
+    e.visibility = sqlc.arg('filter_visibility')::text
+  )
+  AND (
+    sqlc.arg('from_date')::timestamptz IS NULL OR 
+    e.created_at >= sqlc.arg('from_date')::timestamptz
+  )
+  AND (
+    sqlc.arg('to_date')::timestamptz IS NULL OR 
+    e.created_at <= sqlc.arg('to_date')::timestamptz
+  )
+  AND (
+    sqlc.arg('filter_tags')::text[] IS NULL OR
+    sqlc.arg('filter_tags')::text[] = '{}' OR
+    EXISTS (
+      SELECT 1 FROM entry_tags et
+      JOIN tags t ON t.id = et.tag_id
+      WHERE et.entry_id = e.id AND t.name = ANY(sqlc.arg('filter_tags')::text[])
+    )
+  )
+ORDER BY e.created_at DESC
 LIMIT sqlc.arg('limit')::int OFFSET sqlc.arg('offset')::int;
 
 -- name: CountEntriesInPath :one
-SELECT count(*) FROM entries
+SELECT count(*) FROM entries e
 WHERE 
   CASE 
-    WHEN sqlc.arg('own')::boolean THEN user_id = sqlc.narg('user_id')::uuid
-    ELSE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+    WHEN sqlc.arg('own')::boolean THEN e.user_id = sqlc.narg('user_id')::uuid
+    ELSE (e.visibility = 'public' OR e.user_id = sqlc.narg('user_id')::uuid)
   END
-  AND path = sqlc.arg('path')::text;
+  AND e.path = sqlc.arg('path')::text
+  AND (
+    sqlc.arg('filter_visibility')::text IS NULL OR 
+    sqlc.arg('filter_visibility')::text = '' OR 
+    e.visibility = sqlc.arg('filter_visibility')::text
+  )
+  AND (
+    sqlc.arg('from_date')::timestamptz IS NULL OR 
+    e.created_at >= sqlc.arg('from_date')::timestamptz
+  )
+  AND (
+    sqlc.arg('to_date')::timestamptz IS NULL OR 
+    e.created_at <= sqlc.arg('to_date')::timestamptz
+  )
+  AND (
+    sqlc.arg('filter_tags')::text[] IS NULL OR
+    sqlc.arg('filter_tags')::text[] = '{}' OR
+    EXISTS (
+      SELECT 1 FROM entry_tags et
+      JOIN tags t ON t.id = et.tag_id
+      WHERE et.entry_id = e.id AND t.name = ANY(sqlc.arg('filter_tags')::text[])
+    )
+  );
 
 -- name: ListPathsUnderPrefix :many
-SELECT DISTINCT path FROM entries
+SELECT DISTINCT e.path FROM entries e
 WHERE 
   CASE 
-    WHEN sqlc.arg('own')::boolean THEN user_id = sqlc.narg('user_id')::uuid
-    ELSE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+    WHEN sqlc.arg('own')::boolean THEN e.user_id = sqlc.narg('user_id')::uuid
+    ELSE (e.visibility = 'public' OR e.user_id = sqlc.narg('user_id')::uuid)
   END
-  AND path LIKE sqlc.arg('prefix')::text || '/%'
-ORDER BY path ASC;
+  AND e.path LIKE sqlc.arg('prefix')::text || '/%'
+  AND (
+    sqlc.arg('filter_visibility')::text IS NULL OR 
+    sqlc.arg('filter_visibility')::text = '' OR 
+    e.visibility = sqlc.arg('filter_visibility')::text
+  )
+  AND (
+    sqlc.arg('from_date')::timestamptz IS NULL OR 
+    e.created_at >= sqlc.arg('from_date')::timestamptz
+  )
+  AND (
+    sqlc.arg('to_date')::timestamptz IS NULL OR 
+    e.created_at <= sqlc.arg('to_date')::timestamptz
+  )
+  AND (
+    sqlc.arg('filter_tags')::text[] IS NULL OR
+    sqlc.arg('filter_tags')::text[] = '{}' OR
+    EXISTS (
+      SELECT 1 FROM entry_tags et
+      JOIN tags t ON t.id = et.tag_id
+      WHERE et.entry_id = e.id AND t.name = ANY(sqlc.arg('filter_tags')::text[])
+    )
+  )
+ORDER BY e.path ASC;
 
 -- name: ListAllPaths :many
-SELECT DISTINCT path FROM entries
+SELECT DISTINCT e.path FROM entries e
 WHERE 
   CASE 
-    WHEN sqlc.arg('own')::boolean THEN user_id = sqlc.narg('user_id')::uuid
-    ELSE (visibility = 'public' OR user_id = sqlc.narg('user_id')::uuid)
+    WHEN sqlc.arg('own')::boolean THEN e.user_id = sqlc.narg('user_id')::uuid
+    ELSE (e.visibility = 'public' OR e.user_id = sqlc.narg('user_id')::uuid)
   END
-ORDER BY path ASC;
+  AND (
+    sqlc.arg('filter_visibility')::text IS NULL OR 
+    sqlc.arg('filter_visibility')::text = '' OR 
+    e.visibility = sqlc.arg('filter_visibility')::text
+  )
+  AND (
+    sqlc.arg('from_date')::timestamptz IS NULL OR 
+    e.created_at >= sqlc.arg('from_date')::timestamptz
+  )
+  AND (
+    sqlc.arg('to_date')::timestamptz IS NULL OR 
+    e.created_at <= sqlc.arg('to_date')::timestamptz
+  )
+  AND (
+    sqlc.arg('filter_tags')::text[] IS NULL OR
+    sqlc.arg('filter_tags')::text[] = '{}' OR
+    EXISTS (
+      SELECT 1 FROM entry_tags et
+      JOIN tags t ON t.id = et.tag_id
+      WHERE et.entry_id = e.id AND t.name = ANY(sqlc.arg('filter_tags')::text[])
+    )
+  )
+ORDER BY e.path ASC;
 
 -- name: ListAllEntries :many
 SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at

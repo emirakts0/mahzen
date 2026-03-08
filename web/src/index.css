@@ -119,6 +119,57 @@
     height: 100%;
     overflow-y: auto;
     background-color: var(--color-background);
+    scrollbar-width: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  html::-webkit-scrollbar {
+    display: none;
+  }
+
+  body {
+    @apply text-foreground antialiased;
+    background: transparent;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    min-height: 100%;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"],
+  .selectable {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  ::selection {
+    background: rgba(255, 255, 255, 0.4);
+    color: inherit;
+  }
+
+  ::-moz-selection {
+    background: rgba(255, 255, 255, 0.4);
+    color: inherit;
+  }
+
+  .dark ::selection {
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  .dark ::-moz-selection {
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  input::placeholder {
+    color: var(--glass-text-muted);
+    opacity: 1;
+  }
+
+  html {
+    height: 100%;
+    overflow-y: auto;
+    background-color: var(--color-background);
     /* Hide the native page scrollbar — content still scrolls via wheel/trackpad/keyboard.
        The fixed Grainient background cannot paint behind browser-chrome scrollbars,
        so hiding it is the only way to keep the background seamless edge-to-edge. */

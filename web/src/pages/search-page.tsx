@@ -175,7 +175,6 @@ export default function SearchPage() {
                 autoFocus
                 filterCount={filterCount}
                 onFilterClick={() => setIsFilterOpen(!isFilterOpen)}
-                isFilterOpen={isFilterOpen}
               />
               <SearchFilters
                 filters={filters}

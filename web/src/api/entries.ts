@@ -14,6 +14,10 @@ export function listEntries(params: ListEntriesParams = {}): Promise<EntriesResp
   if (params.limit !== undefined) sp.set("limit", String(params.limit))
   if (params.offset !== undefined) sp.set("offset", String(params.offset))
   if (params.own) sp.set("own", "true")
+  if (params.visibility) sp.set("visibility", params.visibility)
+  if (params.tags?.length) sp.set("tags", params.tags.join(","))
+  if (params.from_date) sp.set("from_date", params.from_date)
+  if (params.to_date) sp.set("to_date", params.to_date)
   const qs = sp.toString()
   return apiGet<EntriesResponse>(`/entries${qs ? `?${qs}` : ""}`)
 }

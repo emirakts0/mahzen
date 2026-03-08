@@ -4,14 +4,14 @@ import { motion } from "framer-motion"
 import { listEntries } from "@/api/entries"
 import { FolderItem } from "./folder-item"
 import { EntryItem } from "./entry-item"
-import type { Entry } from "@/types/api"
+import type { Entry, ListEntriesParams } from "@/types/api"
 
 interface FolderTreeProps {
   onEntrySelect: (entryId: string) => void
-  ownOnly?: boolean
+  filters?: ListEntriesParams
 }
 
-export function FolderTree({ onEntrySelect, ownOnly = false }: FolderTreeProps) {
+export function FolderTree({ onEntrySelect, filters = {} }: FolderTreeProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["/"]))
 
   const toggleFolder = useCallback((path: string) => {
@@ -35,7 +35,7 @@ export function FolderTree({ onEntrySelect, ownOnly = false }: FolderTreeProps) 
           expandedFolders={expandedFolders}
           onToggle={toggleFolder}
           onEntrySelect={onEntrySelect}
-          ownOnly={ownOnly}
+          filters={filters}
         />
       </div>
     </>
@@ -47,7 +47,7 @@ interface FolderNodeProps {
   depth: number
   expandedFolders: Set<string>
   folderCount?: number
-  ownOnly: boolean
+  filters: ListEntriesParams
   onToggle: (path: string) => void
   onEntrySelect: (entryId: string) => void
 }
@@ -57,15 +57,15 @@ function FolderNode({
   depth,
   expandedFolders,
   folderCount,
-  ownOnly,
+  filters,
   onToggle,
   onEntrySelect,
 }: FolderNodeProps) {
   const isExpanded = expandedFolders.has(path)
 
   const { data, isLoading } = useQuery({
-    queryKey: ["entries", path, ownOnly],
-    queryFn: () => listEntries({ path, limit: 100, own: ownOnly }),
+    queryKey: ["entries", path, filters],
+    queryFn: () => listEntries({ ...filters, path, limit: 100 }),
     enabled: isExpanded,
     staleTime: 30000,
   })
@@ -111,7 +111,7 @@ function FolderNode({
                 depth={depth + 1}
                 expandedFolders={expandedFolders}
                 folderCount={folder.count}
-                ownOnly={ownOnly}
+                filters={filters}
                 onToggle={onToggle}
                 onEntrySelect={onEntrySelect}
               />
@@ -150,7 +150,7 @@ function FolderNode({
               depth={depth}
               expandedFolders={expandedFolders}
               folderCount={folder.count}
-              ownOnly={ownOnly}
+              filters={filters}
               onToggle={onToggle}
               onEntrySelect={onEntrySelect}
             />

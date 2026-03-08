@@ -53,23 +53,57 @@ func (q *Queries) CountEntriesByUser(ctx context.Context, userID pgtype.UUID) (i
 }
 
 const countEntriesInPath = `-- name: CountEntriesInPath :one
-SELECT count(*) FROM entries
+SELECT count(*) FROM entries e
 WHERE 
   CASE 
-    WHEN $1::boolean THEN user_id = $2::uuid
-    ELSE (visibility = 'public' OR user_id = $2::uuid)
+    WHEN $1::boolean THEN e.user_id = $2::uuid
+    ELSE (e.visibility = 'public' OR e.user_id = $2::uuid)
   END
-  AND path = $3::text
+  AND e.path = $3::text
+  AND (
+    $4::text IS NULL OR 
+    $4::text = '' OR 
+    e.visibility = $4::text
+  )
+  AND (
+    $5::timestamptz IS NULL OR 
+    e.created_at >= $5::timestamptz
+  )
+  AND (
+    $6::timestamptz IS NULL OR 
+    e.created_at <= $6::timestamptz
+  )
+  AND (
+    $7::text[] IS NULL OR
+    $7::text[] = '{}' OR
+    EXISTS (
+      SELECT 1 FROM entry_tags et
+      JOIN tags t ON t.id = et.tag_id
+      WHERE et.entry_id = e.id AND t.name = ANY($7::text[])
+    )
+  )
 `
 
 type CountEntriesInPathParams struct {
-	Own    bool        `json:"own"`
-	UserID pgtype.UUID `json:"user_id"`
-	Path   string      `json:"path"`
+	Own              bool               `json:"own"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	Path             string             `json:"path"`
+	FilterVisibility string             `json:"filter_visibility"`
+	FromDate         pgtype.Timestamptz `json:"from_date"`
+	ToDate           pgtype.Timestamptz `json:"to_date"`
+	FilterTags       []string           `json:"filter_tags"`
 }
 
 func (q *Queries) CountEntriesInPath(ctx context.Context, arg CountEntriesInPathParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countEntriesInPath, arg.Own, arg.UserID, arg.Path)
+	row := q.db.QueryRow(ctx, countEntriesInPath,
+		arg.Own,
+		arg.UserID,
+		arg.Path,
+		arg.FilterVisibility,
+		arg.FromDate,
+		arg.ToDate,
+		arg.FilterTags,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -386,22 +420,55 @@ func (q *Queries) ListAllEntries(ctx context.Context) ([]ListAllEntriesRow, erro
 }
 
 const listAllPaths = `-- name: ListAllPaths :many
-SELECT DISTINCT path FROM entries
+SELECT DISTINCT e.path FROM entries e
 WHERE 
   CASE 
-    WHEN $1::boolean THEN user_id = $2::uuid
-    ELSE (visibility = 'public' OR user_id = $2::uuid)
+    WHEN $1::boolean THEN e.user_id = $2::uuid
+    ELSE (e.visibility = 'public' OR e.user_id = $2::uuid)
   END
-ORDER BY path ASC
+  AND (
+    $3::text IS NULL OR 
+    $3::text = '' OR 
+    e.visibility = $3::text
+  )
+  AND (
+    $4::timestamptz IS NULL OR 
+    e.created_at >= $4::timestamptz
+  )
+  AND (
+    $5::timestamptz IS NULL OR 
+    e.created_at <= $5::timestamptz
+  )
+  AND (
+    $6::text[] IS NULL OR
+    $6::text[] = '{}' OR
+    EXISTS (
+      SELECT 1 FROM entry_tags et
+      JOIN tags t ON t.id = et.tag_id
+      WHERE et.entry_id = e.id AND t.name = ANY($6::text[])
+    )
+  )
+ORDER BY e.path ASC
 `
 
 type ListAllPathsParams struct {
-	Own    bool        `json:"own"`
-	UserID pgtype.UUID `json:"user_id"`
+	Own              bool               `json:"own"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	FilterVisibility string             `json:"filter_visibility"`
+	FromDate         pgtype.Timestamptz `json:"from_date"`
+	ToDate           pgtype.Timestamptz `json:"to_date"`
+	FilterTags       []string           `json:"filter_tags"`
 }
 
 func (q *Queries) ListAllPaths(ctx context.Context, arg ListAllPathsParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, listAllPaths, arg.Own, arg.UserID)
+	rows, err := q.db.Query(ctx, listAllPaths,
+		arg.Own,
+		arg.UserID,
+		arg.FilterVisibility,
+		arg.FromDate,
+		arg.ToDate,
+		arg.FilterTags,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -511,24 +578,50 @@ func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserPa
 }
 
 const listEntriesInPath = `-- name: ListEntriesInPath :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
-FROM entries
+SELECT e.id, e.user_id, e.title, e.content, e.summary, e.s3_key, e.path, e.visibility, e.file_type, e.file_size, e.embedding, e.created_at, e.updated_at
+FROM entries e
 WHERE 
   CASE 
-    WHEN $1::boolean THEN user_id = $2::uuid
-    ELSE (visibility = 'public' OR user_id = $2::uuid)
+    WHEN $1::boolean THEN e.user_id = $2::uuid
+    ELSE (e.visibility = 'public' OR e.user_id = $2::uuid)
   END
-  AND path = $3::text
-ORDER BY created_at DESC
-LIMIT $5::int OFFSET $4::int
+  AND e.path = $3::text
+  AND (
+    $4::text IS NULL OR 
+    $4::text = '' OR 
+    e.visibility = $4::text
+  )
+  AND (
+    $5::timestamptz IS NULL OR 
+    e.created_at >= $5::timestamptz
+  )
+  AND (
+    $6::timestamptz IS NULL OR 
+    e.created_at <= $6::timestamptz
+  )
+  AND (
+    $7::text[] IS NULL OR
+    $7::text[] = '{}' OR
+    EXISTS (
+      SELECT 1 FROM entry_tags et
+      JOIN tags t ON t.id = et.tag_id
+      WHERE et.entry_id = e.id AND t.name = ANY($7::text[])
+    )
+  )
+ORDER BY e.created_at DESC
+LIMIT $9::int OFFSET $8::int
 `
 
 type ListEntriesInPathParams struct {
-	Own    bool        `json:"own"`
-	UserID pgtype.UUID `json:"user_id"`
-	Path   string      `json:"path"`
-	Offset int32       `json:"offset"`
-	Limit  int32       `json:"limit"`
+	Own              bool               `json:"own"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	Path             string             `json:"path"`
+	FilterVisibility string             `json:"filter_visibility"`
+	FromDate         pgtype.Timestamptz `json:"from_date"`
+	ToDate           pgtype.Timestamptz `json:"to_date"`
+	FilterTags       []string           `json:"filter_tags"`
+	Offset           int32              `json:"offset"`
+	Limit            int32              `json:"limit"`
 }
 
 type ListEntriesInPathRow struct {
@@ -552,6 +645,10 @@ func (q *Queries) ListEntriesInPath(ctx context.Context, arg ListEntriesInPathPa
 		arg.Own,
 		arg.UserID,
 		arg.Path,
+		arg.FilterVisibility,
+		arg.FromDate,
+		arg.ToDate,
+		arg.FilterTags,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -588,24 +685,58 @@ func (q *Queries) ListEntriesInPath(ctx context.Context, arg ListEntriesInPathPa
 }
 
 const listPathsUnderPrefix = `-- name: ListPathsUnderPrefix :many
-SELECT DISTINCT path FROM entries
+SELECT DISTINCT e.path FROM entries e
 WHERE 
   CASE 
-    WHEN $1::boolean THEN user_id = $2::uuid
-    ELSE (visibility = 'public' OR user_id = $2::uuid)
+    WHEN $1::boolean THEN e.user_id = $2::uuid
+    ELSE (e.visibility = 'public' OR e.user_id = $2::uuid)
   END
-  AND path LIKE $3::text || '/%'
-ORDER BY path ASC
+  AND e.path LIKE $3::text || '/%'
+  AND (
+    $4::text IS NULL OR 
+    $4::text = '' OR 
+    e.visibility = $4::text
+  )
+  AND (
+    $5::timestamptz IS NULL OR 
+    e.created_at >= $5::timestamptz
+  )
+  AND (
+    $6::timestamptz IS NULL OR 
+    e.created_at <= $6::timestamptz
+  )
+  AND (
+    $7::text[] IS NULL OR
+    $7::text[] = '{}' OR
+    EXISTS (
+      SELECT 1 FROM entry_tags et
+      JOIN tags t ON t.id = et.tag_id
+      WHERE et.entry_id = e.id AND t.name = ANY($7::text[])
+    )
+  )
+ORDER BY e.path ASC
 `
 
 type ListPathsUnderPrefixParams struct {
-	Own    bool        `json:"own"`
-	UserID pgtype.UUID `json:"user_id"`
-	Prefix string      `json:"prefix"`
+	Own              bool               `json:"own"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	Prefix           string             `json:"prefix"`
+	FilterVisibility string             `json:"filter_visibility"`
+	FromDate         pgtype.Timestamptz `json:"from_date"`
+	ToDate           pgtype.Timestamptz `json:"to_date"`
+	FilterTags       []string           `json:"filter_tags"`
 }
 
 func (q *Queries) ListPathsUnderPrefix(ctx context.Context, arg ListPathsUnderPrefixParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, listPathsUnderPrefix, arg.Own, arg.UserID, arg.Prefix)
+	rows, err := q.db.Query(ctx, listPathsUnderPrefix,
+		arg.Own,
+		arg.UserID,
+		arg.Prefix,
+		arg.FilterVisibility,
+		arg.FromDate,
+		arg.ToDate,
+		arg.FilterTags,
+	)
 	if err != nil {
 		return nil, err
 	}
