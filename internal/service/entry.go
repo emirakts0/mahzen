@@ -337,6 +337,13 @@ func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, con
 			"entry_id", entry.ID,
 			"dimensions", len(embedding),
 		)
+
+		// Save embedding to database.
+		if err := s.entries.UpdateEmbedding(ctx, entry.ID, embedding); err != nil {
+			slog.Error("failed to save embedding to db", "entry_id", entry.ID, "error", err)
+		} else {
+			slog.Info("embedding saved to db", "entry_id", entry.ID)
+		}
 	}
 
 	indexedEntry := *entry

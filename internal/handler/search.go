@@ -3,9 +3,12 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/emirakts0/mahzen/internal/domain"
 	"github.com/emirakts0/mahzen/internal/service"
 )
 
@@ -45,6 +48,7 @@ type searchResultResponse struct {
 func (h *searchHandler) keywordSearch(c *gin.Context) {
 	query := c.Query("query")
 	userID := userIDFromContext(c)
+	filters := parseSearchFilters(c)
 
 	limit := 20
 	if l := c.Query("limit"); l != "" {
@@ -60,7 +64,7 @@ func (h *searchHandler) keywordSearch(c *gin.Context) {
 		}
 	}
 
-	results, total, err := h.svc.KeywordSearch(c.Request.Context(), query, userID, limit, offset)
+	results, total, err := h.svc.KeywordSearch(c.Request.Context(), query, userID, filters, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "keyword search: " + err.Error()})
 		return
@@ -97,6 +101,7 @@ func (h *searchHandler) keywordSearch(c *gin.Context) {
 func (h *searchHandler) semanticSearch(c *gin.Context) {
 	query := c.Query("query")
 	userID := userIDFromContext(c)
+	filters := parseSearchFilters(c)
 
 	limit := 20
 	if l := c.Query("limit"); l != "" {
@@ -112,7 +117,7 @@ func (h *searchHandler) semanticSearch(c *gin.Context) {
 		}
 	}
 
-	results, total, err := h.svc.SemanticSearch(c.Request.Context(), query, userID, limit, offset)
+	results, total, err := h.svc.SemanticSearch(c.Request.Context(), query, userID, filters, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "semantic search: " + err.Error()})
 		return
@@ -145,4 +150,63 @@ func (h *searchHandler) semanticSearch(c *gin.Context) {
 		"results": items,
 		"total":   total,
 	})
+}
+
+// parseSearchFilters extracts optional search filters from query parameters.
+// Supported params: tags (comma-separated), path, from_date, to_date, only_mine, visibility
+func parseSearchFilters(c *gin.Context) *domain.SearchFilters {
+	filters := &domain.SearchFilters{}
+
+	// Tags: comma-separated list (e.g., ?tags=go,rust,web)
+	if tags := c.Query("tags"); tags != "" {
+		for _, tag := range strings.Split(tags, ",") {
+			if t := strings.TrimSpace(tag); t != "" {
+				filters.Tags = append(filters.Tags, t)
+			}
+		}
+	}
+
+	// Path: exact path match (e.g., ?path=/notes/work)
+	if path := c.Query("path"); path != "" {
+		filters.Path = strings.TrimSpace(path)
+	}
+
+	// FromDate: ISO date format (e.g., ?from_date=2024-01-01)
+	if fromDate := c.Query("from_date"); fromDate != "" {
+		if t, err := time.Parse(time.DateOnly, fromDate); err == nil {
+			filters.FromDate = t
+		}
+	}
+
+	// ToDate: ISO date format (e.g., ?to_date=2024-12-31)
+	if toDate := c.Query("to_date"); toDate != "" {
+		if t, err := time.Parse(time.DateOnly, toDate); err == nil {
+			filters.ToDate = t
+		}
+	}
+
+	// OnlyMine: boolean (e.g., ?only_mine=true)
+	if onlyMine := c.Query("only_mine"); onlyMine != "" {
+		filters.OnlyMine = strings.ToLower(onlyMine) == "true" || onlyMine == "1"
+	}
+
+	// Visibility: "public" or "private" (e.g., ?visibility=private)
+	if visibility := c.Query("visibility"); visibility != "" {
+		v := strings.ToLower(strings.TrimSpace(visibility))
+		if v == "public" || v == "private" {
+			filters.Visibility = v
+		}
+	}
+
+	// Return nil if no filters were set
+	if len(filters.Tags) == 0 &&
+		filters.Path == "" &&
+		filters.FromDate.IsZero() &&
+		filters.ToDate.IsZero() &&
+		!filters.OnlyMine &&
+		filters.Visibility == "" {
+		return nil
+	}
+
+	return filters
 }

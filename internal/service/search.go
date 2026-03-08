@@ -24,16 +24,17 @@ func NewSearchService(searcher domain.Searcher, embedder domain.Embedder) *Searc
 }
 
 // KeywordSearch performs a text-based search.
-func (s *SearchService) KeywordSearch(ctx context.Context, query, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
+func (s *SearchService) KeywordSearch(ctx context.Context, query, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
 	slog.Info("keyword search request",
 		"query", query,
 		"user_id", userID,
+		"filters", filters,
 		"limit", limit,
 		"offset", offset,
 	)
 
 	start := time.Now()
-	results, total, err := s.searcher.KeywordSearch(ctx, query, userID, limit, offset)
+	results, total, err := s.searcher.KeywordSearch(ctx, query, userID, filters, limit, offset)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -55,10 +56,11 @@ func (s *SearchService) KeywordSearch(ctx context.Context, query, userID string,
 }
 
 // SemanticSearch converts the query to an embedding and performs vector search.
-func (s *SearchService) SemanticSearch(ctx context.Context, query, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
+func (s *SearchService) SemanticSearch(ctx context.Context, query, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
 	slog.Info("semantic search request",
 		"query", query,
 		"user_id", userID,
+		"filters", filters,
 		"limit", limit,
 		"offset", offset,
 	)
@@ -83,7 +85,7 @@ func (s *SearchService) SemanticSearch(ctx context.Context, query, userID string
 	)
 
 	searchStart := time.Now()
-	results, total, err := s.searcher.SemanticSearch(ctx, embedding, userID, limit, offset)
+	results, total, err := s.searcher.SemanticSearch(ctx, embedding, userID, filters, limit, offset)
 	searchDuration := time.Since(searchStart)
 
 	if err != nil {

@@ -1,5 +1,5 @@
 import { forwardRef } from "react"
-import { Search, X } from "lucide-react"
+import { Search, X, Filter } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface SearchInputProps {
@@ -11,10 +11,15 @@ interface SearchInputProps {
   className?: string
   hint?: string | null
   autoFocus?: boolean
+  filterCount?: number
+  onFilterClick?: () => void
+  isFilterOpen?: boolean
 }
 
 export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
-  ({ value, onChange, onClear, placeholder = "Search your knowledge base...", disabled = false, className, hint, autoFocus }, ref) => {
+  ({ value, onChange, onClear, placeholder = "Search your knowledge base...", disabled = false, className, hint, autoFocus, filterCount, onFilterClick, isFilterOpen }, ref) => {
+    const hasFilters = filterCount !== undefined && filterCount > 0
+
     return (
       <div className={cn("relative w-full", className)}>
         <div className="relative flex items-center">
@@ -33,7 +38,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             spellCheck={false}
             autoComplete="off"
             className={cn(
-              "h-12 w-full rounded-xl pl-11 pr-10 text-base shadow-sm outline-none transition-all backdrop-blur-md",
+              "h-12 w-full rounded-xl pl-11 pr-20 text-base shadow-sm outline-none transition-all backdrop-blur-md",
               "disabled:cursor-not-allowed disabled:opacity-50",
             )}
             style={{
@@ -42,17 +47,35 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
               color: "var(--glass-text)",
             }}
           />
-          {value && (
-            <button
-              type="button"
-              onClick={onClear}
-              aria-label="Clear search"
-              className="absolute right-3 flex h-6 w-6 items-center justify-center rounded-md transition-colors"
-              style={{ color: "var(--glass-icon)" }}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+          <div className="absolute right-2 flex items-center gap-1">
+            {onFilterClick && (
+              <button
+                type="button"
+                onClick={onFilterClick}
+                className="flex items-center gap-1 rounded-md px-2 py-1 transition-all"
+                style={{
+                  background: isFilterOpen || hasFilters ? "var(--glass-hover)" : "transparent",
+                  color: hasFilters ? "var(--glass-text)" : "var(--glass-text-muted)",
+                }}
+              >
+                {hasFilters && (
+                  <span className="text-xs font-semibold tabular-nums">{filterCount}</span>
+                )}
+                <Filter className="h-4 w-4" />
+              </button>
+            )}
+            {value && (
+              <button
+                type="button"
+                onClick={onClear}
+                aria-label="Clear search"
+                className="flex h-6 w-6 items-center justify-center rounded-md transition-colors"
+                style={{ color: "var(--glass-icon)" }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {hint && (

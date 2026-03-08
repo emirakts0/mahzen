@@ -50,8 +50,9 @@ type Entry struct {
 	S3Key      string // Set when content is stored in object storage.
 	Path       string // Materialized path for hierarchical organization (e.g. "/notes/work").
 	Visibility Visibility
-	FileType   string // MIME extension provided by the client (e.g. "mp4", "zip"). Empty for plain text entries.
-	FileSize   int64  // Size of the content in bytes.
+	FileType   string    // MIME extension provided by the client (e.g. "mp4", "zip"). Empty for plain text entries.
+	FileSize   int64     // Size of the content in bytes.
+	Embedding  []float32 // OpenAI embedding vector (stored as JSON in DB).
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -145,4 +146,6 @@ type EntryRepository interface {
 	ListDistinctPaths(ctx context.Context, userID string) ([]string, error)
 	ListInPath(ctx context.Context, userID, path string, own bool, limit, offset int) ([]*Entry, int, error)
 	ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool) ([]string, error)
+	ListAll(ctx context.Context) ([]*Entry, error)
+	UpdateEmbedding(ctx context.Context, entryID string, embedding []float32) error
 }

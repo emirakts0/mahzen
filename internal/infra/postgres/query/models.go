@@ -21,6 +21,7 @@ type Entry struct {
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	FileType   string             `json:"file_type"`
 	FileSize   int64              `json:"file_size"`
+	Embedding  pgtype.Text        `json:"embedding"`
 }
 
 type EntryTag struct {

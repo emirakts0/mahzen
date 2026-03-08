@@ -22,8 +22,10 @@ type EntryRepository struct {
 	ListByUserFn           func(ctx context.Context, userID string, limit, offset int) ([]*domain.Entry, int, error)
 	ListAccessibleFn       func(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error)
 	ListDistinctPathsFn    func(ctx context.Context, userID string) ([]string, error)
-	ListInPathFn           func(ctx context.Context, userID, path string, limit, offset int) ([]*domain.Entry, int, error)
-	ListPathsUnderPrefixFn func(ctx context.Context, userID, prefix string) ([]string, error)
+	ListInPathFn           func(ctx context.Context, userID, path string, own bool, limit, offset int) ([]*domain.Entry, int, error)
+	ListPathsUnderPrefixFn func(ctx context.Context, userID, prefix string, own bool) ([]string, error)
+	ListAllFn              func(ctx context.Context) ([]*domain.Entry, error)
+	UpdateEmbeddingFn      func(ctx context.Context, entryID string, embedding []float32) error
 }
 
 func (m *EntryRepository) Create(ctx context.Context, entry *domain.Entry) error {
@@ -54,12 +56,20 @@ func (m *EntryRepository) ListDistinctPaths(ctx context.Context, userID string) 
 	return m.ListDistinctPathsFn(ctx, userID)
 }
 
-func (m *EntryRepository) ListInPath(ctx context.Context, userID, path string, limit, offset int) ([]*domain.Entry, int, error) {
-	return m.ListInPathFn(ctx, userID, path, limit, offset)
+func (m *EntryRepository) ListInPath(ctx context.Context, userID, path string, own bool, limit, offset int) ([]*domain.Entry, int, error) {
+	return m.ListInPathFn(ctx, userID, path, own, limit, offset)
 }
 
-func (m *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, prefix string) ([]string, error) {
-	return m.ListPathsUnderPrefixFn(ctx, userID, prefix)
+func (m *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool) ([]string, error) {
+	return m.ListPathsUnderPrefixFn(ctx, userID, prefix, own)
+}
+
+func (m *EntryRepository) ListAll(ctx context.Context) ([]*domain.Entry, error) {
+	return m.ListAllFn(ctx)
+}
+
+func (m *EntryRepository) UpdateEmbedding(ctx context.Context, entryID string, embedding []float32) error {
+	return m.UpdateEmbeddingFn(ctx, entryID, embedding)
 }
 
 // ---------------------------------------------------------------------------
@@ -174,16 +184,16 @@ func (m *Indexer) DeleteEntry(ctx context.Context, id string) error {
 
 // Searcher is a test double for domain.Searcher.
 type Searcher struct {
-	KeywordSearchFn  func(ctx context.Context, query, userID string, limit, offset int) ([]*domain.SearchResult, int, error)
-	SemanticSearchFn func(ctx context.Context, embedding []float32, userID string, limit, offset int) ([]*domain.SearchResult, int, error)
+	KeywordSearchFn  func(ctx context.Context, query, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error)
+	SemanticSearchFn func(ctx context.Context, embedding []float32, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error)
 }
 
-func (m *Searcher) KeywordSearch(ctx context.Context, query, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
-	return m.KeywordSearchFn(ctx, query, userID, limit, offset)
+func (m *Searcher) KeywordSearch(ctx context.Context, query, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
+	return m.KeywordSearchFn(ctx, query, userID, filters, limit, offset)
 }
 
-func (m *Searcher) SemanticSearch(ctx context.Context, embedding []float32, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
-	return m.SemanticSearchFn(ctx, embedding, userID, limit, offset)
+func (m *Searcher) SemanticSearch(ctx context.Context, embedding []float32, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
+	return m.SemanticSearchFn(ctx, embedding, userID, filters, limit, offset)
 }
 
 // ---------------------------------------------------------------------------

@@ -1,9 +1,22 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
+
+// SearchFilters contains optional filters for search queries.
+type SearchFilters struct {
+	Tags       []string  // Filter by tags (OR logic)
+	Path       string    // Filter by exact path match
+	FromDate   time.Time // Filter entries created on or after this date
+	ToDate     time.Time // Filter entries created on or before this date
+	OnlyMine   bool      // When true, only return entries owned by the user
+	Visibility string    // "public", "private", or empty for default behavior
+}
 
 // Highlight represents a single field-attributed highlight snippet from Typesense.
-// Snippet contains the matched text with <mark> tags around query tokens.
+// Snippet contains the matched text with query tokens.
 type Highlight struct {
 	Field   string // "title" | "content" | "summary"
 	Snippet string
@@ -35,6 +48,6 @@ type Indexer interface {
 
 // Searcher defines search operations over indexed entries.
 type Searcher interface {
-	KeywordSearch(ctx context.Context, query, userID string, limit, offset int) ([]*SearchResult, int, error)
-	SemanticSearch(ctx context.Context, embedding []float32, userID string, limit, offset int) ([]*SearchResult, int, error)
+	KeywordSearch(ctx context.Context, query, userID string, filters *SearchFilters, limit, offset int) ([]*SearchResult, int, error)
+	SemanticSearch(ctx context.Context, embedding []float32, userID string, filters *SearchFilters, limit, offset int) ([]*SearchResult, int, error)
 }

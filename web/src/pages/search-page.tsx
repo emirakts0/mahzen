@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import { SearchInput } from "@/components/search/search-input"
 import { SearchResults } from "@/components/search/search-results"
+import { SearchFilters } from "@/components/search/search-filters"
 import { useDebounce } from "@/hooks/use-debounce"
 import { keywordSearch, semanticSearch } from "@/api/search"
 import { useAuth } from "@/hooks/use-auth"
-import type { SearchResult } from "@/types/api"
+import type { SearchResult, SearchFilters as SearchFiltersType } from "@/types/api"
 
 const DEBOUNCE_MS = 350
 const MIN_KEYWORD_LENGTH = 1
@@ -15,6 +16,8 @@ const MIN_SEMANTIC_WORDS = 2
 export default function SearchPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [query, setQuery] = useState("")
+  const [filters, setFilters] = useState<SearchFiltersType>({})
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const debouncedQuery = useDebounce(query, DEBOUNCE_MS)
@@ -29,8 +32,8 @@ export default function SearchPage() {
     isFetching: isKeywordFetching,
     error: keywordError,
   } = useQuery({
-    queryKey: ["search", "keyword", trimmedQuery],
-    queryFn: () => keywordSearch({ query: trimmedQuery, limit: 10 }),
+    queryKey: ["search", "keyword", trimmedQuery, filters],
+    queryFn: () => keywordSearch({ query: trimmedQuery, limit: 10, ...filters }),
     enabled: isAuthenticated && isQueryReady,
     placeholderData: (prev) => prev,
     staleTime: 1000 * 15,
@@ -41,8 +44,8 @@ export default function SearchPage() {
     isFetching: isSemanticFetching,
     error: semanticError,
   } = useQuery({
-    queryKey: ["search", "semantic", trimmedQuery],
-    queryFn: () => semanticSearch({ query: trimmedQuery, limit: 10 }),
+    queryKey: ["search", "semantic", trimmedQuery, filters],
+    queryFn: () => semanticSearch({ query: trimmedQuery, limit: 10, ...filters }),
     enabled: isAuthenticated && isSemanticReady,
     placeholderData: (prev) => prev,
     staleTime: 1000 * 15,
@@ -51,8 +54,17 @@ export default function SearchPage() {
   const handleChange = useCallback((val: string) => setQuery(val), [])
   const handleClear = useCallback(() => {
     setQuery("")
+    setFilters({})
     inputRef.current?.focus()
   }, [])
+
+  const filterCount =
+    (filters.tags?.length ?? 0) +
+    (filters.path ? 1 : 0) +
+    (filters.from_date ? 1 : 0) +
+    (filters.to_date ? 1 : 0) +
+    (filters.only_mine ? 1 : 0) +
+    (filters.visibility ? 1 : 0)
 
   // Track whether the hero search bar has scrolled out of view
   const heroSearchRef = useRef<HTMLDivElement>(null)
@@ -154,13 +166,24 @@ export default function SearchPage() {
       >
         <div style={{ width: "100%", maxWidth: "640px", pointerEvents: "auto" }}>
           {isAuthenticated ? (
-            <SearchInput
-              ref={inputRef}
-              value={query}
-              onChange={handleChange}
-              onClear={handleClear}
-              autoFocus
-            />
+            <div className="relative">
+              <SearchInput
+                ref={inputRef}
+                value={query}
+                onChange={handleChange}
+                onClear={handleClear}
+                autoFocus
+                filterCount={filterCount}
+                onFilterClick={() => setIsFilterOpen(!isFilterOpen)}
+                isFilterOpen={isFilterOpen}
+              />
+              <SearchFilters
+                filters={filters}
+                onFiltersChange={setFilters}
+                isOpen={isFilterOpen}
+                onClose={() => setIsFilterOpen(false)}
+              />
+            </div>
           ) : (
             <SearchInput
               value=""

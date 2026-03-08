@@ -70,6 +70,21 @@ export interface SearchParams {
   query: string
   limit?: number
   offset?: number
+  tags?: string[]
+  path?: string
+  from_date?: string
+  to_date?: string
+  only_mine?: boolean
+  visibility?: "public" | "private"
+}
+
+export interface SearchFilters {
+  tags?: string[]
+  path?: string
+  from_date?: string
+  to_date?: string
+  only_mine?: boolean
+  visibility?: "public" | "private"
 }
 
 // ─────────────────────────────────────────────

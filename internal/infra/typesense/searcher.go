@@ -25,8 +25,8 @@ func NewSearcher(client *typesense.Client) *Searcher {
 	return &Searcher{client: client}
 }
 
-func (s *Searcher) KeywordSearch(ctx context.Context, query, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
-	filterBy := buildVisibilityFilter(userID)
+func (s *Searcher) KeywordSearch(ctx context.Context, query, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
+	filterBy := buildFilterBy(userID, filters)
 
 	slog.Info("typesense keyword search",
 		"query", query,
@@ -70,8 +70,8 @@ func (s *Searcher) KeywordSearch(ctx context.Context, query, userID string, limi
 	return results, total, mapErr
 }
 
-func (s *Searcher) SemanticSearch(ctx context.Context, embedding []float32, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
-	filterBy := buildVisibilityFilter(userID)
+func (s *Searcher) SemanticSearch(ctx context.Context, embedding []float32, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
+	filterBy := buildFilterBy(userID, filters)
 	vectorQuery := fmt.Sprintf("embedding:([%s], k:%d)", floatsToString(embedding), max(limit+offset, limit))
 
 	slog.Info("typesense semantic search",
@@ -137,13 +137,71 @@ func (s *Searcher) SemanticSearch(ctx context.Context, embedding []float32, user
 	return results, total, mapErr
 }
 
-// buildVisibilityFilter creates a Typesense filter_by expression that enforces
-// visibility rules: public entries OR entries owned by the requesting user.
-func buildVisibilityFilter(userID string) string {
-	if userID == "" {
-		return "visibility:=public"
+// buildFilterBy creates a Typesense filter_by expression that enforces
+// visibility rules and applies optional filters for tags, path, date range, etc.
+func buildFilterBy(userID string, filters *domain.SearchFilters) string {
+	var conditions []string
+
+	// Visibility filter with security
+	// - public: anyone can see
+	// - private: only the owner can see (MUST enforce user_id)
+	if filters != nil && filters.Visibility == "public" {
+		conditions = append(conditions, "visibility:=public")
+	} else if filters != nil && filters.Visibility == "private" {
+		// Private entries: user MUST be authenticated and can only see their own
+		if userID == "" {
+			// Unauthenticated user trying to see private entries - return impossible condition
+			conditions = append(conditions, "visibility:=__impossible__")
+		} else {
+			conditions = append(conditions, fmt.Sprintf("(visibility:=private && user_id:=%s)", userID))
+		}
+	} else if userID == "" {
+		// Default for unauthenticated: only public
+		conditions = append(conditions, "visibility:=public")
+	} else {
+		// Default for authenticated: public OR own entries
+		conditions = append(conditions, fmt.Sprintf("(visibility:=public || user_id:=%s)", userID))
 	}
-	return fmt.Sprintf("visibility:=public || user_id:=%s", userID)
+
+	if filters == nil {
+		return strings.Join(conditions, " && ")
+	}
+
+	// OnlyMine: restrict to user's own entries only
+	if filters.OnlyMine && userID != "" {
+		conditions = append(conditions, fmt.Sprintf("user_id:=%s", userID))
+	}
+
+	// Tags filter (OR logic)
+	if len(filters.Tags) > 0 {
+		escapedTags := make([]string, len(filters.Tags))
+		for i, tag := range filters.Tags {
+			escapedTags[i] = escapeFilterValue(tag)
+		}
+		conditions = append(conditions, fmt.Sprintf("tags:=[%s]", strings.Join(escapedTags, ", ")))
+	}
+
+	// Path filter (exact match)
+	if filters.Path != "" {
+		conditions = append(conditions, fmt.Sprintf("path:=%s", escapeFilterValue(filters.Path)))
+	}
+
+	// Date range filters
+	if !filters.FromDate.IsZero() {
+		conditions = append(conditions, fmt.Sprintf("created_at:>=%d", filters.FromDate.Unix()))
+	}
+	if !filters.ToDate.IsZero() {
+		conditions = append(conditions, fmt.Sprintf("created_at:<=%d", filters.ToDate.Unix()))
+	}
+
+	return strings.Join(conditions, " && ")
+}
+
+// escapeFilterValue escapes special characters in filter values for Typesense.
+func escapeFilterValue(val string) string {
+	val = strings.ReplaceAll(val, "\\", "\\\\")
+	val = strings.ReplaceAll(val, "`", "\\`")
+	return fmt.Sprintf("`%s`", val)
 }
 
 const contentExcerptLen = 300

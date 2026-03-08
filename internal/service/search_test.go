@@ -18,7 +18,7 @@ import (
 
 func TestKeywordSearch(t *testing.T) {
 	searcher := &mock.Searcher{
-		KeywordSearchFn: func(ctx context.Context, query, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
+		KeywordSearchFn: func(ctx context.Context, query, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
 			return []*domain.SearchResult{
 				{EntryID: "e1", Title: "Go Concurrency", Score: 0.95},
 				{EntryID: "e2", Title: "Go Testing", Score: 0.85},
@@ -27,7 +27,7 @@ func TestKeywordSearch(t *testing.T) {
 	}
 
 	svc := NewSearchService(searcher, &mock.Embedder{})
-	results, total, err := svc.KeywordSearch(context.Background(), "go", "user-1", 10, 0)
+	results, total, err := svc.KeywordSearch(context.Background(), "go", "user-1", nil, 10, 0)
 	require.NoError(t, err)
 	assert.Len(t, results, 2)
 	assert.Equal(t, 2, total)
@@ -37,13 +37,13 @@ func TestKeywordSearch(t *testing.T) {
 
 func TestKeywordSearch_NoResults(t *testing.T) {
 	searcher := &mock.Searcher{
-		KeywordSearchFn: func(ctx context.Context, query, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
+		KeywordSearchFn: func(ctx context.Context, query, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
 			return nil, 0, nil
 		},
 	}
 
 	svc := NewSearchService(searcher, &mock.Embedder{})
-	results, total, err := svc.KeywordSearch(context.Background(), "nonexistent", "user-1", 10, 0)
+	results, total, err := svc.KeywordSearch(context.Background(), "nonexistent", "user-1", nil, 10, 0)
 	require.NoError(t, err)
 	assert.Empty(t, results)
 	assert.Equal(t, 0, total)
@@ -51,13 +51,13 @@ func TestKeywordSearch_NoResults(t *testing.T) {
 
 func TestKeywordSearch_Error(t *testing.T) {
 	searcher := &mock.Searcher{
-		KeywordSearchFn: func(ctx context.Context, query, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
+		KeywordSearchFn: func(ctx context.Context, query, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
 			return nil, 0, errors.New("typesense unavailable")
 		},
 	}
 
 	svc := NewSearchService(searcher, &mock.Embedder{})
-	_, _, err := svc.KeywordSearch(context.Background(), "go", "user-1", 10, 0)
+	_, _, err := svc.KeywordSearch(context.Background(), "go", "user-1", nil, 10, 0)
 	require.Error(t, err)
 }
 
@@ -75,7 +75,7 @@ func TestSemanticSearch(t *testing.T) {
 		},
 	}
 	searcher := &mock.Searcher{
-		SemanticSearchFn: func(ctx context.Context, emb []float32, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
+		SemanticSearchFn: func(ctx context.Context, emb []float32, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
 			assert.Equal(t, embedding, emb)
 			return []*domain.SearchResult{
 				{EntryID: "e1", Title: "Concurrency Patterns", Score: 0.92},
@@ -84,7 +84,7 @@ func TestSemanticSearch(t *testing.T) {
 	}
 
 	svc := NewSearchService(searcher, embedder)
-	results, total, err := svc.SemanticSearch(context.Background(), "what is concurrency", "user-1", 10, 0)
+	results, total, err := svc.SemanticSearch(context.Background(), "what is concurrency", "user-1", nil, 10, 0)
 	require.NoError(t, err)
 	assert.Len(t, results, 1)
 	assert.Equal(t, 1, total)
@@ -99,7 +99,7 @@ func TestSemanticSearch_EmbeddingError(t *testing.T) {
 	}
 
 	svc := NewSearchService(&mock.Searcher{}, embedder)
-	_, _, err := svc.SemanticSearch(context.Background(), "query", "user-1", 10, 0)
+	_, _, err := svc.SemanticSearch(context.Background(), "query", "user-1", nil, 10, 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "embedding query")
 }
@@ -111,13 +111,13 @@ func TestSemanticSearch_SearcherError(t *testing.T) {
 		},
 	}
 	searcher := &mock.Searcher{
-		SemanticSearchFn: func(ctx context.Context, emb []float32, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
+		SemanticSearchFn: func(ctx context.Context, emb []float32, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
 			return nil, 0, errors.New("search failed")
 		},
 	}
 
 	svc := NewSearchService(searcher, embedder)
-	_, _, err := svc.SemanticSearch(context.Background(), "query", "user-1", 10, 0)
+	_, _, err := svc.SemanticSearch(context.Background(), "query", "user-1", nil, 10, 0)
 	require.Error(t, err)
 }
 
@@ -136,14 +136,46 @@ func TestSemanticSearch_VisibilityFiltering(t *testing.T) {
 		},
 	}
 	searcher := &mock.Searcher{
-		SemanticSearchFn: func(ctx context.Context, emb []float32, userID string, limit, offset int) ([]*domain.SearchResult, int, error) {
+		SemanticSearchFn: func(ctx context.Context, emb []float32, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
 			receivedUserID = userID
 			return nil, 0, nil
 		},
 	}
 
 	svc := NewSearchService(searcher, embedder)
-	_, _, err := svc.SemanticSearch(context.Background(), "test query", "user-42", 10, 0)
+	_, _, err := svc.SemanticSearch(context.Background(), "test query", "user-42", nil, 10, 0)
 	require.NoError(t, err)
 	assert.Equal(t, "user-42", receivedUserID)
+}
+
+// ---------------------------------------------------------------------------
+// SearchFilters
+// ---------------------------------------------------------------------------
+
+func TestKeywordSearch_WithFilters(t *testing.T) {
+	var receivedFilters *domain.SearchFilters
+
+	searcher := &mock.Searcher{
+		KeywordSearchFn: func(ctx context.Context, query, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
+			receivedFilters = filters
+			return []*domain.SearchResult{
+				{EntryID: "e1", Title: "Filtered Result", Score: 0.95},
+			}, 1, nil
+		},
+	}
+
+	svc := NewSearchService(searcher, &mock.Embedder{})
+	filters := &domain.SearchFilters{
+		Tags:     []string{"go", "testing"},
+		Path:     "/notes/work",
+		OnlyMine: true,
+	}
+	results, total, err := svc.KeywordSearch(context.Background(), "go", "user-1", filters, 10, 0)
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, 1, total)
+	assert.NotNil(t, receivedFilters)
+	assert.Equal(t, []string{"go", "testing"}, receivedFilters.Tags)
+	assert.Equal(t, "/notes/work", receivedFilters.Path)
+	assert.True(t, receivedFilters.OnlyMine)
 }

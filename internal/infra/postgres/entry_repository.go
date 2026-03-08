@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -37,6 +38,7 @@ func (r *EntryRepository) Create(ctx context.Context, entry *domain.Entry) error
 		Visibility: entry.Visibility.String(),
 		FileType:   entry.FileType,
 		FileSize:   entry.FileSize,
+		Embedding:  embeddingToText(entry.Embedding),
 	})
 	if err != nil {
 		return fmt.Errorf("inserting entry: %w", err)
@@ -52,6 +54,7 @@ func (r *EntryRepository) Create(ctx context.Context, entry *domain.Entry) error
 	entry.Visibility = domain.ParseVisibility(row.Visibility)
 	entry.FileType = row.FileType
 	entry.FileSize = row.FileSize
+	entry.Embedding = textToEmbedding(row.Embedding)
 	entry.CreatedAt = row.CreatedAt.Time
 	entry.UpdatedAt = row.UpdatedAt.Time
 	return nil
@@ -79,6 +82,7 @@ func (r *EntryRepository) GetByID(ctx context.Context, id string) (*domain.Entry
 		Visibility: domain.ParseVisibility(row.Visibility),
 		FileType:   row.FileType,
 		FileSize:   row.FileSize,
+		Embedding:  textToEmbedding(row.Embedding),
 		CreatedAt:  row.CreatedAt.Time,
 		UpdatedAt:  row.UpdatedAt.Time,
 	}, nil
@@ -100,6 +104,7 @@ func (r *EntryRepository) Update(ctx context.Context, entry *domain.Entry) error
 		Visibility: entry.Visibility.String(),
 		FileType:   entry.FileType,
 		FileSize:   entry.FileSize,
+		Embedding:  embeddingToText(entry.Embedding),
 	})
 	if err != nil {
 		return fmt.Errorf("updating entry: %w", err)
@@ -115,6 +120,7 @@ func (r *EntryRepository) Update(ctx context.Context, entry *domain.Entry) error
 	entry.Visibility = domain.ParseVisibility(row.Visibility)
 	entry.FileType = row.FileType
 	entry.FileSize = row.FileSize
+	entry.Embedding = textToEmbedding(row.Embedding)
 	entry.CreatedAt = row.CreatedAt.Time
 	entry.UpdatedAt = row.UpdatedAt.Time
 	return nil
@@ -379,4 +385,72 @@ func uuidToString(u pgtype.UUID) string {
 	b := u.Bytes
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// embeddingToText converts a float32 slice to JSON text for storage.
+func embeddingToText(emb []float32) pgtype.Text {
+	if len(emb) == 0 {
+		return pgtype.Text{Valid: false}
+	}
+	data, err := json.Marshal(emb)
+	if err != nil {
+		return pgtype.Text{Valid: false}
+	}
+	return pgtype.Text{String: string(data), Valid: true}
+}
+
+// textToEmbedding parses JSON text into a float32 slice.
+func textToEmbedding(t pgtype.Text) []float32 {
+	if !t.Valid || t.String == "" {
+		return nil
+	}
+	var emb []float32
+	if err := json.Unmarshal([]byte(t.String), &emb); err != nil {
+		return nil
+	}
+	return emb
+}
+
+// ListAll returns all entries regardless of user or visibility (for admin/reindex operations).
+func (r *EntryRepository) ListAll(ctx context.Context) ([]*domain.Entry, error) {
+	rows, err := r.q.ListAllEntries(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing all entries: %w", err)
+	}
+
+	entries := make([]*domain.Entry, len(rows))
+	for i, row := range rows {
+		entries[i] = &domain.Entry{
+			ID:         uuidToString(row.ID),
+			UserID:     uuidToString(row.UserID),
+			Title:      row.Title,
+			Content:    row.Content,
+			Summary:    row.Summary,
+			S3Key:      row.S3Key,
+			Path:       row.Path,
+			Visibility: domain.ParseVisibility(row.Visibility),
+			FileType:   row.FileType,
+			FileSize:   row.FileSize,
+			Embedding:  textToEmbedding(row.Embedding),
+			CreatedAt:  row.CreatedAt.Time,
+			UpdatedAt:  row.UpdatedAt.Time,
+		}
+	}
+	return entries, nil
+}
+
+// UpdateEmbedding updates only the embedding field for an entry.
+func (r *EntryRepository) UpdateEmbedding(ctx context.Context, entryID string, embedding []float32) error {
+	uid, err := parseUUID(entryID)
+	if err != nil {
+		return fmt.Errorf("parsing entry id: %w", err)
+	}
+
+	if err := r.q.UpdateEntryEmbedding(ctx, query.UpdateEntryEmbeddingParams{
+		ID:        uid,
+		Embedding: embeddingToText(embedding),
+	}); err != nil {
+		return fmt.Errorf("updating entry embedding: %w", err)
+	}
+	return nil
 }

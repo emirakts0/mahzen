@@ -34,6 +34,7 @@ type Querier interface {
 	InsertTag(ctx context.Context, arg InsertTagParams) (Tag, error)
 	ListAccessibleEntries(ctx context.Context, arg ListAccessibleEntriesParams) ([]ListAccessibleEntriesRow, error)
 	ListAccessibleEntriesByPath(ctx context.Context, arg ListAccessibleEntriesByPathParams) ([]ListAccessibleEntriesByPathRow, error)
+	ListAllEntries(ctx context.Context) ([]ListAllEntriesRow, error)
 	ListAllPaths(ctx context.Context, arg ListAllPathsParams) ([]string, error)
 	ListDistinctPaths(ctx context.Context, userID pgtype.UUID) ([]string, error)
 	ListEntriesByUser(ctx context.Context, arg ListEntriesByUserParams) ([]ListEntriesByUserRow, error)
@@ -43,6 +44,7 @@ type Querier interface {
 	ListTagsByEntries(ctx context.Context, dollar_1 []pgtype.UUID) ([]ListTagsByEntriesRow, error)
 	ListTagsByEntry(ctx context.Context, entryID pgtype.UUID) ([]Tag, error)
 	UpdateEntry(ctx context.Context, arg UpdateEntryParams) (UpdateEntryRow, error)
+	UpdateEntryEmbedding(ctx context.Context, arg UpdateEntryEmbeddingParams) error
 }
 
 var _ Querier = (*Queries)(nil)

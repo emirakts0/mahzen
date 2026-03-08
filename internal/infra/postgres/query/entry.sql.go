@@ -85,7 +85,7 @@ func (q *Queries) DeleteEntry(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getEntryByID = `-- name: GetEntryByID :one
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
+SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
 FROM entries
 WHERE id = $1
 `
@@ -101,6 +101,7 @@ type GetEntryByIDRow struct {
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
 	FileSize   int64              `json:"file_size"`
+	Embedding  pgtype.Text        `json:"embedding"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
@@ -119,6 +120,7 @@ func (q *Queries) GetEntryByID(ctx context.Context, id pgtype.UUID) (GetEntryByI
 		&i.Visibility,
 		&i.FileType,
 		&i.FileSize,
+		&i.Embedding,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -126,9 +128,9 @@ func (q *Queries) GetEntryByID(ctx context.Context, id pgtype.UUID) (GetEntryByI
 }
 
 const insertEntry = `-- name: InsertEntry :one
-INSERT INTO entries (user_id, title, content, summary, s3_key, path, visibility, file_type, file_size)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
+INSERT INTO entries (user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
 `
 
 type InsertEntryParams struct {
@@ -141,6 +143,7 @@ type InsertEntryParams struct {
 	Visibility string      `json:"visibility"`
 	FileType   string      `json:"file_type"`
 	FileSize   int64       `json:"file_size"`
+	Embedding  pgtype.Text `json:"embedding"`
 }
 
 type InsertEntryRow struct {
@@ -154,6 +157,7 @@ type InsertEntryRow struct {
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
 	FileSize   int64              `json:"file_size"`
+	Embedding  pgtype.Text        `json:"embedding"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
@@ -169,6 +173,7 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Inser
 		arg.Visibility,
 		arg.FileType,
 		arg.FileSize,
+		arg.Embedding,
 	)
 	var i InsertEntryRow
 	err := row.Scan(
@@ -182,6 +187,7 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Inser
 		&i.Visibility,
 		&i.FileType,
 		&i.FileSize,
+		&i.Embedding,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -189,7 +195,7 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Inser
 }
 
 const listAccessibleEntries = `-- name: ListAccessibleEntries :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
+SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
 FROM entries
 WHERE (visibility = 'public' OR user_id = $1)
 ORDER BY path ASC, created_at DESC
@@ -213,6 +219,7 @@ type ListAccessibleEntriesRow struct {
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
 	FileSize   int64              `json:"file_size"`
+	Embedding  pgtype.Text        `json:"embedding"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
@@ -237,6 +244,7 @@ func (q *Queries) ListAccessibleEntries(ctx context.Context, arg ListAccessibleE
 			&i.Visibility,
 			&i.FileType,
 			&i.FileSize,
+			&i.Embedding,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -251,7 +259,7 @@ func (q *Queries) ListAccessibleEntries(ctx context.Context, arg ListAccessibleE
 }
 
 const listAccessibleEntriesByPath = `-- name: ListAccessibleEntriesByPath :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
+SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
 FROM entries
 WHERE (visibility = 'public' OR user_id = $1)
   AND (path = $2 OR path LIKE $2 || '/%')
@@ -277,6 +285,7 @@ type ListAccessibleEntriesByPathRow struct {
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
 	FileSize   int64              `json:"file_size"`
+	Embedding  pgtype.Text        `json:"embedding"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
@@ -306,6 +315,63 @@ func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAcces
 			&i.Visibility,
 			&i.FileType,
 			&i.FileSize,
+			&i.Embedding,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllEntries = `-- name: ListAllEntries :many
+SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
+FROM entries
+ORDER BY created_at ASC
+`
+
+type ListAllEntriesRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Title      string             `json:"title"`
+	Content    string             `json:"content"`
+	Summary    string             `json:"summary"`
+	S3Key      string             `json:"s3_key"`
+	Path       string             `json:"path"`
+	Visibility string             `json:"visibility"`
+	FileType   string             `json:"file_type"`
+	FileSize   int64              `json:"file_size"`
+	Embedding  pgtype.Text        `json:"embedding"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListAllEntries(ctx context.Context) ([]ListAllEntriesRow, error) {
+	rows, err := q.db.Query(ctx, listAllEntries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllEntriesRow{}
+	for rows.Next() {
+		var i ListAllEntriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Title,
+			&i.Content,
+			&i.Summary,
+			&i.S3Key,
+			&i.Path,
+			&i.Visibility,
+			&i.FileType,
+			&i.FileSize,
+			&i.Embedding,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -381,7 +447,7 @@ func (q *Queries) ListDistinctPaths(ctx context.Context, userID pgtype.UUID) ([]
 }
 
 const listEntriesByUser = `-- name: ListEntriesByUser :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
+SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
 FROM entries
 WHERE user_id = $1
 ORDER BY created_at DESC
@@ -405,6 +471,7 @@ type ListEntriesByUserRow struct {
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
 	FileSize   int64              `json:"file_size"`
+	Embedding  pgtype.Text        `json:"embedding"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
@@ -429,6 +496,7 @@ func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserPa
 			&i.Visibility,
 			&i.FileType,
 			&i.FileSize,
+			&i.Embedding,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -443,7 +511,7 @@ func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserPa
 }
 
 const listEntriesInPath = `-- name: ListEntriesInPath :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
+SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
 FROM entries
 WHERE 
   CASE 
@@ -474,6 +542,7 @@ type ListEntriesInPathRow struct {
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
 	FileSize   int64              `json:"file_size"`
+	Embedding  pgtype.Text        `json:"embedding"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
@@ -504,6 +573,7 @@ func (q *Queries) ListEntriesInPath(ctx context.Context, arg ListEntriesInPathPa
 			&i.Visibility,
 			&i.FileType,
 			&i.FileSize,
+			&i.Embedding,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -556,9 +626,9 @@ func (q *Queries) ListPathsUnderPrefix(ctx context.Context, arg ListPathsUnderPr
 
 const updateEntry = `-- name: UpdateEntry :one
 UPDATE entries
-SET title = $2, content = $3, summary = $4, s3_key = $5, path = $6, visibility = $7, file_type = $8, file_size = $9, updated_at = now()
+SET title = $2, content = $3, summary = $4, s3_key = $5, path = $6, visibility = $7, file_type = $8, file_size = $9, embedding = $10, updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
+RETURNING id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
 `
 
 type UpdateEntryParams struct {
@@ -571,6 +641,7 @@ type UpdateEntryParams struct {
 	Visibility string      `json:"visibility"`
 	FileType   string      `json:"file_type"`
 	FileSize   int64       `json:"file_size"`
+	Embedding  pgtype.Text `json:"embedding"`
 }
 
 type UpdateEntryRow struct {
@@ -584,6 +655,7 @@ type UpdateEntryRow struct {
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
 	FileSize   int64              `json:"file_size"`
+	Embedding  pgtype.Text        `json:"embedding"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
@@ -599,6 +671,7 @@ func (q *Queries) UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Updat
 		arg.Visibility,
 		arg.FileType,
 		arg.FileSize,
+		arg.Embedding,
 	)
 	var i UpdateEntryRow
 	err := row.Scan(
@@ -612,8 +685,23 @@ func (q *Queries) UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Updat
 		&i.Visibility,
 		&i.FileType,
 		&i.FileSize,
+		&i.Embedding,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const updateEntryEmbedding = `-- name: UpdateEntryEmbedding :exec
+UPDATE entries SET embedding = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateEntryEmbeddingParams struct {
+	ID        pgtype.UUID `json:"id"`
+	Embedding pgtype.Text `json:"embedding"`
+}
+
+func (q *Queries) UpdateEntryEmbedding(ctx context.Context, arg UpdateEntryEmbeddingParams) error {
+	_, err := q.db.Exec(ctx, updateEntryEmbedding, arg.ID, arg.Embedding)
+	return err
 }
