@@ -1,10 +1,25 @@
 import { useState, useCallback } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { motion } from "framer-motion"
 import { listEntries } from "@/api/entries"
 import { FolderItem } from "./folder-item"
 import { EntryItem } from "./entry-item"
 import type { Entry, ListEntriesParams } from "@/types/api"
+
+const SKELETON_WIDTHS = [65, 78, 55, 70, 60]
+
+function SkeletonLoader({ count = 2 }: { count?: number }) {
+  return (
+    <div className="space-y-1 pl-4">
+      {SKELETON_WIDTHS.slice(0, count).map((w, i) => (
+        <div
+          key={i}
+          className="h-6 rounded animate-pulse"
+          style={{ background: "var(--glass-bg)", width: `${w}%` }}
+        />
+      ))}
+    </div>
+  )
+}
 
 interface FolderTreeProps {
   onEntrySelect: (entryId: string) => void
@@ -92,17 +107,7 @@ function FolderNode({
           onToggle={() => onToggle(path)}
         >
           <div className="space-y-0.5">
-            {isLoading && (
-              <div className="space-y-1 pl-4">
-                {[1, 2].map((i) => (
-                  <motion.div
-                    key={i}
-                    className="h-6 rounded animate-pulse"
-                    style={{ background: "var(--glass-bg)", width: `${50 + Math.random() * 30}%` }}
-                  />
-                ))}
-              </div>
-            )}
+            {isLoading && <SkeletonLoader count={2} />}
 
             {!isLoading && folders.map((folder) => (
               <FolderNode
@@ -131,17 +136,7 @@ function FolderNode({
 
       {path === "/" && (
         <div className="space-y-0.5">
-          {isLoading && (
-            <div className="space-y-1 pl-4">
-              {[1, 2, 3].map((i) => (
-                <motion.div
-                  key={i}
-                  className="h-6 rounded animate-pulse"
-                  style={{ background: "var(--glass-bg)", width: `${50 + Math.random() * 30}%` }}
-                />
-              ))}
-            </div>
-          )}
+          {isLoading && <SkeletonLoader count={3} />}
 
           {!isLoading && folders.map((folder) => (
             <FolderNode

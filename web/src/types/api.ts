@@ -58,7 +58,6 @@ export interface SearchResult {
   created_at: string
   file_type?: string
   file_size?: number
-  s3_key?: string
 }
 
 export interface SearchResponse {
@@ -104,7 +103,6 @@ export interface Entry {
   updated_at: string
   file_type?: string
   file_size?: number
-  s3_key?: string
 }
 
 export interface EntryResponse {

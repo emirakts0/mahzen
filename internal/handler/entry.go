@@ -61,7 +61,6 @@ type entryResponse struct {
 	Tags       []string `json:"tags,omitempty"`
 	FileType   string   `json:"file_type,omitempty"`
 	FileSize   int64    `json:"file_size,omitempty"`
-	S3Key      string   `json:"s3_key,omitempty"`
 	CreatedAt  string   `json:"created_at"`
 	UpdatedAt  string   `json:"updated_at"`
 }
@@ -78,7 +77,6 @@ func domainEntryToResponse(e *domain.Entry, tags []string) *entryResponse {
 		Tags:       tags,
 		FileType:   e.FileType,
 		FileSize:   e.FileSize,
-		S3Key:      e.S3Key,
 		CreatedAt:  e.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  e.UpdatedAt.Format(time.RFC3339),
 	}
@@ -250,19 +248,5 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 		"entries": items,
 		"folders": folders,
 		"total":   total,
-	})
-}
-
-func (h *entryHandler) getDownloadURL(c *gin.Context) {
-	id := c.Param("entry_id")
-
-	url, err := h.svc.GetEntryDownloadURL(c.Request.Context(), id)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"url": url,
 	})
 }

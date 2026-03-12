@@ -24,7 +24,6 @@ import (
 	"github.com/emirakts0/mahzen/internal/infra/ai"
 	"github.com/emirakts0/mahzen/internal/infra/auth"
 	"github.com/emirakts0/mahzen/internal/infra/postgres"
-	"github.com/emirakts0/mahzen/internal/infra/storage"
 	"github.com/emirakts0/mahzen/internal/infra/typesense"
 	"github.com/emirakts0/mahzen/internal/service"
 )
@@ -61,7 +60,6 @@ func main() {
 type infrastructure struct {
 	pool          *pgxpool.Pool
 	tsClient      *tsclient.Client
-	objectStorage *storage.ObjectStore
 	embedder      domain.Embedder
 	summarizer    domain.Summarizer
 	tokenProvider *auth.TokenProvider
@@ -91,17 +89,6 @@ func mustInitInfra(ctx context.Context, cfg *config.Config, logger *slog.Logger)
 	}
 	logger.Info("connected to typesense")
 
-	s3Client, err := storage.NewS3Client(ctx, cfg.S3)
-	if err != nil {
-		logger.Error("failed to create s3 client", "error", err)
-		os.Exit(1)
-	}
-	if err := storage.EnsureBucket(ctx, s3Client, cfg.S3.Bucket); err != nil {
-		logger.Error("failed to ensure s3 bucket", "error", err)
-		os.Exit(1)
-	}
-	logger.Info("connected to object storage")
-
 	embedder, summarizer := ai.NewProvider(cfg.OpenAI)
 	logger.Info("ai provider initialized")
 
@@ -112,7 +99,6 @@ func mustInitInfra(ctx context.Context, cfg *config.Config, logger *slog.Logger)
 	return &infrastructure{
 		pool:          pool,
 		tsClient:      tsClient,
-		objectStorage: storage.NewObjectStorage(s3Client, cfg.S3.Bucket),
 		embedder:      embedder,
 		summarizer:    summarizer,
 		tokenProvider: tokenProvider,
@@ -137,7 +123,7 @@ func buildServer(cfg *config.Config, infra *infrastructure, logger *slog.Logger)
 	userRepo := postgres.NewUserRepository(infra.pool)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(infra.pool)
 
-	entrySvc := service.NewEntryService(entryRepo, tagRepo, infra.objectStorage, typesense.NewIndexer(infra.tsClient), infra.embedder, cfg.Entry)
+	entrySvc := service.NewEntryService(entryRepo, tagRepo, typesense.NewIndexer(infra.tsClient), infra.embedder)
 	tagSvc := service.NewTagService(tagRepo)
 	searchSvc := service.NewSearchService(typesense.NewSearcher(infra.tsClient), infra.embedder)
 	authSvc := service.NewAuthService(userRepo, refreshTokenRepo, infra.tokenProvider, infra.hasher, infra.tokenProvider.RefreshTokenExpiry())
@@ -150,6 +136,23 @@ func buildServer(cfg *config.Config, infra *infrastructure, logger *slog.Logger)
 		SearchSvc: searchSvc,
 		AuthSvc:   authSvc,
 		UserRepo:  userRepo,
+		DBPing: func(ctx context.Context) error {
+			return infra.pool.Ping(ctx)
+		},
+		DBCount: func(ctx context.Context) (int64, error) {
+			return entryRepo.CountAll(ctx)
+		},
+		TSHealth: infra.tsClient.Health,
+		TSDocCount: func(ctx context.Context) (int64, error) {
+			coll, err := infra.tsClient.Collection(typesense.CollectionName).Retrieve(ctx)
+			if err != nil {
+				return 0, err
+			}
+			if coll.NumDocuments == nil {
+				return 0, nil
+			}
+			return *coll.NumDocuments, nil
+		},
 	})
 
 	// Register SPA handler for non-API routes.

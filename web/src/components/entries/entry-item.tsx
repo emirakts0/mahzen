@@ -1,7 +1,7 @@
 import { motion } from "framer-motion"
 import { Eye, EyeOff } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { getFileIcon } from "./file-icons"
+import { FileIcon } from "./file-icons"
 import type { Entry } from "@/types/api"
 
 interface EntryItemProps {
@@ -11,7 +11,6 @@ interface EntryItemProps {
 }
 
 export function EntryItem({ entry, depth, onSelect }: EntryItemProps) {
-  const FileIcon = getFileIcon(entry.file_type)
 
   return (
     <motion.button
@@ -25,7 +24,7 @@ export function EntryItem({ entry, depth, onSelect }: EntryItemProps) {
       whileHover={{ background: "var(--glass-hover)" }}
       whileTap={{ scale: 0.99 }}
     >
-      <FileIcon className="h-4 w-4 shrink-0" style={{ color: "var(--glass-icon)" }} />
+      <FileIcon fileType={entry.file_type} className="h-4 w-4 shrink-0" style={{ color: "var(--glass-icon)" }} />
 
       <div className="flex-1 min-w-0 flex items-center gap-2">
         <span className="text-sm font-medium truncate">

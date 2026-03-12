@@ -117,7 +117,7 @@ func saveEmbeddingToDB(ctx context.Context, pool *pgxpool.Pool, entryID string, 
 
 func listAllEntries(ctx context.Context, pool *pgxpool.Pool) ([]*domain.Entry, error) {
 	rows, err := pool.Query(ctx, `
-		SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, created_at, updated_at
+		SELECT id, user_id, title, content, summary, path, visibility, file_type, file_size, created_at, updated_at
 		FROM entries
 		ORDER BY created_at ASC
 	`)
@@ -129,13 +129,13 @@ func listAllEntries(ctx context.Context, pool *pgxpool.Pool) ([]*domain.Entry, e
 	var entries []*domain.Entry
 	for rows.Next() {
 		var (
-			id, userID                                pgtype.UUID
-			title, content, summary, s3key, path, vis string
-			fileType                                  string
-			fileSize                                  int64
-			createdAt, updatedAt                      pgtype.Timestamptz
+			id, userID                         pgtype.UUID
+			title, content, summary, path, vis string
+			fileType                           string
+			fileSize                           int64
+			createdAt, updatedAt               pgtype.Timestamptz
 		)
-		if err := rows.Scan(&id, &userID, &title, &content, &summary, &s3key, &path, &vis, &fileType, &fileSize, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&id, &userID, &title, &content, &summary, &path, &vis, &fileType, &fileSize, &createdAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("scanning entry row: %w", err)
 		}
 		entries = append(entries, &domain.Entry{
@@ -144,7 +144,6 @@ func listAllEntries(ctx context.Context, pool *pgxpool.Pool) ([]*domain.Entry, e
 			Title:      title,
 			Content:    content,
 			Summary:    summary,
-			S3Key:      s3key,
 			Path:       path,
 			Visibility: domain.ParseVisibility(vis),
 			FileType:   fileType,

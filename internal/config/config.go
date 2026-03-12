@@ -12,11 +12,9 @@ type Config struct {
 	Server    ServerConfig    `mapstructure:"server"`
 	Database  DatabaseConfig  `mapstructure:"database"`
 	Typesense TypesenseConfig `mapstructure:"typesense"`
-	S3        S3Config        `mapstructure:"s3"`
 	OpenAI    OpenAIConfig    `mapstructure:"openai"`
 	Auth      AuthConfig      `mapstructure:"auth"`
 	Log       LogConfig       `mapstructure:"log"`
-	Entry     EntryConfig     `mapstructure:"entry"`
 }
 
 type ServerConfig struct {
@@ -83,15 +81,6 @@ type CircuitBreakerConfig struct {
 	Timeout     time.Duration `mapstructure:"timeout"`
 }
 
-type S3Config struct {
-	Endpoint     string `mapstructure:"endpoint"`
-	Region       string `mapstructure:"region"`
-	Bucket       string `mapstructure:"bucket"`
-	AccessKey    string `mapstructure:"access_key"`
-	SecretKey    string `mapstructure:"secret_key"`
-	UsePathStyle bool   `mapstructure:"use_path_style"`
-}
-
 type OpenAIConfig struct {
 	APIKey         string `mapstructure:"api_key"`
 	EmbeddingModel string `mapstructure:"embedding_model"`
@@ -107,10 +96,6 @@ type AuthConfig struct {
 type LogConfig struct {
 	Level  string `mapstructure:"level"`
 	Format string `mapstructure:"format"`
-}
-
-type EntryConfig struct {
-	S3SizeThreshold int64 `mapstructure:"s3_size_threshold"`
 }
 
 // Load reads the configuration from the given path and environment variables.
@@ -155,12 +140,6 @@ func (c *Config) validate() error {
 	}
 	if c.Typesense.APIKey == "" {
 		return fmt.Errorf("typesense.api_key is required")
-	}
-	if c.S3.Endpoint == "" {
-		return fmt.Errorf("s3.endpoint is required")
-	}
-	if c.S3.Bucket == "" {
-		return fmt.Errorf("s3.bucket is required")
 	}
 	if c.Auth.JWTSecret == "" {
 		return fmt.Errorf("auth.jwt_secret is required")

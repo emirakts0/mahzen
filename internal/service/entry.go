@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
-	"github.com/emirakts0/mahzen/internal/config"
 	"github.com/emirakts0/mahzen/internal/domain"
 )
+
+// embeddingTimeout is the timeout for embedding generation operations.
+const embeddingTimeout = 2 * time.Minute
 
 // FolderInfo represents information about a folder in the entry tree.
 type FolderInfo struct {
@@ -22,35 +22,29 @@ type FolderInfo struct {
 
 // EntryService contains business logic for managing entries.
 type EntryService struct {
-	entries     domain.EntryRepository
-	tags        domain.TagRepository
-	storage     domain.ObjectStorage
-	indexer     domain.Indexer
-	embedder    domain.Embedder
-	s3Threshold int64
+	entries  domain.EntryRepository
+	tags     domain.TagRepository
+	indexer  domain.Indexer
+	embedder domain.Embedder
 }
 
 // NewEntryService creates a new EntryService.
 func NewEntryService(
 	entries domain.EntryRepository,
 	tags domain.TagRepository,
-	storage domain.ObjectStorage,
 	indexer domain.Indexer,
 	embedder domain.Embedder,
-	cfg config.EntryConfig,
 ) *EntryService {
 	return &EntryService{
-		entries:     entries,
-		tags:        tags,
-		storage:     storage,
-		indexer:     indexer,
-		embedder:    embedder,
-		s3Threshold: cfg.S3SizeThreshold,
+		entries:  entries,
+		tags:     tags,
+		indexer:  indexer,
+		embedder: embedder,
 	}
 }
 
-// CreateEntry creates a new entry, optionally storing content in S3 and indexing it.
-// fileType is the client-provided file extension (e.g. "mp4", "zip"). Empty string means plain text.
+// CreateEntry creates a new entry and indexes it.
+// fileType is the client-provided file extension (e.g. "md", "txt"). Empty string means plain text.
 func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, path, fileType string, visibility domain.Visibility, tagIDs []string) (*domain.Entry, error) {
 	slog.Info("creating entry",
 		"user_id", userID,
@@ -77,16 +71,6 @@ func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, 
 		FileSize:   int64(len(content)),
 	}
 
-	// Store large content in S3.
-	if int64(len(content)) >= s.s3Threshold {
-		key := fmt.Sprintf("entries/%s/%s", userID, uuid.New().String())
-		if err := s.storage.Upload(ctx, key, strings.NewReader(content), "text/plain", int64(len(content))); err != nil {
-			return nil, fmt.Errorf("uploading content to s3: %w", err)
-		}
-		entry.S3Key = key
-		entry.Content = "" // Clear inline content; it's in S3 now.
-	}
-
 	if err := s.entries.Create(ctx, entry); err != nil {
 		slog.Error("failed to create entry in db",
 			"user_id", userID,
@@ -101,7 +85,6 @@ func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, 
 		"user_id", userID,
 		"title", title,
 		"path", normalizedPath,
-		"stored_in_s3", entry.IsStoredInS3(),
 	)
 
 	// Attach tags.
@@ -118,7 +101,6 @@ func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, 
 }
 
 // GetEntry retrieves an entry by ID.
-// For S3-stored entries, content is NOT fetched - use GetEntryDownloadURL instead.
 func (s *EntryService) GetEntry(ctx context.Context, id string) (*domain.Entry, error) {
 	slog.Info("getting entry", "entry_id", id)
 
@@ -159,32 +141,12 @@ func (s *EntryService) UpdateEntry(ctx context.Context, id, title, content, path
 	}
 
 	entry.Title = title
+	entry.Content = content
 	entry.Visibility = visibility
 	if fileType != "" {
 		entry.FileType = fileType
 	}
 	entry.FileSize = int64(len(content))
-
-	// Handle content storage changes.
-	if int64(len(content)) >= s.s3Threshold {
-		key := entry.S3Key
-		if key == "" {
-			key = fmt.Sprintf("entries/%s/%s", entry.UserID, uuid.New().String())
-		}
-		if err := s.storage.Upload(ctx, key, strings.NewReader(content), "text/plain", int64(len(content))); err != nil {
-			return nil, fmt.Errorf("uploading updated content: %w", err)
-		}
-		entry.S3Key = key
-		entry.Content = ""
-	} else {
-		// Content is small enough for inline storage.
-		if entry.S3Key != "" {
-			// Clean up old S3 object.
-			_ = s.storage.Delete(ctx, entry.S3Key)
-			entry.S3Key = ""
-		}
-		entry.Content = content
-	}
 
 	if err := s.entries.Update(ctx, entry); err != nil {
 		slog.Error("failed to update entry in db", "entry_id", id, "error", err)
@@ -195,7 +157,6 @@ func (s *EntryService) UpdateEntry(ctx context.Context, id, title, content, path
 		"entry_id", id,
 		"title", entry.Title,
 		"path", entry.Path,
-		"stored_in_s3", entry.IsStoredInS3(),
 	)
 
 	// Re-sync tags: detach all existing, then attach new ones.
@@ -216,20 +177,9 @@ func (s *EntryService) UpdateEntry(ctx context.Context, id, title, content, path
 	return entry, nil
 }
 
-// DeleteEntry deletes an entry and its associated S3 content and search index.
+// DeleteEntry deletes an entry and its search index.
 func (s *EntryService) DeleteEntry(ctx context.Context, id string) error {
 	slog.Info("deleting entry", "entry_id", id)
-
-	entry, err := s.entries.GetByID(ctx, id)
-	if err != nil {
-		return fmt.Errorf("getting entry for deletion: %w", err)
-	}
-
-	if entry.S3Key != "" {
-		if err := s.storage.Delete(ctx, entry.S3Key); err != nil {
-			slog.Warn("failed to delete s3 object", "key", entry.S3Key, "error", err)
-		}
-	}
 
 	if err := s.entries.Delete(ctx, id); err != nil {
 		slog.Error("failed to delete entry from db", "entry_id", id, "error", err)
@@ -298,7 +248,7 @@ func (s *EntryService) ListEntries(ctx context.Context, userID, pathPrefix strin
 // Runs in a background goroutine — errors are logged, not returned.
 // isUpdate controls whether to call UpdateEntry (for updates) or IndexEntry (for creates).
 func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, content string, isUpdate bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), embeddingTimeout)
 	defer cancel()
 
 	slog.Info("async indexing started", "entry_id", entry.ID, "title", entry.Title, "is_update", isUpdate)
@@ -399,34 +349,7 @@ func (s *EntryService) ListFolders(ctx context.Context, userID string) ([]string
 }
 
 func sortFolders(folders []string) {
-	for i := 0; i < len(folders)-1; i++ {
-		for j := i + 1; j < len(folders); j++ {
-			if folders[i] > folders[j] {
-				folders[i], folders[j] = folders[j], folders[i]
-			}
-		}
-	}
-}
-
-// GetEntryDownloadURL returns a presigned S3 URL for downloading the entry content.
-// Returns an error if the entry is not stored in S3.
-func (s *EntryService) GetEntryDownloadURL(ctx context.Context, id string) (string, error) {
-	entry, err := s.entries.GetByID(ctx, id)
-	if err != nil {
-		return "", fmt.Errorf("getting entry: %w", err)
-	}
-
-	if !entry.IsStoredInS3() {
-		return "", fmt.Errorf("entry is not stored in s3")
-	}
-
-	url, err := s.storage.GetPresignedURL(ctx, entry.S3Key, 15*time.Minute)
-	if err != nil {
-		return "", fmt.Errorf("generating presigned url: %w", err)
-	}
-
-	slog.Info("generated download url", "entry_id", id, "s3_key", entry.S3Key)
-	return url, nil
+	sort.Strings(folders)
 }
 
 // ListChildren returns entries directly in a path and direct subfolders with counts.

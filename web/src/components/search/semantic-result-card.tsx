@@ -1,11 +1,16 @@
 import { useState } from "react"
-import { Copy, Download, FileIcon } from "lucide-react"
+import { Copy, FileIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { SearchResult } from "@/types/api"
 import { toast } from "sonner"
 import { EntryPreviewModal } from "./entry-preview-modal"
 import { PathBreadcrumb, VisibilityLabel, DateLabel } from "./card-meta"
+
+const MATCH_THRESHOLDS = {
+  HIGH: 80,
+  MEDIUM: 60,
+} as const
 
 interface SemanticResultCardProps {
   result: SearchResult
@@ -15,9 +20,9 @@ interface SemanticResultCardProps {
 function MatchBadge({ score }: { score: number }) {
   const percent = Math.round(score * 100)
   const style =
-    percent >= 80
+    percent >= MATCH_THRESHOLDS.HIGH
       ? { bg: "rgba(34, 197, 94, 0.15)", color: "#22c55e" }
-      : percent >= 60
+      : percent >= MATCH_THRESHOLDS.MEDIUM
         ? { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" }
         : { bg: "var(--glass-hover)", color: "var(--glass-text-muted)" }
 
@@ -41,8 +46,6 @@ export function SemanticResultCard({ result, className }: SemanticResultCardProp
   const [copying, setCopying] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
 
-  const isBinary = Boolean(result.file_type && result.s3_key)
-
   const handleCopy = async () => {
     setCopying(true)
     try {
@@ -53,11 +56,6 @@ export function SemanticResultCard({ result, className }: SemanticResultCardProp
     } finally {
       setCopying(false)
     }
-  }
-
-  const handleDownload = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    window.open(`/v1/entries/${result.entry_id}/download`, "_blank")
   }
 
   return (
@@ -75,7 +73,7 @@ export function SemanticResultCard({ result, className }: SemanticResultCardProp
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--glass-hover)" }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--glass-bg)" }}
       >
-        {/* ── Header: title + match badge + copy/download ── */}
+        {/* ── Header: title + match badge + copy ── */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             {/* Title — smaller, secondary role */}
@@ -90,31 +88,20 @@ export function SemanticResultCard({ result, className }: SemanticResultCardProp
 
           <div className="mt-0.5 flex shrink-0 items-center gap-1.5">
             {result.score > 0 && <MatchBadge score={result.score} />}
-            {isBinary ? (
-              <button
-                onClick={handleDownload}
-                className="flex h-7 w-7 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100"
-                style={{ color: "var(--glass-icon)" }}
-                title="Download"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
-            ) : (
-              <button
-                onClick={e => { e.stopPropagation(); void handleCopy() }}
-                className="flex h-7 w-7 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100"
-                style={{ color: "var(--glass-icon)" }}
-                title="Copy"
-                disabled={copying}
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </button>
-            )}
+            <button
+              onClick={e => { e.stopPropagation(); void handleCopy() }}
+              className="flex h-7 w-7 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100"
+              style={{ color: "var(--glass-icon)" }}
+              title="Copy"
+              disabled={copying}
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
-        {/* ── Binary file info ── */}
-        {isBinary && (
+        {/* ── File type info ── */}
+        {result.file_type && (
           <div
             className="mt-2 flex items-center gap-2 text-xs"
             style={{ color: "var(--glass-text-muted)" }}
@@ -127,8 +114,8 @@ export function SemanticResultCard({ result, className }: SemanticResultCardProp
           </div>
         )}
 
-        {/* ── Inline content (primary body, text entries only) ── */}
-        {!isBinary && result.content && (
+        {/* ── Inline content (primary body) ── */}
+        {result.content && (
           <p
             className="mt-2 line-clamp-3 text-sm leading-relaxed"
             style={{ color: "var(--glass-text)" }}

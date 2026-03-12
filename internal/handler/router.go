@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -19,6 +21,12 @@ type RouterDeps struct {
 	SearchSvc *service.SearchService
 	AuthSvc   *service.AuthService
 	UserRepo  domain.UserRepository
+
+	// Health check dependencies
+	DBPing     func(context.Context) error
+	DBCount    func(context.Context) (int64, error)
+	TSHealth   func(context.Context, time.Duration) (bool, error)
+	TSDocCount func(context.Context) (int64, error)
 }
 
 // SetupRouter creates a Gin engine with all middleware and routes registered.
@@ -39,6 +47,10 @@ func SetupRouter(deps RouterDeps) *gin.Engine {
 	tags := newTagHandler(deps.TagSvc)
 	search := newSearchHandler(deps.SearchSvc)
 	users := newUserHandler(deps.UserRepo)
+	health := newHealthHandler(deps.DBPing, deps.DBCount, deps.TSHealth, deps.TSDocCount)
+
+	// Health check endpoint (no auth required).
+	r.GET("/health", health.check)
 
 	// API routes under /v1.
 	v1 := r.Group("/v1")
@@ -57,7 +69,6 @@ func SetupRouter(deps RouterDeps) *gin.Engine {
 		{
 			entryGroup.GET("", entries.listEntries)
 			entryGroup.GET("/:entry_id", entries.getEntry)
-			entryGroup.GET("/:entry_id/download-url", entries.getDownloadURL)
 			entryGroup.POST("", entries.createEntry)
 			entryGroup.PUT("/:entry_id", entries.updateEntry)
 			entryGroup.DELETE("/:entry_id", entries.deleteEntry)

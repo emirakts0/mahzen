@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Copy, Download, FileIcon } from "lucide-react"
+import { Copy, FileIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { SearchResult } from "@/types/api"
@@ -31,8 +31,6 @@ export function KeywordResultCard({ result, className }: KeywordResultCardProps)
   const [copying, setCopying] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
 
-  const isBinary = Boolean(result.file_type && result.s3_key)
-
   const handleCopy = async () => {
     setCopying(true)
     try {
@@ -43,11 +41,6 @@ export function KeywordResultCard({ result, className }: KeywordResultCardProps)
     } finally {
       setCopying(false)
     }
-  }
-
-  const handleDownload = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    window.open(`/v1/entries/${result.entry_id}/download`, "_blank")
   }
 
   // Pick highlights by field
@@ -76,7 +69,7 @@ export function KeywordResultCard({ result, className }: KeywordResultCardProps)
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--glass-hover)" }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--glass-bg)" }}
       >
-        {/* ── Header: title + copy/download ── */}
+        {/* ── Header: title + copy ── */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             {/* Title — smaller, secondary role */}
@@ -91,30 +84,19 @@ export function KeywordResultCard({ result, className }: KeywordResultCardProps)
             <PathBreadcrumb path={result.path} />
           </div>
 
-          {isBinary ? (
-            <button
-              onClick={handleDownload}
-              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100"
-              style={{ color: "var(--glass-icon)" }}
-              title="Download"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </button>
-          ) : (
-            <button
-              onClick={e => { e.stopPropagation(); void handleCopy() }}
-              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100"
-              style={{ color: "var(--glass-icon)" }}
-              title="Copy"
-              disabled={copying}
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <button
+            onClick={e => { e.stopPropagation(); void handleCopy() }}
+            className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100"
+            style={{ color: "var(--glass-icon)" }}
+            title="Copy"
+            disabled={copying}
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
         </div>
 
-        {/* ── Binary file info ── */}
-        {isBinary && (
+        {/* ── File type info ── */}
+        {result.file_type && (
           <div
             className="mt-2 flex items-center gap-2 text-xs"
             style={{ color: "var(--glass-text-muted)" }}
@@ -127,8 +109,8 @@ export function KeywordResultCard({ result, className }: KeywordResultCardProps)
           </div>
         )}
 
-        {/* ── Content highlight (primary body, text entries only) ── */}
-        {!isBinary && contentBody && (
+        {/* ── Content highlight (primary body) ── */}
+        {contentBody && (
           <p
             className="mt-2 line-clamp-3 text-sm leading-relaxed"
             style={{ color: "var(--glass-text)" }}

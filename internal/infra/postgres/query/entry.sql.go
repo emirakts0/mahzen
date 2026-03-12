@@ -41,6 +41,17 @@ func (q *Queries) CountAccessibleEntriesByPath(ctx context.Context, arg CountAcc
 	return count, err
 }
 
+const countAllEntries = `-- name: CountAllEntries :one
+SELECT count(*) FROM entries
+`
+
+func (q *Queries) CountAllEntries(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countAllEntries)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countEntriesByUser = `-- name: CountEntriesByUser :one
 SELECT count(*) FROM entries WHERE user_id = $1
 `
@@ -54,23 +65,23 @@ func (q *Queries) CountEntriesByUser(ctx context.Context, userID pgtype.UUID) (i
 
 const countEntriesInPath = `-- name: CountEntriesInPath :one
 SELECT count(*) FROM entries e
-WHERE 
-  CASE 
+WHERE
+  CASE
     WHEN $1::boolean THEN e.user_id = $2::uuid
     ELSE (e.visibility = 'public' OR e.user_id = $2::uuid)
   END
   AND e.path = $3::text
   AND (
-    $4::text IS NULL OR 
-    $4::text = '' OR 
+    $4::text IS NULL OR
+    $4::text = '' OR
     e.visibility = $4::text
   )
   AND (
-    $5::timestamptz IS NULL OR 
+    $5::timestamptz IS NULL OR
     e.created_at >= $5::timestamptz
   )
   AND (
-    $6::timestamptz IS NULL OR 
+    $6::timestamptz IS NULL OR
     e.created_at <= $6::timestamptz
   )
   AND (
@@ -119,7 +130,7 @@ func (q *Queries) DeleteEntry(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getEntryByID = `-- name: GetEntryByID :one
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
+SELECT id, user_id, title, content, summary, path, visibility, file_type, file_size, embedding, created_at, updated_at
 FROM entries
 WHERE id = $1
 `
@@ -130,7 +141,6 @@ type GetEntryByIDRow struct {
 	Title      string             `json:"title"`
 	Content    string             `json:"content"`
 	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
 	Path       string             `json:"path"`
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
@@ -149,7 +159,6 @@ func (q *Queries) GetEntryByID(ctx context.Context, id pgtype.UUID) (GetEntryByI
 		&i.Title,
 		&i.Content,
 		&i.Summary,
-		&i.S3Key,
 		&i.Path,
 		&i.Visibility,
 		&i.FileType,
@@ -162,9 +171,9 @@ func (q *Queries) GetEntryByID(ctx context.Context, id pgtype.UUID) (GetEntryByI
 }
 
 const insertEntry = `-- name: InsertEntry :one
-INSERT INTO entries (user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
+INSERT INTO entries (user_id, title, content, summary, path, visibility, file_type, file_size, embedding)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, user_id, title, content, summary, path, visibility, file_type, file_size, embedding, created_at, updated_at
 `
 
 type InsertEntryParams struct {
@@ -172,7 +181,6 @@ type InsertEntryParams struct {
 	Title      string      `json:"title"`
 	Content    string      `json:"content"`
 	Summary    string      `json:"summary"`
-	S3Key      string      `json:"s3_key"`
 	Path       string      `json:"path"`
 	Visibility string      `json:"visibility"`
 	FileType   string      `json:"file_type"`
@@ -186,7 +194,6 @@ type InsertEntryRow struct {
 	Title      string             `json:"title"`
 	Content    string             `json:"content"`
 	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
 	Path       string             `json:"path"`
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
@@ -202,7 +209,6 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Inser
 		arg.Title,
 		arg.Content,
 		arg.Summary,
-		arg.S3Key,
 		arg.Path,
 		arg.Visibility,
 		arg.FileType,
@@ -216,7 +222,6 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Inser
 		&i.Title,
 		&i.Content,
 		&i.Summary,
-		&i.S3Key,
 		&i.Path,
 		&i.Visibility,
 		&i.FileType,
@@ -229,7 +234,7 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) (Inser
 }
 
 const listAccessibleEntries = `-- name: ListAccessibleEntries :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
+SELECT id, user_id, title, content, summary, path, visibility, file_type, file_size, embedding, created_at, updated_at
 FROM entries
 WHERE (visibility = 'public' OR user_id = $1)
 ORDER BY path ASC, created_at DESC
@@ -248,7 +253,6 @@ type ListAccessibleEntriesRow struct {
 	Title      string             `json:"title"`
 	Content    string             `json:"content"`
 	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
 	Path       string             `json:"path"`
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
@@ -273,7 +277,6 @@ func (q *Queries) ListAccessibleEntries(ctx context.Context, arg ListAccessibleE
 			&i.Title,
 			&i.Content,
 			&i.Summary,
-			&i.S3Key,
 			&i.Path,
 			&i.Visibility,
 			&i.FileType,
@@ -293,7 +296,7 @@ func (q *Queries) ListAccessibleEntries(ctx context.Context, arg ListAccessibleE
 }
 
 const listAccessibleEntriesByPath = `-- name: ListAccessibleEntriesByPath :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
+SELECT id, user_id, title, content, summary, path, visibility, file_type, file_size, embedding, created_at, updated_at
 FROM entries
 WHERE (visibility = 'public' OR user_id = $1)
   AND (path = $2 OR path LIKE $2 || '/%')
@@ -314,7 +317,6 @@ type ListAccessibleEntriesByPathRow struct {
 	Title      string             `json:"title"`
 	Content    string             `json:"content"`
 	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
 	Path       string             `json:"path"`
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
@@ -344,7 +346,6 @@ func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAcces
 			&i.Title,
 			&i.Content,
 			&i.Summary,
-			&i.S3Key,
 			&i.Path,
 			&i.Visibility,
 			&i.FileType,
@@ -364,7 +365,7 @@ func (q *Queries) ListAccessibleEntriesByPath(ctx context.Context, arg ListAcces
 }
 
 const listAllEntries = `-- name: ListAllEntries :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
+SELECT id, user_id, title, content, summary, path, visibility, file_type, file_size, embedding, created_at, updated_at
 FROM entries
 ORDER BY created_at ASC
 `
@@ -375,7 +376,6 @@ type ListAllEntriesRow struct {
 	Title      string             `json:"title"`
 	Content    string             `json:"content"`
 	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
 	Path       string             `json:"path"`
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
@@ -400,7 +400,6 @@ func (q *Queries) ListAllEntries(ctx context.Context) ([]ListAllEntriesRow, erro
 			&i.Title,
 			&i.Content,
 			&i.Summary,
-			&i.S3Key,
 			&i.Path,
 			&i.Visibility,
 			&i.FileType,
@@ -421,22 +420,22 @@ func (q *Queries) ListAllEntries(ctx context.Context) ([]ListAllEntriesRow, erro
 
 const listAllPaths = `-- name: ListAllPaths :many
 SELECT DISTINCT e.path FROM entries e
-WHERE 
-  CASE 
+WHERE
+  CASE
     WHEN $1::boolean THEN e.user_id = $2::uuid
     ELSE (e.visibility = 'public' OR e.user_id = $2::uuid)
   END
   AND (
-    $3::text IS NULL OR 
-    $3::text = '' OR 
+    $3::text IS NULL OR
+    $3::text = '' OR
     e.visibility = $3::text
   )
   AND (
-    $4::timestamptz IS NULL OR 
+    $4::timestamptz IS NULL OR
     e.created_at >= $4::timestamptz
   )
   AND (
-    $5::timestamptz IS NULL OR 
+    $5::timestamptz IS NULL OR
     e.created_at <= $5::timestamptz
   )
   AND (
@@ -514,7 +513,7 @@ func (q *Queries) ListDistinctPaths(ctx context.Context, userID pgtype.UUID) ([]
 }
 
 const listEntriesByUser = `-- name: ListEntriesByUser :many
-SELECT id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
+SELECT id, user_id, title, content, summary, path, visibility, file_type, file_size, embedding, created_at, updated_at
 FROM entries
 WHERE user_id = $1
 ORDER BY created_at DESC
@@ -533,7 +532,6 @@ type ListEntriesByUserRow struct {
 	Title      string             `json:"title"`
 	Content    string             `json:"content"`
 	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
 	Path       string             `json:"path"`
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
@@ -558,7 +556,6 @@ func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserPa
 			&i.Title,
 			&i.Content,
 			&i.Summary,
-			&i.S3Key,
 			&i.Path,
 			&i.Visibility,
 			&i.FileType,
@@ -578,25 +575,25 @@ func (q *Queries) ListEntriesByUser(ctx context.Context, arg ListEntriesByUserPa
 }
 
 const listEntriesInPath = `-- name: ListEntriesInPath :many
-SELECT e.id, e.user_id, e.title, e.content, e.summary, e.s3_key, e.path, e.visibility, e.file_type, e.file_size, e.embedding, e.created_at, e.updated_at
+SELECT e.id, e.user_id, e.title, e.content, e.summary, e.path, e.visibility, e.file_type, e.file_size, e.embedding, e.created_at, e.updated_at
 FROM entries e
-WHERE 
-  CASE 
+WHERE
+  CASE
     WHEN $1::boolean THEN e.user_id = $2::uuid
     ELSE (e.visibility = 'public' OR e.user_id = $2::uuid)
   END
   AND e.path = $3::text
   AND (
-    $4::text IS NULL OR 
-    $4::text = '' OR 
+    $4::text IS NULL OR
+    $4::text = '' OR
     e.visibility = $4::text
   )
   AND (
-    $5::timestamptz IS NULL OR 
+    $5::timestamptz IS NULL OR
     e.created_at >= $5::timestamptz
   )
   AND (
-    $6::timestamptz IS NULL OR 
+    $6::timestamptz IS NULL OR
     e.created_at <= $6::timestamptz
   )
   AND (
@@ -630,7 +627,6 @@ type ListEntriesInPathRow struct {
 	Title      string             `json:"title"`
 	Content    string             `json:"content"`
 	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
 	Path       string             `json:"path"`
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
@@ -665,7 +661,6 @@ func (q *Queries) ListEntriesInPath(ctx context.Context, arg ListEntriesInPathPa
 			&i.Title,
 			&i.Content,
 			&i.Summary,
-			&i.S3Key,
 			&i.Path,
 			&i.Visibility,
 			&i.FileType,
@@ -686,23 +681,23 @@ func (q *Queries) ListEntriesInPath(ctx context.Context, arg ListEntriesInPathPa
 
 const listPathsUnderPrefix = `-- name: ListPathsUnderPrefix :many
 SELECT DISTINCT e.path FROM entries e
-WHERE 
-  CASE 
+WHERE
+  CASE
     WHEN $1::boolean THEN e.user_id = $2::uuid
     ELSE (e.visibility = 'public' OR e.user_id = $2::uuid)
   END
   AND e.path LIKE $3::text || '/%'
   AND (
-    $4::text IS NULL OR 
-    $4::text = '' OR 
+    $4::text IS NULL OR
+    $4::text = '' OR
     e.visibility = $4::text
   )
   AND (
-    $5::timestamptz IS NULL OR 
+    $5::timestamptz IS NULL OR
     e.created_at >= $5::timestamptz
   )
   AND (
-    $6::timestamptz IS NULL OR 
+    $6::timestamptz IS NULL OR
     e.created_at <= $6::timestamptz
   )
   AND (
@@ -757,9 +752,9 @@ func (q *Queries) ListPathsUnderPrefix(ctx context.Context, arg ListPathsUnderPr
 
 const updateEntry = `-- name: UpdateEntry :one
 UPDATE entries
-SET title = $2, content = $3, summary = $4, s3_key = $5, path = $6, visibility = $7, file_type = $8, file_size = $9, embedding = $10, updated_at = now()
+SET title = $2, content = $3, summary = $4, path = $5, visibility = $6, file_type = $7, file_size = $8, embedding = $9, updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, title, content, summary, s3_key, path, visibility, file_type, file_size, embedding, created_at, updated_at
+RETURNING id, user_id, title, content, summary, path, visibility, file_type, file_size, embedding, created_at, updated_at
 `
 
 type UpdateEntryParams struct {
@@ -767,7 +762,6 @@ type UpdateEntryParams struct {
 	Title      string      `json:"title"`
 	Content    string      `json:"content"`
 	Summary    string      `json:"summary"`
-	S3Key      string      `json:"s3_key"`
 	Path       string      `json:"path"`
 	Visibility string      `json:"visibility"`
 	FileType   string      `json:"file_type"`
@@ -781,7 +775,6 @@ type UpdateEntryRow struct {
 	Title      string             `json:"title"`
 	Content    string             `json:"content"`
 	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
 	Path       string             `json:"path"`
 	Visibility string             `json:"visibility"`
 	FileType   string             `json:"file_type"`
@@ -797,7 +790,6 @@ func (q *Queries) UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Updat
 		arg.Title,
 		arg.Content,
 		arg.Summary,
-		arg.S3Key,
 		arg.Path,
 		arg.Visibility,
 		arg.FileType,
@@ -811,7 +803,6 @@ func (q *Queries) UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Updat
 		&i.Title,
 		&i.Content,
 		&i.Summary,
-		&i.S3Key,
 		&i.Path,
 		&i.Visibility,
 		&i.FileType,

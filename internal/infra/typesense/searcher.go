@@ -220,7 +220,6 @@ func mapSearchResults(result *api.SearchResult) ([]*domain.SearchResult, int, er
 	results := make([]*domain.SearchResult, 0, len(*result.Hits))
 	for _, hit := range *result.Hits {
 		doc := *hit.Document
-		s3Key := stringFromDoc(doc, "s3_key")
 		sr := &domain.SearchResult{
 			EntryID:    stringFromDoc(doc, "entry_id"),
 			Title:      stringFromDoc(doc, "title"),
@@ -230,18 +229,14 @@ func mapSearchResults(result *api.SearchResult) ([]*domain.SearchResult, int, er
 			Tags:       stringsFromDoc(doc, "tags"),
 			FileType:   stringFromDoc(doc, "file_type"),
 			FileSize:   int64FromDoc(doc, "file_size"),
-			S3Key:      s3Key,
 		}
 
-		// Return inline content only when the entry is NOT stored in S3.
-		// Binary/S3-backed entries expose only their summary and file metadata.
-		if s3Key == "" {
-			if raw := stringFromDoc(doc, "content"); raw != "" {
-				if len(raw) <= contentExcerptLen {
-					sr.Content = raw
-				} else {
-					sr.Content = raw[:contentExcerptLen]
-				}
+		// Return content excerpt.
+		if raw := stringFromDoc(doc, "content"); raw != "" {
+			if len(raw) <= contentExcerptLen {
+				sr.Content = raw
+			} else {
+				sr.Content = raw[:contentExcerptLen]
 			}
 		}
 

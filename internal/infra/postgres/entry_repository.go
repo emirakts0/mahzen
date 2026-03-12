@@ -33,7 +33,6 @@ func (r *EntryRepository) Create(ctx context.Context, entry *domain.Entry) error
 		Title:      entry.Title,
 		Content:    entry.Content,
 		Summary:    entry.Summary,
-		S3Key:      entry.S3Key,
 		Path:       entry.Path,
 		Visibility: entry.Visibility.String(),
 		FileType:   entry.FileType,
@@ -49,7 +48,6 @@ func (r *EntryRepository) Create(ctx context.Context, entry *domain.Entry) error
 	entry.Title = row.Title
 	entry.Content = row.Content
 	entry.Summary = row.Summary
-	entry.S3Key = row.S3Key
 	entry.Path = row.Path
 	entry.Visibility = domain.ParseVisibility(row.Visibility)
 	entry.FileType = row.FileType
@@ -77,7 +75,6 @@ func (r *EntryRepository) GetByID(ctx context.Context, id string) (*domain.Entry
 		Title:      row.Title,
 		Content:    row.Content,
 		Summary:    row.Summary,
-		S3Key:      row.S3Key,
 		Path:       row.Path,
 		Visibility: domain.ParseVisibility(row.Visibility),
 		FileType:   row.FileType,
@@ -99,7 +96,6 @@ func (r *EntryRepository) Update(ctx context.Context, entry *domain.Entry) error
 		Title:      entry.Title,
 		Content:    entry.Content,
 		Summary:    entry.Summary,
-		S3Key:      entry.S3Key,
 		Path:       entry.Path,
 		Visibility: entry.Visibility.String(),
 		FileType:   entry.FileType,
@@ -115,7 +111,6 @@ func (r *EntryRepository) Update(ctx context.Context, entry *domain.Entry) error
 	entry.Title = row.Title
 	entry.Content = row.Content
 	entry.Summary = row.Summary
-	entry.S3Key = row.S3Key
 	entry.Path = row.Path
 	entry.Visibility = domain.ParseVisibility(row.Visibility)
 	entry.FileType = row.FileType
@@ -166,7 +161,6 @@ func (r *EntryRepository) ListByUser(ctx context.Context, userID string, limit, 
 			Title:      row.Title,
 			Content:    row.Content,
 			Summary:    row.Summary,
-			S3Key:      row.S3Key,
 			Path:       row.Path,
 			Visibility: domain.ParseVisibility(row.Visibility),
 			FileType:   row.FileType,
@@ -219,7 +213,6 @@ func (r *EntryRepository) ListAccessible(ctx context.Context, userID, pathPrefix
 				Title:      row.Title,
 				Content:    row.Content,
 				Summary:    row.Summary,
-				S3Key:      row.S3Key,
 				Path:       row.Path,
 				Visibility: domain.ParseVisibility(row.Visibility),
 				FileType:   row.FileType,
@@ -254,7 +247,6 @@ func (r *EntryRepository) ListAccessible(ctx context.Context, userID, pathPrefix
 			Title:      row.Title,
 			Content:    row.Content,
 			Summary:    row.Summary,
-			S3Key:      row.S3Key,
 			Path:       row.Path,
 			Visibility: domain.ParseVisibility(row.Visibility),
 			FileType:   row.FileType,
@@ -350,7 +342,6 @@ func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, o
 			Title:      e.Title,
 			Content:    e.Content,
 			Summary:    e.Summary,
-			S3Key:      e.S3Key,
 			Path:       e.Path,
 			Visibility: domain.ParseVisibility(e.Visibility),
 			FileType:   e.FileType,
@@ -482,7 +473,6 @@ func (r *EntryRepository) ListAll(ctx context.Context) ([]*domain.Entry, error) 
 			Title:      row.Title,
 			Content:    row.Content,
 			Summary:    row.Summary,
-			S3Key:      row.S3Key,
 			Path:       row.Path,
 			Visibility: domain.ParseVisibility(row.Visibility),
 			FileType:   row.FileType,
@@ -509,4 +499,9 @@ func (r *EntryRepository) UpdateEmbedding(ctx context.Context, entryID string, e
 		return fmt.Errorf("updating entry embedding: %w", err)
 	}
 	return nil
+}
+
+// CountAll returns the total number of entries in the database.
+func (r *EntryRepository) CountAll(ctx context.Context) (int64, error) {
+	return r.q.CountAllEntries(ctx)
 }

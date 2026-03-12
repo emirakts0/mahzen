@@ -8,14 +8,13 @@ import {
   X,
   Clock,
   HardDrive,
-  Download,
 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { getEntry, getDownloadURL } from "@/api/entries"
+import { getEntry } from "@/api/entries"
 import { toast } from "sonner"
 import { getFileTypeLabel, formatFileSize } from "../entries/file-icons"
 
@@ -42,7 +41,6 @@ function PathBreadcrumb({ path }: { path: string }) {
 export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) {
   const [copied, setCopied] = useState(false)
   const [wrap, setWrap] = useState(true)
-  const [downloading, setDownloading] = useState(false)
 
   const { data: entry, isLoading, error } = useQuery({
     queryKey: ["entry", entryId],
@@ -62,32 +60,7 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
     }
   }
 
-  const handleDownload = async () => {
-    if (!entry || downloading) return
-    setDownloading(true)
-    try {
-      const url = await getDownloadURL(entry.id)
-      const response = await fetch(url)
-      const blob = await response.blob()
-      const blobUrl = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = blobUrl
-      link.download = entry.title || "download"
-      link.style.display = "none"
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(blobUrl)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to download file")
-    } finally {
-      setDownloading(false)
-    }
-  }
-
   if (!entryId) return null
-
-  const isBinaryFile = entry?.s3_key && !entry?.content
 
   return (
     <Dialog open={!!entryId} onOpenChange={(open) => !open && onClose()}>
@@ -191,35 +164,6 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
                 >
                   {entry.content ? (
                     entry.content
-                  ) : isBinaryFile ? (
-                    <div className="flex flex-col items-center justify-center py-8 gap-3">
-                      <div
-                        className="flex items-center justify-center w-16 h-16 rounded-full"
-                        style={{ background: "var(--glass-bg)" }}
-                      >
-                        <Download className="h-8 w-8" style={{ color: "var(--color-primary)" }} />
-                      </div>
-                      <div className="text-center">
-                        <p className="font-medium" style={{ color: "var(--glass-text)" }}>
-                          Binary file
-                        </p>
-                        <p className="text-xs mt-1" style={{ color: "var(--glass-text-muted)" }}>
-                          {getFileTypeLabel(entry.file_type)} • {formatFileSize(entry.file_size)}
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleDownload}
-                        disabled={downloading}
-                        className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors hover:opacity-90 disabled:opacity-50"
-                        style={{
-                          background: "var(--color-primary)",
-                          color: "var(--color-primary-foreground)",
-                        }}
-                      >
-                        <Download className={`h-4 w-4 ${downloading ? "animate-pulse" : ""}`} />
-                        {downloading ? "Getting URL..." : "Download file"}
-                      </button>
-                    </div>
                   ) : (
                     <span style={{ color: "var(--glass-text-muted)", fontStyle: "italic" }}>No content available</span>
                   )}

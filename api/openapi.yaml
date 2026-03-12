@@ -1,724 +1,171 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Mahzen API
   description: |
-    Mahzen is a knowledge management platform that provides CRUD operations for
-    entries and tags, keyword and semantic search, and user authentication.
+    Mahzen is a knowledge management system with hierarchical entries,
+    semantic search, and AI-powered summarization.
 
-    The HTTP API is served via Gin on port 8080. When TLS is configured, the
-    server supports both HTTP/2 and HTTP/3 (QUIC).
-
-    **Authentication**: Requests are authenticated via JWT Bearer tokens in the
-    `Authorization` header. The auth middleware validates the token and sets
-    `X-User-Id` internally. Public endpoints (register, login, refresh, logout,
-    GET /entries, GET /search/*) do not require authentication.
-
-    **Visibility**: Entries are either `public` (visible to all) or `private`
-    (visible only to the owner). Listing and search endpoints enforce this at the
-    database and search-engine level.
-
-    **Pagination**: `limit` defaults to 20 when omitted or <= 0.
+    ## Authentication
+    All endpoints except `/health` and `/v1/auth/*` require a Bearer token
+    in the Authorization header.
   version: 1.0.0
-  license:
-    name: MIT
+  contact:
+    name: Mahzen
 
 servers:
   - url: http://localhost:8080
-    description: Local development (Gin)
+    description: Local development server
 
 tags:
+  - name: Health
+    description: System health check endpoints
   - name: Auth
-    description: Authentication and token management
+    description: Authentication and authorization
   - name: Entries
-    description: CRUD operations for knowledge entries
+    description: Entry management operations
   - name: Tags
-    description: Tag management and entry-tag associations
+    description: Tag management operations
   - name: Search
-    description: Keyword and semantic search over entries
+    description: Keyword and semantic search
   - name: Users
-    description: Authenticated user operations
+    description: User profile operations
 
-paths:
-  # ---------------------------------------------------------------------------
-  # Auth
-  # ---------------------------------------------------------------------------
-  /v1/auth/register:
-    post:
-      operationId: Register
-      summary: Register a new user
-      tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RegisterRequest"
-      responses:
-        "200":
-          description: Registration successful
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /v1/auth/login:
-    post:
-      operationId: Login
-      summary: Login with email and password
-      tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LoginRequest"
-      responses:
-        "200":
-          description: Login successful
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthResponse"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-
-  /v1/auth/refresh:
-    post:
-      operationId: RefreshToken
-      summary: Refresh an access token
-      tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RefreshTokenRequest"
-      responses:
-        "200":
-          description: Token refreshed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthResponse"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-
-  /v1/auth/logout:
-    post:
-      operationId: Logout
-      summary: Invalidate a refresh token
-      tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LogoutRequest"
-      responses:
-        "200":
-          description: Logged out successfully
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  # ---------------------------------------------------------------------------
-  # Entries
-  # ---------------------------------------------------------------------------
-  /v1/entries:
-    post:
-      operationId: CreateEntry
-      summary: Create a new entry
-      tags: [Entries]
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateEntryRequest"
-      responses:
-        "200":
-          description: Entry created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EntryResponse"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-    get:
-      operationId: ListEntries
-      summary: List entries visible to the caller with optional filters
-      description: |
-        Returns entries and folders visible to the authenticated user. Public entries are
-        always included; private entries are included only when they belong to the caller.
-        
-        When `path` is provided, results are filtered to entries at that path
-        and returned as a folder tree structure. For example, `path=/notes` returns
-        entries at `/notes` and subfolders like `/notes/work`.
-        
-        Additional filters (visibility, tags, date range, own) can be applied to narrow results.
-      tags: [Entries]
-      security:
-        - {}
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/PathFilter"
-        - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Offset"
-        - $ref: "#/components/parameters/OwnFilter"
-        - $ref: "#/components/parameters/VisibilityFilter"
-        - $ref: "#/components/parameters/TagsFilter"
-        - $ref: "#/components/parameters/FromDateFilter"
-        - $ref: "#/components/parameters/ToDateFilter"
-      responses:
-        "200":
-          description: Paginated list of entries and folders
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ListEntriesResponse"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /v1/entries/{entry_id}:
-    get:
-      operationId: GetEntry
-      summary: Get a single entry by ID
-      description: |
-        Returns an entry by ID. Public entries are accessible to all;
-        private entries are only accessible to their owner.
-      tags: [Entries]
-      security:
-        - {}
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/EntryID"
-      responses:
-        "200":
-          description: Entry found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EntryResponse"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-    put:
-      operationId: UpdateEntry
-      summary: Update an existing entry
-      tags: [Entries]
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/EntryID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateEntryRequest"
-      responses:
-        "200":
-          description: Entry updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EntryResponse"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-    delete:
-      operationId: DeleteEntry
-      summary: Delete an entry
-      tags: [Entries]
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/EntryID"
-      responses:
-        "200":
-          description: Entry deleted successfully
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /v1/entries/{entry_id}/download-url:
-    get:
-      operationId: GetEntryDownloadURL
-      summary: Get a pre-signed URL to download entry content from S3
-      description: |
-        Returns a pre-signed URL for downloading the entry's content from object
-        storage. Only applicable for entries with content stored in S3 (i.e., entries
-        where `file_size` >= 64KB or `s3_key` is set).
-      tags: [Entries]
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/EntryID"
-      responses:
-        "200":
-          description: Pre-signed URL returned
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DownloadURLResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  # ---------------------------------------------------------------------------
-  # Tags
-  # ---------------------------------------------------------------------------
-  /v1/tags:
-    post:
-      operationId: CreateTag
-      summary: Create a new tag
-      tags: [Tags]
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateTagRequest"
-      responses:
-        "200":
-          description: Tag created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TagResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-    get:
-      operationId: ListTags
-      summary: List all tags
-      tags: [Tags]
-      parameters:
-        - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Offset"
-      responses:
-        "200":
-          description: Paginated list of tags
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ListTagsResponse"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /v1/tags/{id}:
-    get:
-      operationId: GetTag
-      summary: Get a single tag by ID
-      tags: [Tags]
-      parameters:
-        - $ref: "#/components/parameters/TagID"
-      responses:
-        "200":
-          description: Tag found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TagResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-    delete:
-      operationId: DeleteTag
-      summary: Delete a tag
-      tags: [Tags]
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/TagID"
-      responses:
-        "200":
-          description: Tag deleted successfully
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /v1/entries/{entry_id}/tags:
-    post:
-      operationId: AttachTag
-      summary: Attach a tag to an entry
-      tags: [Tags]
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/EntryIDPath"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AttachTagRequest"
-      responses:
-        "200":
-          description: Tag attached successfully
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /v1/entries/{entry_id}/tags/{tag_id}:
-    delete:
-      operationId: DetachTag
-      summary: Detach a tag from an entry
-      tags: [Tags]
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/EntryIDPath"
-        - name: tag_id
-          in: path
-          required: true
-          description: ID of the tag to detach
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Tag detached successfully
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  # ---------------------------------------------------------------------------
-  # Search
-  # ---------------------------------------------------------------------------
-  /v1/search/keyword:
-    get:
-      operationId: KeywordSearch
-      summary: Full-text keyword search over entries
-      description: |
-        Performs a keyword-based search via Typesense. Results respect visibility
-        rules: public entries are always returned, private entries only when the
-        caller owns them.
-        
-        Supports filtering by tags, path, date range, visibility, and restricting
-        to own entries only.
-      tags: [Search]
-      security:
-        - {}
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/SearchQuery"
-        - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Offset"
-        - $ref: "#/components/parameters/TagsFilter"
-        - $ref: "#/components/parameters/PathFilter"
-        - $ref: "#/components/parameters/FromDateFilter"
-        - $ref: "#/components/parameters/ToDateFilter"
-        - $ref: "#/components/parameters/OnlyMineFilter"
-        - $ref: "#/components/parameters/VisibilityFilter"
-      responses:
-        "200":
-          description: Search results
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SearchResponse"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /v1/search/semantic:
-    get:
-      operationId: SemanticSearch
-      summary: Semantic (vector) search over entries
-      description: |
-        Performs a semantic search by embedding the query via OpenAI
-        (`text-embedding-3-small`, 1536 dimensions) and running a vector search
-        in Typesense. Results respect visibility rules.
-        
-        Supports filtering by tags, path, date range, visibility, and restricting
-        to own entries only.
-      tags: [Search]
-      security:
-        - {}
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/SearchQuery"
-        - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Offset"
-        - $ref: "#/components/parameters/TagsFilter"
-        - $ref: "#/components/parameters/PathFilter"
-        - $ref: "#/components/parameters/FromDateFilter"
-        - $ref: "#/components/parameters/ToDateFilter"
-        - $ref: "#/components/parameters/OnlyMineFilter"
-        - $ref: "#/components/parameters/VisibilityFilter"
-      responses:
-        "200":
-          description: Search results
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SearchResponse"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  # ---------------------------------------------------------------------------
-  # Users
-  # ---------------------------------------------------------------------------
-  /v1/users/me:
-    get:
-      operationId: GetCurrentUser
-      summary: Get the currently authenticated user
-      tags: [Users]
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: Current user info
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GetCurrentUserResponse"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-
-# =============================================================================
-# Components
-# =============================================================================
 components:
-  # ---------------------------------------------------------------------------
-  # Security
-  # ---------------------------------------------------------------------------
   securitySchemes:
-    BearerAuth:
+    bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: JWT access token obtained from /v1/auth/login or /v1/auth/register
 
-  # ---------------------------------------------------------------------------
-  # Parameters
-  # ---------------------------------------------------------------------------
-  parameters:
-    EntryID:
-      name: entry_id
-      in: path
-      required: true
-      description: Entry UUID
-      schema:
-        type: string
-        format: uuid
-
-    TagID:
-      name: id
-      in: path
-      required: true
-      description: Tag UUID
-      schema:
-        type: string
-        format: uuid
-
-    EntryIDPath:
-      name: entry_id
-      in: path
-      required: true
-      description: Entry UUID (used in tag association endpoints)
-      schema:
-        type: string
-        format: uuid
-
-    Limit:
-      name: limit
-      in: query
-      required: false
-      description: "Maximum number of items to return (default: 20)"
-      schema:
-        type: integer
-        format: int32
-        default: 20
-        minimum: 1
-
-    Offset:
-      name: offset
-      in: query
-      required: false
-      description: Number of items to skip
-      schema:
-        type: integer
-        format: int32
-        default: 0
-        minimum: 0
-
-    SearchQuery:
-      name: query
-      in: query
-      required: true
-      description: Search query string
-      schema:
-        type: string
-
-    PathFilter:
-      name: path
-      in: query
-      required: false
-      description: |
-        Filter entries by path prefix (recursive). Returns entries at the given
-        path and all descendants. For example, `/notes` matches `/notes`,
-        `/notes/work`, `/notes/work/meeting`, etc. Omit to list all entries.
-      schema:
-        type: string
-        example: /notes
-
-    OwnFilter:
-      name: own
-      in: query
-      required: false
-      description: |
-        When `true`, only return entries owned by the authenticated user.
-        This is useful for filtering out public entries from other users.
-      schema:
-        type: boolean
-        default: false
-
-    VisibilityFilter:
-      name: visibility
-      in: query
-      required: false
-      description: |
-        Filter entries by visibility. Use `public` to show only public entries,
-        or `private` to show only private entries (user's own private entries only).
-      schema:
-        type: string
-        enum:
-          - public
-          - private
-
-    TagsFilter:
-      name: tags
-      in: query
-      required: false
-      description: |
-        Filter entries by tags. Provide a comma-separated list of tag names.
-        Only entries that have ALL the specified tags will be returned.
-      schema:
-        type: string
-        example: go,rust,web
-
-    FromDateFilter:
-      name: from_date
-      in: query
-      required: false
-      description: |
-        Filter entries created on or after this date. Format: YYYY-MM-DD.
-      schema:
-        type: string
-        format: date
-        example: "2024-01-01"
-
-    ToDateFilter:
-      name: to_date
-      in: query
-      required: false
-      description: |
-        Filter entries created on or before this date. Format: YYYY-MM-DD.
-      schema:
-        type: string
-        format: date
-        example: "2024-12-31"
-
-    OnlyMineFilter:
-      name: only_mine
-      in: query
-      required: false
-      description: |
-        When `true`, only return entries owned by the authenticated user.
-        Similar to `own` but specifically for search endpoints.
-      schema:
-        type: boolean
-        default: false
-
-  # ---------------------------------------------------------------------------
-  # Schemas
-  # ---------------------------------------------------------------------------
   schemas:
+    # Common schemas
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+
+    Empty:
+      type: object
+      description: Empty response object
+
+    # Auth schemas
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        display_name:
+          type: string
+          example: John Doe
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: securepassword123
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: securepassword123
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          description: JWT refresh token
+
+    LogoutRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          description: JWT refresh token to invalidate
+
+    AuthResponse:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+      properties:
+        access_token:
+          type: string
+          description: JWT access token (short-lived)
+        refresh_token:
+          type: string
+          description: JWT refresh token (long-lived)
+
+    # User schemas
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - display_name
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+
+    UserResponse:
+      type: object
+      required:
+        - user
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+
+    # Entry schemas
     Visibility:
       type: string
       enum:
         - public
         - private
       description: |
-        Entry visibility level.
-        - `public`: Visible to all users.
-        - `private`: Visible only to the owner. This is the default.
+        Entry visibility:
+        - `public`: Visible to all authenticated users
+        - `private`: Visible only to the owner
 
-    # -- Auth ----------------------------------------------------------------
-    RegisterRequest:
-      type: object
-      required: [email, password]
-      properties:
-        email:
-          type: string
-          format: email
-        display_name:
-          type: string
-        password:
-          type: string
-          minLength: 8
-
-    LoginRequest:
-      type: object
-      required: [email, password]
-      properties:
-        email:
-          type: string
-        password:
-          type: string
-
-    RefreshTokenRequest:
-      type: object
-      required: [refresh_token]
-      properties:
-        refresh_token:
-          type: string
-
-    LogoutRequest:
-      type: object
-      required: [refresh_token]
-      properties:
-        refresh_token:
-          type: string
-
-    AuthResponse:
-      type: object
-      properties:
-        access_token:
-          type: string
-        refresh_token:
-          type: string
-
-    # -- Entry -----------------------------------------------------------------
     Entry:
       type: object
+      required:
+        - id
+        - user_id
+        - title
+        - content
+        - path
+        - visibility
+        - created_at
+        - updated_at
       properties:
         id:
           type: string
@@ -728,35 +175,32 @@ components:
           format: uuid
         title:
           type: string
+          example: My Notes
         content:
           type: string
+          example: This is the content of my note.
         summary:
           type: string
-          description: AI-generated summary (may be empty if summarizer is not enabled)
+          description: AI-generated summary (optional)
         path:
           type: string
-          description: |
-            Materialized path for hierarchical organization. Must start with `/`,
-            no trailing slash (except root `/`). Segments allow `[a-zA-Z0-9._~-]`.
-            Max segment length 255 chars, max total path 4096 bytes.
+          description: Hierarchical path (e.g., /notes/work)
           example: /notes/work
         visibility:
-          $ref: "#/components/schemas/Visibility"
+          $ref: '#/components/schemas/Visibility'
         tags:
           type: array
           items:
             type: string
-          description: Tag names associated with this entry
+          example: [go, backend, api]
         file_type:
           type: string
-          description: MIME type extension (e.g. "mp4", "zip", "pdf"). Empty for plain text.
+          description: MIME type or file extension
+          example: text/markdown
         file_size:
           type: integer
           format: int64
-          description: Size of the content in bytes
-        s3_key:
-          type: string
-          description: S3 object key when content is stored in object storage (64KB+ files)
+          description: Size in bytes
         created_at:
           type: string
           format: date-time
@@ -764,48 +208,37 @@ components:
           type: string
           format: date-time
 
+    EntryResponse:
+      type: object
+      required:
+        - entry
+      properties:
+        entry:
+          $ref: '#/components/schemas/Entry'
+
     CreateEntryRequest:
       type: object
-      required: [title, content]
       properties:
         title:
           type: string
+          example: My New Note
         content:
           type: string
+          example: Content of the note
         path:
           type: string
-          description: |
-            Hierarchical path for the entry. Defaults to `/` (root) when omitted.
-            Must start with `/`, no trailing slash. Segments allow `[a-zA-Z0-9._~-]`.
-          example: /notes/work
+          example: /notes/personal
         visibility:
-          $ref: "#/components/schemas/Visibility"
+          $ref: '#/components/schemas/Visibility'
         tag_ids:
           type: array
           items:
             type: string
             format: uuid
-          description: Tag IDs to attach to the entry
+          description: List of tag IDs to attach
         file_type:
           type: string
-          description: |
-            MIME type extension provided by the client (e.g. "mp4", "zip", "pdf").
-            Empty string means plain text entry. When set, the content is treated
-            as binary for indexing purposes (not indexed in Typesense, but AI
-            summary and embeddings are generated).
-
-    EntryResponse:
-      type: object
-      properties:
-        entry:
-          $ref: "#/components/schemas/Entry"
-
-    DownloadURLResponse:
-      type: object
-      properties:
-        url:
-          type: string
-          description: Pre-signed URL for downloading the entry content from S3
+          example: text/markdown
 
     UpdateEntryRequest:
       type: object
@@ -816,109 +249,136 @@ components:
           type: string
         path:
           type: string
-          description: |
-            New hierarchical path for the entry. If omitted or empty, the
-            existing path is preserved.
-          example: /notes/work
         visibility:
-          $ref: "#/components/schemas/Visibility"
+          $ref: '#/components/schemas/Visibility'
         tag_ids:
           type: array
           items:
             type: string
             format: uuid
+          description: List of tag IDs (replaces existing)
         file_type:
           type: string
-          description: MIME type extension (e.g. "mp4", "zip", "pdf").
 
-    FolderInfo:
+    Folder:
       type: object
+      required:
+        - path
+        - count
       properties:
         path:
           type: string
-          description: The folder path
+          description: Folder path
+          example: /notes/work
         count:
           type: integer
-          description: Number of entries directly in this folder (after applying filters)
+          description: Number of entries in this folder
 
-    ListEntriesResponse:
+    EntryListResponse:
       type: object
+      required:
+        - entries
+        - folders
+        - total
       properties:
         entries:
           type: array
           items:
-            $ref: "#/components/schemas/Entry"
+            $ref: '#/components/schemas/Entry'
         folders:
           type: array
           items:
-            $ref: "#/components/schemas/FolderInfo"
-          description: List of subfolders with filtered entry counts
+            $ref: '#/components/schemas/Folder'
         total:
           type: integer
-          format: int32
           description: Total number of entries matching the query
 
-    # -- Tag -------------------------------------------------------------------
+    # Tag schemas
     Tag:
       type: object
+      required:
+        - id
+        - name
+        - slug
+        - created_at
       properties:
         id:
           type: string
           format: uuid
         name:
           type: string
+          example: golang
         slug:
           type: string
+          example: golang
         created_at:
           type: string
           format: date-time
 
+    TagResponse:
+      type: object
+      required:
+        - tag
+      properties:
+        tag:
+          $ref: '#/components/schemas/Tag'
+
     CreateTagRequest:
       type: object
-      required: [name]
+      required:
+        - name
       properties:
         name:
           type: string
+          example: rust
 
-    TagResponse:
+    TagListResponse:
       type: object
-      properties:
-        tag:
-          $ref: "#/components/schemas/Tag"
-
-    ListTagsResponse:
-      type: object
+      required:
+        - tags
+        - total
       properties:
         tags:
           type: array
           items:
-            $ref: "#/components/schemas/Tag"
+            $ref: '#/components/schemas/Tag'
         total:
           type: integer
-          format: int32
 
     AttachTagRequest:
       type: object
-      required: [tag_id]
+      required:
+        - tag_id
       properties:
         tag_id:
           type: string
           format: uuid
           description: ID of the tag to attach
 
-    # -- Search ----------------------------------------------------------------
+    # Search schemas
     Highlight:
       type: object
+      required:
+        - field
+        - snippet
       properties:
         field:
           type: string
-          description: The field this highlight applies to (title, content, or summary)
+          description: Field name where highlight was found
+          example: content
         snippet:
           type: string
-          description: Text with <mark> tags around matched query tokens
+          description: Text snippet with highlight markers
+          example: This is a <mark>matching</mark> text
 
     SearchResult:
       type: object
+      required:
+        - entry_id
+        - title
+        - path
+        - visibility
+        - created_at
       properties:
         entry_id:
           type: string
@@ -927,112 +387,921 @@ components:
           type: string
         summary:
           type: string
-          description: AI-generated summary of the entry
+          description: AI-generated summary
         content:
           type: string
-          description: Inline text content; absent for S3/binary entries
+          description: Full content (optional)
         score:
           type: number
           format: double
-          description: |
-            Cosine similarity score (0.0–1.0). Only present in semantic search
-            results. Omitted in keyword search responses.
+          description: Relevance score (semantic search only)
         highlights:
           type: array
           items:
-            $ref: "#/components/schemas/Highlight"
-          description: Highlighted matching fragments with field attribution (keyword search only)
+            $ref: '#/components/schemas/Highlight'
+          description: Keyword match highlights (keyword search only)
         path:
           type: string
-          description: Hierarchical path of the entry
-          example: /notes/work
         visibility:
-          $ref: "#/components/schemas/Visibility"
+          $ref: '#/components/schemas/Visibility'
         tags:
           type: array
           items:
             type: string
-          description: Tag names associated with the entry
-        file_type:
-          type: string
-          description: MIME type extension (e.g. "mp4", "zip"). Empty for plain text.
-        file_size:
-          type: integer
-          format: int64
-          description: Size of the content in bytes
-        s3_key:
-          type: string
-          description: S3 object key for content stored in object storage
         created_at:
           type: string
           format: date-time
+        file_type:
+          type: string
+        file_size:
+          type: integer
+          format: int64
 
     SearchResponse:
       type: object
+      required:
+        - results
+        - total
       properties:
         results:
           type: array
           items:
-            $ref: "#/components/schemas/SearchResult"
+            $ref: '#/components/schemas/SearchResult'
         total:
           type: integer
-          format: int32
+          description: Total number of results
 
-    # -- User ------------------------------------------------------------------
-    User:
+    # Health schemas
+    HealthStatus:
       type: object
       properties:
-        id:
+        status:
           type: string
-          format: uuid
-        email:
+          enum: [healthy, unhealthy, unknown]
+        latency:
           type: string
-          format: email
-        display_name:
-          type: string
-
-    GetCurrentUserResponse:
-      type: object
-      properties:
-        user:
-          $ref: "#/components/schemas/User"
-
-    # -- Error -----------------------------------------------------------------
-    Error:
-      type: object
-      properties:
+          example: 1.234ms
+        count:
+          type: integer
+          description: Entry/document count
         error:
           type: string
-          description: Human-readable error message
+          description: Error message if unhealthy
 
-  # ---------------------------------------------------------------------------
-  # Responses
-  # ---------------------------------------------------------------------------
-  responses:
-    BadRequest:
-      description: Invalid request parameters
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - database
+        - typesense
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        database:
+          $ref: '#/components/schemas/HealthStatus'
+        typesense:
+          $ref: '#/components/schemas/HealthStatus'
 
-    Unauthenticated:
-      description: Missing or invalid authentication token
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the health status of all system components
+      operationId: checkHealth
+      security: []
+      responses:
+        '200':
+          description: All systems healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: One or more systems unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
 
-    NotFound:
-      description: Requested resource not found
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
+  /v1/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register a new user
+      description: Creates a new user account and returns authentication tokens
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Registration failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-    InternalError:
-      description: Internal server error
-      content:
-        application/json:
+  /v1/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login
+      description: Authenticates a user and returns tokens
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Refresh access token
+      description: Exchange a refresh token for new tokens
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Token refresh successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout
+      description: Invalidate the refresh token
+      operationId: logout
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Logout failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/entries:
+    get:
+      tags:
+        - Entries
+      summary: List entries
+      description: |
+        Lists entries and folders at a given path. Supports pagination and filtering.
+      operationId: listEntries
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: path
+          in: query
+          description: "Path to list entries from (default: /)"
           schema:
-            $ref: "#/components/schemas/Error"
+            type: string
+            example: /notes
+        - name: own
+          in: query
+          description: Only show entries owned by the current user
+          schema:
+            type: boolean
+            default: false
+        - name: visibility
+          in: query
+          description: Filter by visibility
+          schema:
+            $ref: '#/components/schemas/Visibility'
+        - name: tags
+          in: query
+          description: Filter by tags (comma-separated)
+          schema:
+            type: string
+            example: go,backend
+        - name: from_date
+          in: query
+          description: Filter entries created on or after this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          description: Filter entries created on or before this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          description: Maximum number of entries to return
+          schema:
+            type: integer
+            default: 20
+            minimum: 0
+        - name: offset
+          in: query
+          description: Number of entries to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: List of entries and folders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - Entries
+      summary: Create entry
+      description: Creates a new entry
+      operationId: createEntry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEntryRequest'
+      responses:
+        '200':
+          description: Entry created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/entries/{entry_id}:
+    get:
+      tags:
+        - Entries
+      summary: Get entry
+      description: Retrieves a single entry by ID
+      operationId: getEntry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entry_id
+          in: path
+          required: true
+          description: Entry ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Entry details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - Entries
+      summary: Update entry
+      description: Updates an existing entry
+      operationId: updateEntry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entry_id
+          in: path
+          required: true
+          description: Entry ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEntryRequest'
+      responses:
+        '200':
+          description: Entry updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - Entries
+      summary: Delete entry
+      description: Deletes an entry permanently
+      operationId: deleteEntry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entry_id
+          in: path
+          required: true
+          description: Entry ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Entry deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/entries/{entry_id}/tags:
+    post:
+      tags:
+        - Tags
+      summary: Attach tag to entry
+      description: Attaches an existing tag to an entry
+      operationId: attachTag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entry_id
+          in: path
+          required: true
+          description: Entry ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachTagRequest'
+      responses:
+        '200':
+          description: Tag attached successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/entries/{entry_id}/tags/{tag_id}:
+    delete:
+      tags:
+        - Tags
+      summary: Detach tag from entry
+      description: Removes a tag from an entry
+      operationId: detachTag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: entry_id
+          in: path
+          required: true
+          description: Entry ID
+          schema:
+            type: string
+            format: uuid
+        - name: tag_id
+          in: path
+          required: true
+          description: Tag ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tag detached successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/tags:
+    get:
+      tags:
+        - Tags
+      summary: List tags
+      description: Lists all tags with pagination
+      operationId: listTags
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of tags to return
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+        - name: offset
+          in: query
+          description: Number of tags to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: List of tags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - Tags
+      summary: Create tag
+      description: Creates a new tag
+      operationId: createTag
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTagRequest'
+      responses:
+        '200':
+          description: Tag created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/tags/{id}:
+    get:
+      tags:
+        - Tags
+      summary: Get tag
+      description: Retrieves a single tag by ID
+      operationId: getTag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Tag ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tag details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Tag not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - Tags
+      summary: Delete tag
+      description: Deletes a tag permanently
+      operationId: deleteTag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Tag ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tag deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/search/keyword:
+    get:
+      tags:
+        - Search
+      summary: Keyword search
+      description: |
+        Performs a keyword-based search across entries. Returns highlighted
+        snippets showing where the search terms were found.
+      operationId: keywordSearch
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          description: Search query string
+          schema:
+            type: string
+        - name: tags
+          in: query
+          description: Filter by tags (comma-separated)
+          schema:
+            type: string
+            example: go,backend
+        - name: path
+          in: query
+          description: Filter by exact path
+          schema:
+            type: string
+        - name: from_date
+          in: query
+          description: Filter entries created on or after this date
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          description: Filter entries created on or before this date
+          schema:
+            type: string
+            format: date
+        - name: only_mine
+          in: query
+          description: Only search entries owned by current user
+          schema:
+            type: boolean
+            default: false
+        - name: visibility
+          in: query
+          description: Filter by visibility
+          schema:
+            $ref: '#/components/schemas/Visibility'
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+        - name: offset
+          in: query
+          description: Number of results to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/search/semantic:
+    get:
+      tags:
+        - Search
+      summary: Semantic search
+      description: |
+        Performs a semantic (vector-based) search using AI embeddings.
+        Finds conceptually similar content even without exact keyword matches.
+      operationId: semanticSearch
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          description: Natural language search query
+          schema:
+            type: string
+        - name: tags
+          in: query
+          description: Filter by tags (comma-separated)
+          schema:
+            type: string
+        - name: path
+          in: query
+          description: Filter by exact path
+          schema:
+            type: string
+        - name: from_date
+          in: query
+          description: Filter entries created on or after this date
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          description: Filter entries created on or before this date
+          schema:
+            type: string
+            format: date
+        - name: only_mine
+          in: query
+          description: Only search entries owned by current user
+          schema:
+            type: boolean
+            default: false
+        - name: visibility
+          in: query
+          description: Filter by visibility
+          schema:
+            $ref: '#/components/schemas/Visibility'
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+        - name: offset
+          in: query
+          description: Number of results to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Search results with relevance scores
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/users/me:
+    get:
+      tags:
+        - Users
+      summary: Get current user
+      description: Returns the currently authenticated user's profile
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

@@ -33,16 +33,15 @@ type searchResultResponse struct {
 	EntryID    string              `json:"entry_id"`
 	Title      string              `json:"title"`
 	Summary    string              `json:"summary,omitempty"`
-	Content    string              `json:"content,omitempty"` // Inline text content; absent for S3/binary entries.
+	Content    string              `json:"content,omitempty"`
 	Score      float64             `json:"score,omitempty"`
 	Highlights []highlightResponse `json:"highlights,omitempty"`
 	Path       string              `json:"path"`
 	Visibility string              `json:"visibility"`
 	Tags       []string            `json:"tags,omitempty"`
 	CreatedAt  string              `json:"created_at"`
-	FileType   string              `json:"file_type,omitempty"` // Extension for binary files; absent for plain text.
-	FileSize   int64               `json:"file_size,omitempty"` // Size in bytes.
-	S3Key      string              `json:"s3_key,omitempty"`    // Set for S3-stored entries; used to build download links.
+	FileType   string              `json:"file_type,omitempty"`
+	FileSize   int64               `json:"file_size,omitempty"`
 }
 
 func (h *searchHandler) keywordSearch(c *gin.Context) {
@@ -88,7 +87,6 @@ func (h *searchHandler) keywordSearch(c *gin.Context) {
 			CreatedAt:  r.CreatedAt,
 			FileType:   r.FileType,
 			FileSize:   r.FileSize,
-			S3Key:      r.S3Key,
 		}
 	}
 
@@ -142,7 +140,6 @@ func (h *searchHandler) semanticSearch(c *gin.Context) {
 			CreatedAt:  r.CreatedAt,
 			FileType:   r.FileType,
 			FileSize:   r.FileSize,
-			S3Key:      r.S3Key,
 		}
 	}
 

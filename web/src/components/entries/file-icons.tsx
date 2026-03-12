@@ -7,75 +7,67 @@ import {
   FileSpreadsheet,
   FileType,
 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 
-export function getFileIcon(fileType?: string) {
-  if (!fileType) return FileText
+const iconMap: Record<string, LucideIcon> = {
+  go: FileCode,
+  ts: FileCode,
+  tsx: FileCode,
+  js: FileCode,
+  jsx: FileCode,
+  py: FileCode,
+  rs: FileCode,
+  java: FileCode,
+  c: FileCode,
+  cpp: FileCode,
+  h: FileCode,
+  css: FileCode,
+  html: FileCode,
+  json: FileCode,
+  yaml: FileCode,
+  yml: FileCode,
+  toml: FileCode,
+  sh: FileCode,
+  bash: FileCode,
+  mp4: FileVideo,
+  avi: FileVideo,
+  mov: FileVideo,
+  mkv: FileVideo,
+  webm: FileVideo,
+  png: FileImage,
+  jpg: FileImage,
+  jpeg: FileImage,
+  gif: FileImage,
+  webp: FileImage,
+  svg: FileImage,
+  ico: FileImage,
+  zip: FileArchive,
+  tar: FileArchive,
+  gz: FileArchive,
+  rar: FileArchive,
+  "7z": FileArchive,
+  bz2: FileArchive,
+  xlsx: FileSpreadsheet,
+  xls: FileSpreadsheet,
+  csv: FileSpreadsheet,
+  tsv: FileSpreadsheet,
+  pdf: FileType,
+  doc: FileType,
+  docx: FileType,
+  txt: FileType,
+  md: FileType,
+  rtf: FileType,
+}
 
-  const type = fileType.toLowerCase()
+interface FileIconProps {
+  fileType?: string
+  className?: string
+  style?: React.CSSProperties
+}
 
-  switch (type) {
-    case "go":
-    case "ts":
-    case "tsx":
-    case "js":
-    case "jsx":
-    case "py":
-    case "rs":
-    case "java":
-    case "c":
-    case "cpp":
-    case "h":
-    case "css":
-    case "html":
-    case "json":
-    case "yaml":
-    case "yml":
-    case "toml":
-    case "sh":
-    case "bash":
-      return FileCode
-
-    case "mp4":
-    case "avi":
-    case "mov":
-    case "mkv":
-    case "webm":
-      return FileVideo
-
-    case "png":
-    case "jpg":
-    case "jpeg":
-    case "gif":
-    case "webp":
-    case "svg":
-    case "ico":
-      return FileImage
-
-    case "zip":
-    case "tar":
-    case "gz":
-    case "rar":
-    case "7z":
-    case "bz2":
-      return FileArchive
-
-    case "xlsx":
-    case "xls":
-    case "csv":
-    case "tsv":
-      return FileSpreadsheet
-
-    case "pdf":
-    case "doc":
-    case "docx":
-    case "txt":
-    case "md":
-    case "rtf":
-      return FileType
-
-    default:
-      return FileText
-  }
+export function FileIcon({ fileType, className, style }: FileIconProps) {
+  const Icon = fileType ? iconMap[fileType.toLowerCase()] ?? FileText : FileText
+  return <Icon className={className} style={style} />
 }
 
 export function getFileTypeLabel(fileType?: string): string {

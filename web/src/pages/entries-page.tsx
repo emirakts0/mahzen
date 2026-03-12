@@ -1,36 +1,25 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
-import { motion } from "framer-motion";
-import {
-  Plus,
-  BookOpen,
-  Filter,
-} from "lucide-react";
-import { listEntries } from "@/api/entries";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useAuth } from "@/hooks/use-auth";
-import { FolderTree, CreateEntryDialog } from "@/components/entries";
-import { EntryPreviewModal } from "@/components/search/entry-preview-modal";
-import {
-  EntryFiltersPanel,
-  countActiveFilters,
-  type EntryFilters,
-} from "@/components/shared/entry-filters";
+import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { Link } from "react-router"
+import { motion } from "framer-motion"
+import { Plus, BookOpen, Filter } from "lucide-react"
+import { listEntries } from "@/api/entries"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useAuth } from "@/hooks/use-auth"
+import { FolderTree, CreateEntryDialog } from "@/components/entries"
+import { EntryPreviewModal } from "@/components/search/entry-preview-modal"
+import { SearchFilters, countActiveFilters } from "@/components/search/search-filters"
+import type { SearchFilters as SearchFiltersType } from "@/types/api"
 
 export default function EntriesPage() {
-  const { isAuthenticated } = useAuth();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [previewEntryId, setPreviewEntryId] = useState<string | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState<EntryFilters>({});
+  const { isAuthenticated } = useAuth()
+  const [createOpen, setCreateOpen] = useState(false)
+  const [previewEntryId, setPreviewEntryId] = useState<string | null>(null)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [filters, setFilters] = useState<SearchFiltersType>({})
 
-  const ownOnly = filters.only_mine ?? false;
+  const ownOnly = filters.only_mine ?? false
 
   const { data, isLoading } = useQuery({
     queryKey: ["entries", "/", ownOnly, filters],
@@ -45,11 +34,10 @@ export default function EntriesPage() {
         to_date: filters.to_date,
       }),
     enabled: isAuthenticated,
-  });
+  })
 
-  const total = data?.total ?? 0;
-
-  const activeFilterCount = countActiveFilters(filters);
+  const total = data?.total ?? 0
+  const activeFilterCount = countActiveFilters(filters, false)
 
   if (!isAuthenticated) {
     return (
@@ -62,33 +50,23 @@ export default function EntriesPage() {
           }}
         >
           <BookOpen className="h-12 w-12 mx-auto mb-4 text-primary" />
-          <h2
-            className="text-xl font-semibold mb-2"
-            style={{ color: "var(--glass-text)" }}
-          >
+          <h2 className="text-xl font-semibold mb-2" style={{ color: "var(--glass-text)" }}>
             Sign in to view entries
           </h2>
-          <p
-            className="text-sm mb-6"
-            style={{ color: "var(--glass-text-muted)" }}
-          >
+          <p className="text-sm mb-6" style={{ color: "var(--glass-text-muted)" }}>
             Access your knowledge base from anywhere
           </p>
           <div className="flex gap-3 justify-center">
             <Button asChild>
-              <Link to="?auth=login" replace>
-                Sign in
-              </Link>
+              <Link to="?auth=login" replace>Sign in</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link to="?auth=signup" replace>
-                Create account
-              </Link>
+              <Link to="?auth=signup" replace>Create account</Link>
             </Button>
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -105,49 +83,42 @@ export default function EntriesPage() {
         >
           <div className="px-4 py-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h1
-                  className="text-2xl font-bold"
-                  style={{ color: "var(--glass-text)" }}
-                >
-                  {total === 1 ? "1 Entry" : `${total} Entries`}
-                </h1>
-              </div>
+              <h1 className="text-2xl font-bold" style={{ color: "var(--glass-text)" }}>
+                {total === 1 ? "1 Entry" : `${total} Entries`}
+              </h1>
               <div className="flex items-center gap-1">
                 <DropdownMenu open={filtersOpen} onOpenChange={setFiltersOpen}>
                   <DropdownMenuTrigger asChild>
                     <button
-                      className="flex items-center justify-center h-9 w-9 rounded-md transition-opacity hover:opacity-60 cursor-pointer"
-                      style={{
-                        color: "var(--glass-text)",
-                      }}
+                      className="relative flex items-center justify-center h-9 w-9 rounded-md transition-opacity hover:opacity-60 cursor-pointer"
+                      style={{ color: "var(--glass-text)" }}
                     >
                       <Filter className="h-4 w-4" />
                       {activeFilterCount > 0 && (
-                        <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full text-[10px] font-semibold" style={{ background: "var(--color-primary)", color: "var(--color-primary-foreground)" }}>
+                        <span
+                          className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full text-[10px] font-semibold"
+                          style={{ background: "var(--color-primary)", color: "var(--color-primary-foreground)" }}
+                        >
                           {activeFilterCount}
                         </span>
                       )}
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="p-0 border-0 shadow-none bg-transparent"
-                  >
-                    <EntryFiltersPanel
+                  <DropdownMenuContent align="end" className="p-0 border-0 shadow-none bg-transparent">
+                    <SearchFilters
                       filters={filters}
                       onFiltersChange={setFilters}
                       isOpen={filtersOpen}
                       onClose={() => setFiltersOpen(false)}
+                      showPath={false}
+                      title="Filters"
                     />
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <button
                   onClick={() => setCreateOpen(true)}
                   className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium transition-opacity hover:opacity-60 cursor-pointer"
-                  style={{
-                    color: "var(--glass-text)",
-                  }}
+                  style={{ color: "var(--glass-text)" }}
                 >
                   <Plus className="h-4 w-4" />
                   New
@@ -158,18 +129,15 @@ export default function EntriesPage() {
 
           {isLoading ? (
             <div className="space-y-2 p-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <motion.div
+              {[65, 78, 55, 70, 60].map((w, i) => (
+                <div
                   key={i}
                   className="h-10 rounded-md animate-pulse"
                   style={{
                     background: "var(--glass-bg)",
-                    width: `${50 + Math.random() * 50}%`,
-                    marginLeft: `${Math.random() * 20}px`,
+                    width: `${w}%`,
+                    marginLeft: `${(i % 3) * 8}px`,
                   }}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
                 />
               ))}
             </div>
@@ -178,16 +146,10 @@ export default function EntriesPage() {
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl mx-auto bg-primary/10">
                 <BookOpen className="h-8 w-8 text-primary" />
               </div>
-              <h2
-                className="text-xl font-semibold mb-2"
-                style={{ color: "var(--glass-text)" }}
-              >
+              <h2 className="text-xl font-semibold mb-2" style={{ color: "var(--glass-text)" }}>
                 No entries yet
               </h2>
-              <p
-                className="text-sm mb-6"
-                style={{ color: "var(--glass-text-muted)" }}
-              >
+              <p className="text-sm mb-6" style={{ color: "var(--glass-text-muted)" }}>
                 Create your first knowledge base entry
               </p>
               <Button
@@ -218,16 +180,8 @@ export default function EntriesPage() {
         </motion.div>
       </div>
 
-      <CreateEntryDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        defaultPath="/"
-      />
-
-      <EntryPreviewModal
-        entryId={previewEntryId}
-        onClose={() => setPreviewEntryId(null)}
-      />
+      <CreateEntryDialog open={createOpen} onOpenChange={setCreateOpen} defaultPath="/" />
+      <EntryPreviewModal entryId={previewEntryId} onClose={() => setPreviewEntryId(null)} />
     </div>
-  );
+  )
 }

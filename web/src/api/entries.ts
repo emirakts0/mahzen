@@ -48,8 +48,3 @@ export function attachTag(entryId: string, tagId: string): Promise<unknown> {
 export function detachTag(entryId: string, tagId: string): Promise<unknown> {
   return apiDelete(`/entries/${entryId}/tags/${tagId}`)
 }
-
-export async function getDownloadURL(entryId: string): Promise<string> {
-  const res = await apiGet<{ url: string }>(`/entries/${entryId}/download-url`)
-  return res.url
-}

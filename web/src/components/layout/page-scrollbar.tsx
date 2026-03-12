@@ -39,13 +39,13 @@ export function PageScrollbar() {
 
   // Listen to scroll + resize/content changes
   useEffect(() => {
-    window.addEventListener("scroll", update, { passive: true })
+    const onScroll = () => update()
+    window.addEventListener("scroll", onScroll, { passive: true })
     const ro = new ResizeObserver(update)
     ro.observe(document.documentElement)
     ro.observe(document.body)
-    update()
     return () => {
-      window.removeEventListener("scroll", update)
+      window.removeEventListener("scroll", onScroll)
       ro.disconnect()
     }
   }, [update])

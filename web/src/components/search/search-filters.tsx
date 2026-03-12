@@ -11,9 +11,18 @@ interface SearchFiltersProps {
   onFiltersChange: (filters: SearchFiltersType) => void
   isOpen: boolean
   onClose: () => void
+  showPath?: boolean
+  title?: string
 }
 
-export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: SearchFiltersProps) {
+export function SearchFilters({ 
+  filters, 
+  onFiltersChange, 
+  isOpen, 
+  onClose, 
+  showPath = true,
+  title = "Filters"
+}: SearchFiltersProps) {
   const [showAllTags, setShowAllTags] = useState(false)
   const [tagSearch, setTagSearch] = useState("")
 
@@ -34,7 +43,7 @@ export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: Sea
 
   const hasActiveFilters =
     (filters.tags?.length ?? 0) > 0 ||
-    filters.path ||
+    (showPath && filters.path) ||
     filters.from_date ||
     filters.to_date ||
     filters.only_mine ||
@@ -81,7 +90,7 @@ export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: Sea
           >
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>
-                Search Filters
+                {title}
               </span>
               {hasActiveFilters && (
                 <button
@@ -96,27 +105,29 @@ export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: Sea
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label
-                  className="mb-1.5 flex items-center gap-1.5 text-xs font-medium"
-                  style={{ color: "var(--glass-text-muted)" }}
-                >
-                  <Folder className="h-3 w-3" />
-                  Path
-                </label>
-                <input
-                  type="text"
-                  placeholder="/notes/work"
-                  value={filters.path ?? ""}
-                  onChange={(e) => updateFilter("path", e.target.value)}
-                  className="h-8 w-full rounded-md px-2 text-sm outline-none backdrop-blur-sm"
-                  style={{
-                    background: "var(--glass-hover)",
-                    border: "1px solid var(--glass-border)",
-                    color: "var(--glass-text)",
-                  }}
-                />
-              </div>
+              {showPath && (
+                <div>
+                  <label
+                    className="mb-1.5 flex items-center gap-1.5 text-xs font-medium"
+                    style={{ color: "var(--glass-text-muted)" }}
+                  >
+                    <Folder className="h-3 w-3" />
+                    Path
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="/notes/work"
+                    value={filters.path ?? ""}
+                    onChange={(e) => updateFilter("path", e.target.value)}
+                    className="h-8 w-full rounded-md px-2 text-sm outline-none backdrop-blur-sm"
+                    style={{
+                      background: "var(--glass-hover)",
+                      border: "1px solid var(--glass-border)",
+                      color: "var(--glass-text)",
+                    }}
+                  />
+                </div>
+              )}
 
               <div>
                 <label
@@ -278,5 +289,16 @@ export function SearchFilters({ filters, onFiltersChange, isOpen, onClose }: Sea
         </>
       )}
     </AnimatePresence>
+  )
+}
+
+export function countActiveFilters(filters: SearchFiltersType, showPath = true): number {
+  return (
+    (filters.tags?.length ?? 0) +
+    (showPath && filters.path ? 1 : 0) +
+    (filters.visibility ? 1 : 0) +
+    (filters.only_mine ? 1 : 0) +
+    (filters.from_date ? 1 : 0) +
+    (filters.to_date ? 1 : 0)
   )
 }

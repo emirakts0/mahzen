@@ -27,16 +27,15 @@ type SearchResult struct {
 	EntryID    string
 	Title      string
 	Summary    string // AI-generated summary stored in the index.
-	Content    string // Inline content from Typesense index; empty when entry is binary or S3-stored.
+	Content    string // Content excerpt from Typesense index.
 	Score      float64
 	Highlights []Highlight // field-attributed; only populated for keyword search
 	Path       string
 	Visibility string
 	Tags       []string
 	CreatedAt  string
-	FileType   string // Empty for plain-text entries; extension (e.g. "mp4") for binary files.
+	FileType   string // File extension (e.g. "md", "txt").
 	FileSize   int64  // Size of the file in bytes.
-	S3Key      string // Set for S3-stored entries; used to generate download URLs.
 }
 
 // Indexer defines operations for indexing entries in the search engine.

@@ -14,6 +14,7 @@ type Querier interface {
 	AttachTagToEntry(ctx context.Context, arg AttachTagToEntryParams) error
 	CountAccessibleEntries(ctx context.Context, userID pgtype.UUID) (int64, error)
 	CountAccessibleEntriesByPath(ctx context.Context, arg CountAccessibleEntriesByPathParams) (int64, error)
+	CountAllEntries(ctx context.Context) (int64, error)
 	CountEntriesByUser(ctx context.Context, userID pgtype.UUID) (int64, error)
 	CountEntriesInPath(ctx context.Context, arg CountEntriesInPathParams) (int64, error)
 	CountTags(ctx context.Context) (int64, error)

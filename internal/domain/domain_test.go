@@ -49,28 +49,6 @@ func TestParseVisibility(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Entry
-// ---------------------------------------------------------------------------
-
-func TestEntry_IsStoredInS3(t *testing.T) {
-	tests := []struct {
-		name     string
-		s3Key    string
-		expected bool
-	}{
-		{"with S3 key", "entries/user-1/abc", true},
-		{"empty S3 key", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			e := &Entry{S3Key: tt.s3Key}
-			assert.Equal(t, tt.expected, e.IsStoredInS3())
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Visibility enum values
 // ---------------------------------------------------------------------------
 

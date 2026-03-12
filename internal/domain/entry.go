@@ -45,21 +45,15 @@ type Entry struct {
 	ID         string
 	UserID     string
 	Title      string
-	Content    string // Inline content when size is below S3 threshold.
+	Content    string // Text content stored directly in the database.
 	Summary    string // AI-generated summary.
-	S3Key      string // Set when content is stored in object storage.
 	Path       string // Materialized path for hierarchical organization (e.g. "/notes/work").
 	Visibility Visibility
-	FileType   string    // MIME extension provided by the client (e.g. "mp4", "zip"). Empty for plain text entries.
+	FileType   string    // File extension provided by the client (e.g. "md", "txt"). Empty for plain text entries.
 	FileSize   int64     // Size of the content in bytes.
 	Embedding  []float32 // OpenAI embedding vector (stored as JSON in DB).
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
-}
-
-// IsStoredInS3 reports whether the entry's content resides in object storage.
-func (e *Entry) IsStoredInS3() bool {
-	return e.S3Key != ""
 }
 
 // NormalizePath cleans and validates a path string for use as an entry path.

@@ -14,7 +14,6 @@ type Entry struct {
 	Title      string             `json:"title"`
 	Content    string             `json:"content"`
 	Summary    string             `json:"summary"`
-	S3Key      string             `json:"s3_key"`
 	Path       string             `json:"path"`
 	Visibility string             `json:"visibility"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`

@@ -78,13 +78,16 @@ ok "15 tag oluşturuldu"
 
 # ─── Entry oluşturma fonksiyonu ───────────────────────────────────────────────
 created=0
+
 create_entry() {
   local title=$1
   local path=$2
   local visibility=$3
   local content=$4
+
   shift 4
   local tag_ids_json="[]"
+
   if [ $# -gt 0 ] && [ -n "$1" ]; then
     tag_ids_json=$(printf '"%s",' "$@" | sed 's/,$//' | sed 's/^/[/' | sed 's/$/]/')
   fi
@@ -108,74 +111,6 @@ create_entry() {
     warn "Entry oluşturulamadı: $title | $res"
     echo ""
   fi
-}
-
-# Dosya entry'si oluşturma (file_type + büyük içerik → S3'e gider)
-# Kullanım: create_file_entry <title> <path> <visibility> <file_type> <content_file> [tag_ids...]
-# content_file: içeriğin yazılı olduğu geçici dosya yolu
-create_file_entry() {
-  local title=$1
-  local path=$2
-  local visibility=$3
-  local file_type=$4
-  local content_file=$5
-  shift 5
-  local tag_ids_json="[]"
-  if [ $# -gt 0 ] && [ -n "$1" ]; then
-    tag_ids_json=$(printf '"%s",' "$@" | sed 's/,$//' | sed 's/^/[/' | sed 's/$/]/')
-  fi
-
-  local payload_file
-  payload_file=$(mktemp)
-  python3 - "$title" "$path" "$visibility" "$file_type" "$content_file" "$tag_ids_json" > "$payload_file" <<'PYEOF'
-import json, sys
-title, path, visibility, file_type, content_file, tag_ids_json = sys.argv[1:]
-with open(content_file) as f:
-    content = f.read()
-import ast
-tag_ids = ast.literal_eval(tag_ids_json) if tag_ids_json != "[]" else []
-print(json.dumps({
-    "title": title,
-    "path": path,
-    "visibility": visibility,
-    "file_type": file_type,
-    "content": content,
-    "tag_ids": tag_ids,
-}))
-PYEOF
-
-  local res
-  res=$($CURL -X POST "$BASE/v1/entries" \
-    -H "Authorization: Bearer $ACCESS" \
-    -H "Content-Type: application/json" \
-    --data-binary "@$payload_file")
-  rm -f "$payload_file"
-
-  local id
-  id=$(echo "$res" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
-  if [ -n "$id" ]; then
-    created=$((created + 1))
-    echo "$id"
-  else
-    warn "Dosya entry'si oluşturulamadı: $title | $res"
-    echo ""
-  fi
-}
-
-# 70KB+ lorem ipsum benzeri içerik üreteci (S3 threshold'unu aşmak için)
-big_content() {
-  python3 -c "
-import random, string
-words = ['veri', 'dosya', 'sistem', 'bellek', 'disk', 'ağ', 'sunucu', 'istemci',
-         'protokol', 'paket', 'bağlantı', 'güvenlik', 'şifreleme', 'performans',
-         'önbellek', 'dizin', 'kayıt', 'yapı', 'akış', 'tampon', 'byte', 'bit',
-         'arayüz', 'sürücü', 'çekirdek', 'kullanıcı', 'oturum', 'yetki', 'erişim']
-lines = []
-for _ in range(900):
-    n = random.randint(12, 20)
-    lines.append(' '.join(random.choices(words, k=n)))
-print('\n'.join(lines))
-"
 }
 
 # ─── Entryler ─────────────────────────────────────────────────────────────────
@@ -217,9 +152,9 @@ Slice oluşturma:
 Append:
   s = append(s, 1, 2, 3)
 
-Cap aşılınca yeni array allocate edilir — büyük sliceler için önceden cap belirle.
+Cap aşılınca yeni array allocate edilir — büyük slicelar için önceden cap belirle.
 
-Dikkat: Slice'ı fonksiyona geçince backing array paylaşılır. Kopyalamak için copy() kullan.
+Dikkat: Slice'ı fonksiyona geçince backing array paylaşılır. Kopyalamak için copy() kullan:
   dst := make([]int, len(src))
   copy(dst, src)
 
@@ -299,1211 +234,1101 @@ Kural: Hata mesajları küçük harfle başlar, nokta ile bitmez.
 
 # /notlar/veritabani
 create_entry \
-  "PostgreSQL EXPLAIN ANALYZE okuma rehberi" \
+  "PostgreSQL index türleri" \
   "/notlar/veritabani" \
   "public" \
-  "EXPLAIN ANALYZE sorguyu gerçekten çalıştırır ve gerçek süreleri gösterir.
+  "B-tree: Varsayılan, eşitlik ve range sorguları için. <, >, BETWEEN, ORDER BY.
+Hash: Sadece eşitlik (=) için, B-tree'ten hızlı ama range desteklemez.
+GIN: Array, JSONB, full-text search için. Yavaş insert, hızlı sorgu.
+GiST: Geometrik veri, full-text search. GIN'den daha hızlı insert.
 
-  EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) SELECT ...;
+Kıyasla:
+  CREATE INDEX idx_users_email ON users(email);           -- B-tree (implicit)
+  CREATE INDEX idx_users_email_hash ON users USING hash(email);  -- Hash
+  CREATE INDEX idx_docs_content ON docs USING gin(to_tsvector('english', content));  -- GIN
 
-Önemli kavramlar:
-- Seq Scan: Tüm tabloyu tarar. Index yoksa veya az satır varsa normal.
-- Index Scan: İndex kullanıyor.
-- Bitmap Heap Scan: Çok satır için index + heap erişimi.
-- Hash Join vs Nested Loop vs Merge Join: Join stratejileri.
-
-Dikkat edilecekler:
-- actual rows vs estimated rows arası büyük fark → istatistikler güncel değil (ANALYZE çalıştır)
-- cost=0.00..1234.56 rows=1000 width=32 formatı
-- Buffers: shared hit=X read=Y → hit cache'den, read diskten
-
-Slow query bulma:
-  SELECT query, mean_exec_time, calls
-  FROM pg_stat_statements
-  ORDER BY mean_exec_time DESC LIMIT 10;" \
-  "$TAG_DB"
+Index sadece gerektiğinde ekle. Write amplification ve disk kullanımını artırır." \
+  "$TAG_DB" "$TAG_PERF"
 
 create_entry \
-  "PostgreSQL index stratejileri" \
+  "PostgreSQL EXPLAIN ANALYZE okuma" \
   "/notlar/veritabani" \
   "public" \
-  "B-tree (varsayılan): =, <, >, BETWEEN, LIKE 'foo%' için uygun.
-Hash: Sadece = için. PostgreSQL 10+ WAL-safe.
-GIN: Array, JSONB, full-text search için.
-GiST: Geometrik tipler, range tipler için.
-BRIN: Çok büyük, sıralı tablolar için (zaman serisi).
+  "EXPLAIN ANALYZE: Sorgu planını gerçek çalıştırma süreleriyle birlikte gösterir.
 
-Composite index sırası önemli:
-  CREATE INDEX ON orders (user_id, created_at);
-  → user_id = ? AND created_at > ? → kullanılır
-  → sadece created_at > ? → kullanılmaz
+Önemli metrikler:
+- Seq Scan: Full table scan, genelde kötü (büyük tablolarda)
+- Index Scan: Index kullanılıyor, iyi
+- Bitmap Heap Scan: Index'ten sonra disk okuma, orta
+- Nested Loop: Join için, küçük setlerde iyi
+- Hash Join: Büyük setlerde iyi
+- Merge Join: Sıralı veride iyi
 
-Partial index — koşullu:
-  CREATE INDEX ON entries (user_id) WHERE deleted_at IS NULL;
+Maliyet (cost):
+  cost=0.00..1.01 rows=1 width=100
+  - İlk sayı: başlangıç maliyeti
+  - İkinci sayı: toplam maliyet
+  - rows: tahmin edilen satır sayısı
+  - width: ortalama satır boyutu
 
-Expression index:
-  CREATE INDEX ON users (lower(email));
-  → WHERE lower(email) = 'foo@bar.com' kullanır
-
-Covering index (INCLUDE):
-  CREATE INDEX ON entries (user_id) INCLUDE (title, created_at);
-  → index-only scan mümkün olur" \
-  "$TAG_DB"
+Dikkat: rows tahmini ile gerçek farkı büyükse ANALYZE çalıştır:
+  ANALYZE users;" \
+  "$TAG_DB" "$TAG_PERF"
 
 create_entry \
-  "pgx v5 transaction kalıpları" \
+  "SQL injection önleme" \
+  "/notlar/veritabani" \
+  "public" \
+  "Asla string concatenation ile SQL oluşturma:
+  // YANLIŞ
+  query := fmt.Sprintf('SELECT * FROM users WHERE id = %s', userID)
+
+  // DOĞRU - Prepared statement
+  SELECT * FROM users WHERE id = \$1
+
+Go'da pgx/sqlc ile:
+  - sqlc parametreleri otomatik escape eder
+  - pgx'in QueryRow/Exec metodları prepared statement kullanır
+
+Ekstra önlemler:
+- En az privilege principle: Uygulama kullanıcısına sadece gerekli yetkileri ver
+- Input validation: UUID formatı, sayı aralıkları kontrol et
+- WAF: SQL pattern'lerini engelleyen firewall" \
+  "$TAG_DB" "$TAG_SECURITY"
+
+create_entry \
+  "Connection pool tuning" \
   "/notlar/veritabani" \
   "private" \
-  "pgx/v5 ile transaction:
+  "pgxpool ayarları:
 
-  tx, err := pool.Begin(ctx)
-  if err != nil { return err }
-  defer tx.Rollback(ctx) // commit sonrası no-op
+MaxConns: CPU core sayısı * 2 + disk sayısı (genelde)
+  - Çok yüksek: Bağlantı yönetim overhead'i, DB tarafında kaynak tüketimi
+  - Çok düşük: Bağlantı bekleme süresi, throughput düşer
 
-  // ... sorgular ...
+MinConns: Idle bağlantı sayısı, soğuk başlangıç gecikmesini azaltır
 
-  return tx.Commit(ctx)
+MaxConnLifetime: Uzun süre açık kalan bağlantılar DB tarafında sorun yaratabilir
+  - Aurora/RDS: 30 dakika önerilir (server side timeout)
 
-Savepoint:
-  _, err = tx.Exec(ctx, \"SAVEPOINT sp1\")
-  // ...
-  _, err = tx.Exec(ctx, \"ROLLBACK TO SAVEPOINT sp1\")
+MaxConnIdleTime: Idle bağlantının kapatılma süresi
+  - Düşük trafikte kaynak tasarrufu
 
-Batch (toplu sorgu):
-  batch := &pgx.Batch{}
-  batch.Queue(\"INSERT INTO ...\", ...)
-  batch.Queue(\"UPDATE ...\", ...)
-  br := tx.SendBatch(ctx, batch)
-  defer br.Close()
+HealthCheckPeriod: Bağlantı sağlık kontrolü
+  - Network partition sonrası hızlı keşif için önemli
 
-pgxpool.Pool thread-safe, connection'ları otomatik yönetir.
-Her request için pool.Acquire() yerine doğrudan pool.Query() kullan." \
-  "$TAG_DB" "$TAG_GO"
+Monitor: Pool metriklerini izle (wait_count, wait_duration)" \
+  "$TAG_DB" "$TAG_PERF"
+
+create_entry \
+  "JSONB vs JSON PostgreSQL" \
+  "/notlar/veritabani" \
+  "public" \
+  "JSON: Metin olarak saklanır, her sorguda parse edilir
+JSONB: Binary format, indexlenebilir, hızlı sorgu
+
+Ne zaman JSONB:
+- Sorgulama gerekiyorsa (WHERE data->>'key' = 'value')
+- Index ihtiyacı varsa
+- Sık okuma yapılıyorsa
+
+Ne zaman JSON:
+- Sadece insert/read (sorgulama yok)
+- JSON sırası önemliyse (JSONB sırayı garanti etmez)
+- Daha az storage (bazen)
+
+JSONB operatörleri:
+  ->   : JSON object/array'den değer al (JSON döner)
+  ->>  : JSON object/array'den değer al (text döner)
+  @>   : Contains (sol sağın alt kümesi mi)
+  ?    : Key var mı
+
+Index:
+  CREATE INDEX idx_data_gin ON users USING gin(data);
+  CREATE INDEX idx_data_key ON users USING btree((data->>'email'));" \
+  "$TAG_DB"
 
 # /notlar/linux
 create_entry \
-  "Günlük kullandığım Linux komutları" \
-  "/notlar/linux" \
-  "public" \
-  "Disk kullanımı:
-  df -h           # filesystem bazında
-  du -sh *        # dizin boyutları
-  ncdu            # interaktif
-
-Process:
-  ps aux | grep foo
-  htop            # interaktif
-  pgrep -f pattern
-
-Network:
-  ss -tlnp        # açık portlar (netstat'ın yerine)
-  ip a            # arayüzler
-  curl -v         # HTTP debug
-
-Dosya arama:
-  find . -name '*.go' -newer go.mod
-  fd pattern      # daha hızlı (fd-find)
-  rg 'pattern'    # ripgrep, grep'ten hızlı
-
-Log takip:
-  journalctl -u myservice -f
-  tail -f /var/log/syslog
-
-Sistem bilgisi:
-  uname -r        # kernel versiyonu
-  lscpu           # CPU
-  free -h         # RAM
-  lsblk           # diskler" \
-  "$TAG_LINUX" "$TAG_SHELL"
-
-create_entry \
-  "systemd servis birimi yazmak" \
+  "systemd service yazma" \
   "/notlar/linux" \
   "public" \
   "/etc/systemd/system/mahzen.service:
 
-  [Unit]
-  Description=Mahzen Knowledge Platform
-  After=network.target postgresql.service
-  Requires=postgresql.service
+[Unit]
+Description=Mahzen API Server
+After=network.target postgresql.service
 
-  [Service]
-  Type=simple
-  User=mahzen
-  WorkingDirectory=/opt/mahzen
-  ExecStart=/opt/mahzen/mahzen
-  Restart=on-failure
-  RestartSec=5s
-  Environment=MAHZEN_DATABASE_HOST=localhost
-  EnvironmentFile=/etc/mahzen/env
+[Service]
+Type=simple
+User=mahzen
+Group=mahzen
+WorkingDirectory=/opt/mahzen
+ExecStart=/opt/mahzen/mahzen -config /etc/mahzen/config.yaml
+Restart=on-failure
+RestartSec=5
+Environment=MAHZEN_DATABASE_PASSWORD=secret
 
-  # Güvenlik
-  NoNewPrivileges=true
-  PrivateTmp=true
-  ProtectSystem=strict
-  ReadWritePaths=/opt/mahzen/data
-
-  [Install]
-  WantedBy=multi-user.target
+[Install]
+WantedBy=multi-user.target
 
 Komutlar:
   systemctl daemon-reload
-  systemctl enable --now mahzen
-  systemctl status mahzen
-  journalctl -u mahzen -f" \
+  systemctl enable mahzen
+  systemctl start mahzen
+  journalctl -u mahzen -f  # log izleme
+
+Restart=always vs on-failure:
+  always: Her exit'te restart (0 dahil)
+  on-failure: Sadece hatalı exit'te restart" \
   "$TAG_LINUX" "$TAG_DEVOPS"
 
 create_entry \
-  "tmux hızlı başvuru" \
+  "Linux process debugging" \
   "/notlar/linux" \
   "public" \
-  "Prefix: Ctrl+b (varsayılan)
+  "Süreç durumlarını görme:
+  ps aux | grep mahzen
+  pstree -p | grep mahzen
 
-Session:
-  tmux new -s isim      # yeni session
-  tmux ls               # listele
-  tmux attach -t isim   # bağlan
-  prefix + d            # detach
+Dosya descriptor'ları:
+  ls -la /proc/<pid>/fd
+  lsof -p <pid>
 
-Window (sekme):
-  prefix + c    # yeni window
-  prefix + ,    # yeniden adlandır
-  prefix + n/p  # sonraki/önceki
-  prefix + 0-9  # index'e git
+Memory kullanımı:
+  cat /proc/<pid>/status | grep -E 'VmRSS|VmSize'
+  pmap -x <pid>
 
-Pane (bölme):
-  prefix + %    # dikey böl
-  prefix + \"    # yatay böl
-  prefix + ok   # pane arası geç
-  prefix + z    # zoom (büyüt/küçült)
-  prefix + x    # pane kapat
+CPU kullanımı:
+  top -p <pid>
+  pidstat -p <pid> 1
 
-Kopyala:
-  prefix + [    # copy mode
-  space         # seçim başlat
-  enter         # kopyala
-  prefix + ]    # yapıştır
+Network bağlantıları:
+  netstat -tulpn | grep <pid>
+  ss -tulpn | grep <pid>
 
-~/.tmux.conf önerileri:
-  set -g mouse on
-  set -g history-limit 50000
-  set-option -g default-terminal 'tmux-256color'" \
-  "$TAG_LINUX" "$TAG_SHELL"
+Strace ile syscall izleme:
+  strace -p <pid> -f -e trace=network
+
+Core dump alma:
+  gcore <pid>
+  # veya crash anında otomatik için: ulimit -c unlimited" \
+  "$TAG_LINUX" "$TAG_PERF"
+
+create_entry \
+  "journalctl kullanımı" \
+  "/notlar/linux" \
+  "public" \
+  "Servis logları:
+  journalctl -u mahzen           # belirli servis
+  journalctl -u mahzen -f        # follow (tail -f gibi)
+  journalctl -u mahzen --since \"1 hour ago\"
+  journalctl -u mahzen --since \"2024-01-15\"
+  journalctl -u mahzen -p err    # sadece error ve üstü
+
+Tüm loglar:
+  journalctl --no-pager           # pager olmadan
+  journalctl -b                   # son boot'tan beri
+  journalctl -b -1                # önceki boot
+
+Disk kullanımı:
+  journalctl --disk-usage
+  sudo journalctl --vacuum-size=100M  # max 100MB tut
+
+Output formatları:
+  journalctl -o json
+  journalctl -o verbose" \
+  "$TAG_LINUX"
 
 # /notlar/git
 create_entry \
-  "Git workflow — feature branch" \
+  "Git branch stratejileri" \
   "/notlar/git" \
   "public" \
-  "Standart feature branch akışı:
+  "Git Flow:
+  - main: Production
+  - develop: Development
+  - feature/*: Yeni özellikler
+  - release/*: Release hazırlığı
+  - hotfix/*: Acil düzeltmeler
 
-  git checkout -b feat/yeni-ozellik main
-  # geliştir...
-  git add -p                    # interaktif, dikkatli ekle
-  git commit -m 'feat: kısa açıklama'
+Trunk-Based (modern):
+  - main: Her şey
+  - short-lived feature branches (< 1 gün)
+  - Feature flags ile deploy
 
-  # main güncellemek için rebase:
-  git fetch origin
-  git rebase origin/main
+GitHub Flow (basitleştirilmiş):
+  - main: Her zaman deployable
+  - feature branches → PR → merge
 
-  # PR aç, merge sonrası:
-  git checkout main
-  git pull
-  git branch -d feat/yeni-ozellik
-
-Commit mesajı formatı (Conventional Commits):
-  feat:     yeni özellik
-  fix:      hata düzeltme
-  refactor: davranış değişikliği olmayan refactor
-  chore:    build, bağımlılık vb.
-  docs:     sadece dokümantasyon
-  test:     test ekleme/düzenleme
-
-Altın kural: Her commit çalışır ve tek bir şey yapar." \
+Karşılaştırma:
+  Git Flow: Enterprise, scheduled releases
+  Trunk-Based: CI/CD mature, continuous deployment
+  GitHub Flow: Startup, basit projeler" \
   "$TAG_GIT"
 
 create_entry \
-  "Git komutları — sık unuttuklanlar" \
+  "Git rebase vs merge" \
   "/notlar/git" \
   "public" \
-  "Son commit'i düzelt (push edilmemişse):
-  git commit --amend --no-edit
+  "Merge:
+  - Yeni commit oluşturur (merge commit)
+  - Tarih korunur, gerçek zaman çizgisi
+  - git merge feature-branch
 
-Staged olmayan değişiklikleri geri al:
-  git restore dosya.txt
+Rebase:
+  - Commits'i yeniden yazar, düz çizgi
+  - git rebase main (feature branch'te)
+  - DİKKAT: Pushed commit'leri rebase etme!
 
-Stage'i geri al:
-  git restore --staged dosya.txt
+Ne zaman ne:
+  - Feature branch'te çalışırken: rebase (temiz tarih)
+  - main'e merge: merge (gerçek kayıt)
+  - Pull request: squash and merge (tek commit)
 
-Belirli commit'e kadar yumuşak sıfırla:
-  git reset HEAD~3           # commitleri geri al, değişiklikler kalır
-
-Stash:
-  git stash push -m 'açıklama'
-  git stash list
-  git stash pop
-
-Bir commiti başka branch'e uygula:
-  git cherry-pick <sha>
-
-Hangi commit bu satırı yazdı:
-  git log -S 'aranan kod' --all
-
-Kimin yazdığını bul:
-  git blame dosya.go -L 10,20
-
-İki branch farkı:
-  git diff main...feature" \
+Interactive rebase:
+  git rebase -i HEAD~3  # son 3 commit'i düzenle
+  # pick, squash, drop, reword, edit" \
   "$TAG_GIT"
 
 create_entry \
-  "Git hooks — pre-commit kurulumu" \
+  "Git bisect ile bug bulma" \
   "/notlar/git" \
   "private" \
-  ".git/hooks/pre-commit (chmod +x):
+  "Bug'ın hangi commit'te olduğunu bulmak için binary search:
 
-  #!/bin/sh
-  set -e
+1. Başlat:
+   git bisect start
 
-  # Go lint
-  golangci-lint run ./...
+2. Kötü ve iyi commit'leri işaretle:
+   git bisect bad HEAD           # şu an hatalı
+   git bisect good v1.2.0        # bu versiyon iyi
 
-  # Go test
-  go test ./... -race
+3. Git otomatik checkout yapar, test et:
+   make test
 
-  # Format kontrolü
-  if ! gofmt -l . | grep -q '^'; then
-    echo 'gofmt farklılığı var:'
-    gofmt -l .
-    exit 1
-  fi
+4. Sonucu bildir:
+   git bisect good   # bu commit iyi
+   git bisect bad    # bu commit hatalı
 
-  echo 'pre-commit geçti'
+5. Bulunca:
+   git bisect reset  # bitir
 
-Veya lefthook / husky ile yönet:
-  lefthook.yml:
-    pre-commit:
-      commands:
-        lint:
-          run: golangci-lint run ./...
-        test:
-          run: go test ./... -race
+Otomatik:
+   git bisect run make test  # test otomatik çalışır
 
-Takım genelinde uygulamak için lefthook install CI'ye ekle." \
-  "$TAG_GIT" "$TAG_SHELL"
+Tespit edilen commit'te ne değiştiğini gör:
+   git show <commit-hash>" \
+  "$TAG_GIT"
 
 # /notlar/api
 create_entry \
-  "REST API tasarım ilkeleri" \
+  "REST API tasarım prensipleri" \
   "/notlar/api" \
   "public" \
-  "Kaynak adları çoğul ve isim olmalı:
-  GET    /users          → listele
-  POST   /users          → oluştur
-  GET    /users/{id}     → tek kayıt
-  PUT    /users/{id}     → tam güncelle
-  PATCH  /users/{id}     → kısmi güncelle
-  DELETE /users/{id}     → sil
+  "Resource-based URL'ler:
+  GET    /users           # liste
+  GET    /users/123       # tek kayıt
+  POST   /users           # oluştur
+  PUT    /users/123       # tam güncelleme
+  PATCH  /users/123       # kısmi güncelleme
+  DELETE /users/123       # sil
 
-İlişkili kaynaklar:
-  GET /users/{id}/posts  → kullanıcının yazıları
+Query parameters:
+  /users?limit=20&offset=40
+  /users?sort=created_at:desc
+  /users?filter=status:active
 
-HTTP status kodları:
-  200 OK           → başarılı GET, PUT, PATCH
-  201 Created      → başarılı POST
-  204 No Content   → başarılı DELETE
-  400 Bad Request  → geçersiz istek
-  401 Unauthorized → kimlik doğrulama gerekli
-  403 Forbidden    → yetkisiz
-  404 Not Found    → kaynak yok
-  409 Conflict     → çakışma (duplicate)
-  422 Unprocessable → validasyon hatası
-  429 Too Many Requests
-  500 Internal Error
+Status codes:
+  200 OK, 201 Created, 204 No Content
+  400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found
+  422 Unprocessable Entity (validation error)
+  500 Internal Server Error
 
-Versiyonlama: /v1/, /v2/ — header versiyonlamadan kaçın.
-Sayfalama: ?limit=20&offset=0 veya cursor tabanlı." \
-  "$TAG_API" "$TAG_ARCH"
+Pagination:
+  Link header (RFC 5988) veya
+  Response body'de { data, total, next_cursor }
 
-create_entry \
-  "JWT yapısı ve doğrulama" \
-  "/notlar/api" \
-  "public" \
-  "JWT = Header.Payload.Signature (Base64URL kodlanmış, nokta ile ayrılmış)
-
-Header: {\"alg\":\"HS256\",\"typ\":\"JWT\"}
-Payload (claims):
-  sub   → subject (user id)
-  iat   → issued at
-  exp   → expiry
-  nbf   → not before (opsiyonel)
-
-İmzalama: HMAC-SHA256(base64(header) + '.' + base64(payload), secret)
-
-Önemli noktalar:
-- Payload encrypt edilmez, sadece imzalanır. Hassas veri koyma.
-- exp kontrolü kritik — kütüphane otomatik yapıyor mu doğrula.
-- Access token kısa (15dk), refresh token uzun (7 gün).
-- Refresh token rotation: her kullanımda yenisi ver, eskisini sil.
-- JWS vs JWE: imzalama vs şifreleme — çoğu kullanım JWS yeter.
-
-Yaygın hata: alg:none saldırısı. Doğrulayıcı her zaman alg'ı kontrol etmeli." \
-  "$TAG_API" "$TAG_SECURITY"
-
-create_entry \
-  "HTTP cache başlıkları" \
-  "/notlar/api" \
-  "public" \
-  "Cache-Control direktifleri:
-  no-store         → asla cache'leme
-  no-cache         → önce sunucuya sor (revalidate)
-  private          → sadece tarayıcı cache'ler
-  public           → CDN de cache'leyebilir
-  max-age=3600     → 1 saat cache'le
-  s-maxage=3600    → CDN için max-age
-  must-revalidate  → süresi dolunca yeniden doğrula
-  immutable        → hiç değişmeyecek (içerik hash'li URL ile)
-
-ETag ve conditional request:
-  Sunucu: ETag: \"abc123\"
-  İstemci: If-None-Match: \"abc123\"
-  Değişmemişse: 304 Not Modified (body yok)
-
-Last-Modified / If-Modified-Since: Tarih bazlı, ETag daha güvenilir.
-
-API'lerde pratik:
-  GET /users/{id} → Cache-Control: private, max-age=60
-  GET /config     → Cache-Control: public, max-age=3600
-  POST/PUT/DELETE → Cache-Control: no-store" \
+Versioning:
+  URL path: /v1/users (basit, yaygın)
+  Header: Accept: application/vnd.api+json;version=1" \
   "$TAG_API"
+
+create_entry \
+  "API rate limiting stratejileri" \
+  "/notlar/api" \
+  "public" \
+  "Token Bucket:
+  - Tokens eklenir (refill rate)
+  - Her istek bir token tüketir
+  - Bucket dolunca istek reddedilir
+  - Burst'a izin verir
+
+Leaky Bucket:
+  - İstekler kuyruğa alınır
+  - Sabit hızla işlenir
+  - Queue dolunca reddedilir
+  - Smooth traffic
+
+Fixed Window:
+  - Örneğin her dakika 100 istek
+  - Basit ama window başında burst problemi
+
+Sliding Window:
+  - Son N saniye içindeki istekleri say
+  - Daha adil ama hesaplama maliyeti var
+
+Implementation:
+  - Redis INCR + EXPIRE
+  - Token bucket için: Redis clerk veya lua script
+
+Headers:
+  X-RateLimit-Limit: 100
+  X-RateLimit-Remaining: 95
+  X-RateLimit-Reset: 1640000000" \
+  "$TAG_API" "$TAG_PERF"
+
+create_entry \
+  "JWT best practices" \
+  "/notlar/api" \
+  "public" \
+  "JWT yapısı: header.payload.signature (base64)
+
+Access Token:
+  - Kısa ömür (5-15 dakika)
+  - Stateless, DB sorgusu gerektirmez
+  - İçinde: user_id, roles, exp, iat
+
+Refresh Token:
+  - Uzun ömür (7-30 gün)
+  - DB'de saklanır (rotate edilebilir, revoke edilebilir)
+  - Sadece yeni access token almak için
+
+Güvenlik:
+  - https only (cookie için)
+  - HttpOnly cookie (XSS koruması)
+  - Secure flag (HTTPS)
+  - SameSite=Strict veya Lax (CSRF koruması)
+  - Kısa access token ömrü
+
+Blacklist (token revoke):
+  - JWT stateless olduğu için anında revoke zor
+  - Redis blacklist: logout olan token'ları sakla
+  - Her istekte blacklist kontrolü" \
+  "$TAG_API" "$TAG_SECURITY"
 
 # /notlar/docker
 create_entry \
   "Docker multi-stage build" \
   "/notlar/docker" \
   "public" \
-  "Go uygulaması için örnek:
+  "# Go için multi-stage Dockerfile
 
-  # Build aşaması
-  FROM golang:1.24-alpine AS builder
-  WORKDIR /app
-  COPY go.mod go.sum ./
-  RUN go mod download
-  COPY . .
-  RUN CGO_ENABLED=0 GOOS=linux go build -o /mahzen ./cmd/mahzen
+# Build stage
+FROM golang:1.26-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o mahzen ./cmd/mahzen
 
-  # Final imaj
-  FROM scratch
-  COPY --from=builder /mahzen /mahzen
-  COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-  EXPOSE 8080
-  ENTRYPOINT [\"/mahzen\"]
+# Runtime stage
+FROM alpine:3.19
+RUN apk --no-cache add ca-certificates tzdata
+WORKDIR /app
+COPY --from=builder /app/mahzen .
+COPY --from=builder /app/config.yaml .
+EXPOSE 8080
+USER nobody
+ENTRYPOINT [\"./mahzen\"]
 
-Faydaları:
-- Final imaj sadece binary içerir (~10MB vs ~800MB)
-- Build araçları production'a gitmez
-- Güvenlik yüzey alanı küçülür
+Avantajları:
+  - Küçük image (alpine + binary ~20MB vs golang image ~800MB)
+  - Build araçları runtime'da yok (güvenlik)
+  - Daha hızlı deploy
 
-scratch imajı için dikkat:
-- ca-certificates kopyalanmazsa TLS çalışmaz
-- /etc/passwd olmadığı için USER root olarak çalışır — distroless tercih et" \
+Best practices:
+  - .dockerignore kullan
+  - Specific tag kullan (alpine:3.19, latest değil)
+  - Non-root user ile çalıştır" \
   "$TAG_DOCKER" "$TAG_DEVOPS"
 
 create_entry \
-  "Docker Compose — geliştirme ortamı" \
+  "Docker compose healthcheck" \
   "/notlar/docker" \
   "public" \
-  "Mahzen geliştirme ortamı için compose yapısı:
+  "services:
+  postgres:
+    image: postgres:18-alpine
+    healthcheck:
+      test: [\"CMD-SHELL\", \"pg_isready -U mahzen -d mahzen\"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
-  services:
-    postgres:
-      image: postgres:16-alpine
-      environment:
-        POSTGRES_USER: mahzen
-        POSTGRES_PASSWORD: mahzen
-        POSTGRES_DB: mahzen
-      volumes:
-        - pg_data:/var/lib/postgresql/data
-      healthcheck:
-        test: [\"CMD\", \"pg_isready\", \"-U\", \"mahzen\"]
-        interval: 5s
+  api:
+    image: mahzen:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
 
-    typesense:
-      image: typesense/typesense:26.0
-      command: --data-dir /data --api-key mahzen-key
-      volumes:
-        - ts_data:/data
+Healthcheck alanları:
+  test: Komut (exit 0 = healthy)
+  interval: Kontrol sıklığı
+  timeout: Komut zaman aşımı
+  retries: Kaç kez başarısız olunca unhealthy
+  start_period: Başlangıç grace period
 
-  volumes:
-    pg_data:
-    ts_data:
+depends_on condition:
+  service_started: Container çalışıyor (varsayılan)
+  service_healthy: Healthcheck geçti
+  service_completed_successfully: Container 0 ile çıktı" \
+  "$TAG_DOCKER"
 
-Sık kullanılan komutlar:
-  docker compose up -d          # arka planda başlat
-  docker compose logs -f        # logları takip et
-  docker compose exec postgres psql -U mahzen
-  docker compose down -v        # container + volume sil" \
-  "$TAG_DOCKER" "$TAG_DEVOPS"
-
-# /notlar/guvenik
 create_entry \
-  "Şifre hashing — bcrypt vs argon2" \
-  "/notlar/guvenik" \
+  "Docker resource limits" \
+  "/notlar/docker" \
+  "private" \
+  "Container resource sınırlama:
+
+docker run:
+  --memory=\"512m\"       # RAM limiti
+  --memory-swap=\"1g\"    # RAM + swap
+  --cpus=\"1.5\"          # CPU limiti
+  --cpu-shares=512       # CPU ağırlığı (öncelik)
+
+docker-compose:
+  services:
+    api:
+      deploy:
+        resources:
+          limits:
+            cpus: '1.0'
+            memory: 512M
+          reservations:
+            cpus: '0.5'
+            memory: 256M
+
+Memory limit aşılırsa: OOM Kill (exit code 137)
+CPU limit aşılırsa: Throttling (yavaşlama)
+
+Monitor:
+  docker stats
+  docker inspect --format '{{.HostConfig.Memory}}' container_name" \
+  "$TAG_DOCKER" "$TAG_PERF"
+
+# /notlar/guvenlik
+create_entry \
+  "OWASP Top 10 2024" \
+  "/notlar/guvenlik" \
   "public" \
-  "Asla: MD5, SHA-1, SHA-256 ile şifre hashleme. Bunlar hız için tasarlanmış.
-Şifre için: yavaş, tuzlu (salted) algoritmalar.
+  "1. Broken Access Control: Yetki kontrolü eksik
+2. Cryptographic Failures: Zayıf şifreleme, hardcode key
+3. Injection: SQL, command, LDAP injection
+4. Insecure Design: Güvenlik tasarım dışı
+5. Security Misconfiguration: Default config, açık port
+6. Vulnerable Components: Eski kütüphaneler
+7. Auth Failures: Zayıf parola, session yönetimi
+8. Software/Data Integrity: CI/CD güvenliği, unsigned code
+9. Logging/Monitoring: Güvenlik log'u yok
+10. SSRF: Server-side request forgery
 
-bcrypt:
-  - Maks 72 byte input (uzun şifreler kırpılır)
-  - Cost factor: 10-12 genellikle iyi
-  - Go: golang.org/x/crypto/bcrypt
-  cost := bcrypt.DefaultCost // 10
-
-argon2id (modern tercih):
-  - Bellek yoğun → GPU saldırısına dayanıklı
-  - OWASP önerisi: m=64MB, t=3, p=4
-  - Go: golang.org/x/crypto/argon2
-  hash := argon2.IDKey(password, salt, 3, 64*1024, 4, 32)
-
-Tuz (salt): Otomatik dahil edilir, kendin üretmene gerek yok (bcrypt) veya rastgele 16 byte (argon2).
-
-Doğrulama süresi:
-  bcrypt cost=12 → ~250ms → iyi
-  Çok hızlıysa maliyeti artır" \
+Her birine karşı:
+  1. RBAC, resource-level auth
+  2. AES-256, key rotation, env vars
+  3. Prepared statements, input validation
+  4. Threat modeling, security patterns
+  5. Hardening, remove defaults
+  6. Dependa bot,定期 audit
+  7. MFA, secure session
+  8. Signed commits, dependency pinning
+  9. Centralized logging, alerting
+  10. Allowlist, network segmentation" \
   "$TAG_SECURITY"
 
 create_entry \
-  "SQL injection önleme" \
-  "/notlar/guvenik" \
+  "HTTPS ve TLS sertifikaları" \
+  "/notlar/guvenlik" \
   "public" \
-  "Asla string birleştirme ile sorgu oluşturma:
-  // YANLIŞ:
-  query := \"SELECT * FROM users WHERE email='\" + email + \"'\"
+  "TLS 1.3 kullan (1.2 deprecated olacak)
 
-  // DOĞRU (parametre):
-  rows, err := db.Query(\"SELECT * FROM users WHERE email=\$1\", email)
+Sertifika türleri:
+  DV (Domain Validation): Otomatik, sadece domain sahipliği
+  OV (Organization Validation): Firma doğrulaması
+  EV (Extended Validation): En sıkı, yeşil bar
 
-pgx/v5 ile her zaman parametre kullan:
-  pool.QueryRow(ctx, \"SELECT id FROM users WHERE email=\$1\", email)
+Let's Encrypt (ücretsiz):
+  certbot ile sertifika alma
+  Auto-renewal aktif et
 
-ORM kullanıyorsan bile raw query dikkat:
-  // YANLIŞ:
-  db.Raw(\"SELECT * FROM users WHERE name = \" + name)
-  // DOĞRU:
-  db.Raw(\"SELECT * FROM users WHERE name = ?\", name)
+Self-signed (development):
+  openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
 
-Ayrıca:
-- Minimum yetki prensibini uygula (DB user sadece gereken izinlere sahip)
-- Error mesajlarında SQL detayı sızdırma
-- sqlc gibi araçlar type-safe sorgu üretir → injection riski azalır" \
-  "$TAG_SECURITY" "$TAG_DB"
+HTTP to HTTPS redirect:
+  nginx config ile 301 redirect
 
-create_entry \
-  "CORS ve güvenli header'lar" \
-  "/notlar/guvenik" \
-  "public" \
-  "CORS (Cross-Origin Resource Sharing):
-  Access-Control-Allow-Origin: https://app.mahzen.dev  // * üretimde kötü
-  Access-Control-Allow-Methods: GET, POST, PUT, DELETE
-  Access-Control-Allow-Headers: Authorization, Content-Type
-  Access-Control-Max-Age: 86400  // preflight cache
-
-Güvenlik header'ları (her response'a ekle):
-  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-  X-Content-Type-Options: nosniff
-  X-Frame-Options: DENY
-  Content-Security-Policy: default-src 'self'
-  Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(), microphone=()
-
-Cookie güvenliği:
-  Set-Cookie: session=...; HttpOnly; Secure; SameSite=Strict; Path=/
-
-HSTS: HTTP'yi HTTPS'e yönlendir, tarayıcı sonraki isteklerde direkt HTTPS kullanır." \
-  "$TAG_SECURITY" "$TAG_API"
+HSTS header:
+  Strict-Transport-Security: max-age=31536000; includeSubDomains" \
+  "$TAG_SECURITY"
 
 # /notlar/performans
 create_entry \
-  "Go profiling — pprof rehberi" \
+  "Profiling Go uygulamaları" \
   "/notlar/performans" \
   "public" \
-  "pprof endpoint'i ekle (geliştirme):
-  import _ \"net/http/pprof\"
-  go http.ListenAndServe(\":6060\", nil)
+  "pprof kullanımı:
 
-Profil topla:
-  go tool pprof http://localhost:6060/debug/pprof/heap     # bellek
-  go tool pprof http://localhost:6060/debug/pprof/profile  # CPU (30sn)
+import _ \"net/http/pprof\"
+// http://localhost:6060/debug/pprof/
+
+CPU profile:
+  go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
+  (pprof) top10
+  (pprof) list functionName
+
+Memory profile:
+  go tool pprof http://localhost:6060/debug/pprof/heap
+  (pprof) top
+  (pprof) web  # graphviz gerekli
+
+Goroutine:
   go tool pprof http://localhost:6060/debug/pprof/goroutine
 
-Etkileşimli analiz:
-  (pprof) top10           # en çok kaynak tüketen
-  (pprof) web             # SVG grafiği (graphviz gerekli)
-  (pprof) list FuncName   # kaynak kodu bazında
-
-Benchmark profili:
-  go test -bench=. -cpuprofile cpu.prof -memprofile mem.prof
-  go tool pprof cpu.prof
-
-Trace (goroutine zamanlaması):
-  curl http://localhost:6060/debug/pprof/trace?seconds=5 > trace.out
+Trace:
+  curl -o trace.out http://localhost:6060/debug/pprof/trace?seconds=5
   go tool trace trace.out
 
-Yaygın sorunlar:
-- Fazla allocation → sync.Pool veya pre-allocate
-- Lock contention → mutex profili
-- Sistem çağrısı bekleme → goroutine profili" \
-  "$TAG_PERF" "$TAG_GO"
+Benchmark:
+  go test -bench=. -benchmem ./..." \
+  "$TAG_GO" "$TAG_PERF"
 
 create_entry \
-  "Veritabanı bağlantı havuzu boyutlandırma" \
+  "Caching stratejileri" \
   "/notlar/performans" \
   "public" \
-  "Kural: pool büyüklüğü = CPU çekirdeği sayısı * 2 + etkin disk sayısı değil.
+  "Cache-aside (lazy loading):
+  1. İstek gelince cache kontrol et
+  2. Cache miss → DB'den oku → cache'e yaz
+  3. Write-through: DB'ye yazarken cache'i de güncelle
 
-Gerçek formül için:
-  max_connections = (core_available_per_jvm * 2) + effective_spindle_count
+Read-through:
+  Cache provider okuma işini yapar
 
-Pratik başlangıç noktası: 10 bağlantı yeterlidir çoğu uygulama için.
-HikariCP ölçütleri gösteriyor ki 10 bağlantı 10.000 eşzamanlı isteği kaldırabilir.
+Write-behind (write-back):
+  Cache'e yaz, async olarak DB'ye yaz
+  - Risk: Crash'te veri kaybı
 
-pgx pool yapılandırma:
-  MaxConns: 25          // max açık bağlantı
-  MinConns: 5           // min hazır bağlantı
-  MaxConnLifetime: 1h   // eskiyen bağlantıları yenile
-  MaxConnIdleTime: 30m  // boşta bekleyen bağlantıları kapat
-  HealthCheckPeriod: 1m // sağlık kontrolü
+Invalidation:
+  - TTL: Basit, eventual consistency
+  - Event-based: Değişince invalidate
+  - Versioning: Cache key'e version ekle
 
-PostgreSQL tarafında:
-  max_connections = 200  // toplam
-  Her uygulama sunucusu için: max_connections / sunucu_sayısı
+Redis için:
+  SET key value EX 3600  # 1 saat TTL
+  GET key
+  DEL key
+  MGET key1 key2 key3  # batch okuma
 
-PgBouncer ile bağlantı havuzu:
-  Transaction mode → ölçeklenebilir, session-level özellikler çalışmaz
-  Session mode    → tam uyumluluk, az kazanç" \
-  "$TAG_PERF" "$TAG_DB"
+Cache stampede önleme:
+  - Probabilistic early expiration
+  - Lock (sadece bir istek DB'ye gitsin)" \
+  "$TAG_PERF"
 
 # /notlar/mimari
 create_entry \
-  "Katmanlı mimari — bağımlılık yönü" \
+  "Clean Architecture prensipleri" \
   "/notlar/mimari" \
   "public" \
-  "Mahzen'in katman yapısı:
-  handler → service → domain ← infra
+  "Katmanlar (içten dışa):
+  1. Entities: Domain objects, business rules
+  2. Use Cases: Application business rules
+  3. Interface Adapters: Controllers, gateways
+  4. Frameworks: DB, Web, UI
 
-Domain katmanı:
-- Sadece stdlib import eder
-- Interface ve entity tanımlar
-- Hiçbir şeye bağımlı değil
+Bağımlılık kuralı:
+  - Sadece iç katmana bağımlılık
+  - Dış katmanlar iç katmanları bilir, tersi değil
+  - Dependency Inversion ile (interface'ler iç katmanda)
 
-Service katmanı:
-- Domain interface'lerine bağımlı (soyut)
-- Business logic burada
-- Infra'yı import etmez
+Avantajları:
+  - Framework independence
+  - Testable business rules
+  - UI independence
+  - Database independence
 
-Handler katmanı:
-- HTTP çerçevesini bilir
-- Service'lere bağımlı
-
-Infra katmanı:
-- Domain interface'lerini implement eder (DIP)
-- Dışa bağımlılıklar burada: DB, cache, S3, AI
-
-Bağlantı noktası: main.go
-- Tüm bağımlılıkları oluşturur ve birbirine bağlar
-- Constructor injection kullanır
-- Global state yok
-
-Bu yapı sayesinde:
-- Service testleri infra gerektirmez (mock ile)
-- DB değişince handler etkilenmez
-- AI sağlayıcı değişince business logic etkilenmez" \
+Go'da:
+  domain/      → Entities, interfaces (stdlib only)
+  service/     → Use cases
+  handler/     → Interface adapters
+  infra/       → Framework implementations" \
   "$TAG_ARCH"
 
 create_entry \
-  "Event-driven vs request-response mimari" \
+  "Microservices vs Monolith" \
   "/notlar/mimari" \
   "public" \
-  "Request-Response (senkron):
-  - Basit, anlaşılması kolay
-  - Yüksek gecikme kabul edilemezse tercih et
-  - REST, gRPC bu modeli kullanır
+  "Monolith avantajları:
+  - Basit deploy, debug
+  - Transaction kolay
+  - Network latency yok
+  - Startup hızlı
 
-Event-driven (asenkron):
-  - Üretici ve tüketici ayrışır
-  - Yeniden deneme, ölü mesaj kuyruğu (DLQ) gerekir
-  - Nihai tutarlılık (eventual consistency)
-  - Kafka, RabbitMQ, NATS
+Monolith dezavantajları:
+  - Scale edememe (tüm app scale olmak zorunda)
+  - Teknoloji kilidi
+  - Büyük codebase = yavaş CI/CD
 
-Ne zaman event-driven?
-  ✓ İşlem uzun sürüyor (email gönderme, video işleme)
-  ✓ Birden fazla servis ilgilenecek (fan-out)
-  ✓ Kaynak sistemden bağımsız hız kontrolü lazım
-  ✗ Basit CRUD uygulamaları
-  ✗ Güçlü tutarlılık gereksinimi
+Microservices avantajları:
+  - Independent scaling
+  - Teknoloji özgürlüğü
+  - Team autonomy
+  - Fault isolation
 
-Outbox pattern (hybrid):
-  - DB'ye yaz + aynı transactionda event kaydet
-  - Ayrı worker event'leri message broker'a gönderir
-  - At-least-once delivery garantisi" \
-  "$TAG_ARCH"
+Microservices dezavantajları:
+  - Distributed system complexity
+  - Network latency, failure
+  - Distributed transactions (saga pattern)
+  - Operational overhead
 
-create_entry \
-  "Mikroservis mi, monolit mi?" \
-  "/notlar/mimari" \
-  "public" \
-  "Martin Fowler'ın tavsiyesi: Monolith first.
-
-Monolit avantajları:
-- Geliştirme hızlı
-- Operasyonel karmaşıklık az
-- Refactor kolay
-- Network latency yok
-- Transaction yönetimi basit
-
-Mikroservis ne zaman?
-- Bağımsız ölçeklendirme şart (belirli modüller çok daha fazla yük)
-- Farklı teknoloji yığınları gerçekten gerekli
-- Bağımsız dağıtım zorunluluğu (100+ geliştirici)
-- Organizasyon zaten ayrışmış (Conway's Law)
-
-Yanlış mikroservis işaretleri:
-- Servisler birbirini senkron çağırıyor (distributed monolith)
-- Her değişiklik birden fazla repo gerektiriyor
-- Testler çok karmaşık
-- Distributed transaction kullanıyorsunuz (2PC vs SAGA)
-
-Mahzen için: Monolit doğru seçim. Yük arttığında modular monolit → servis ayrımı." \
+Kural: Monolith'ten başla, ihtiyaç olunca böl
+  \"First make it work, then make it right, then make it fast\"
+  Premature microservices = premature optimization" \
   "$TAG_ARCH"
 
 # /notlar/yapay-zeka
 create_entry \
-  "Embedding modelleri ve kullanım alanları" \
+  "Embedding modelleri karşılaştırması" \
   "/notlar/yapay-zeka" \
   "public" \
-  "Embedding: Metni sayısal vektöre dönüştürme. Anlamsal benzerlik ölçmeye yarar.
+  "OpenAI text-embedding-3-small:
+  - 1536 boyut
+  - $0.02/1M tokens
+  - Genel amaçlı, iyi kalite
 
-OpenAI modelleri:
-  text-embedding-3-small: 1536 boyut, ucuz, hızlı (Mahzen kullanıyor)
-  text-embedding-3-large: 3072 boyut, daha iyi kalite
+OpenAI text-embedding-3-large:
+  - 3072 boyut
+  - $0.13/1M tokens
+  - Daha yüksek kalite, büyük veri setleri
 
-Açık kaynak alternatifler:
-  nomic-embed-text     → 768 boyut, iyi Türkçe desteği
-  BGE-M3               → çok dilli
-  all-MiniLM-L6-v2    → küçük, hızlı
+Cohere embed-english-v3.0:
+  - 1024 boyut
+  - İyi retrieval performansı
 
-Kullanım alanları:
-  Anlamsal arama       → sorgu embedding + vektör DB arama
-  Öneri sistemi        → benzer içerik bul
-  Kümeleme             → k-means, HDBSCAN
-  Anomali tespiti      → ortalamadan uzak olanlar
-  Çift-kule (bi-encoder) → hızlı benzerlik
+Open source:
+  - sentence-transformers/all-MiniLM-L6-v2 (384 boyut, hızlı)
+  - BGE-large-en (1024 boyut, yüksek kalite)
 
-Cosine similarity vs dot product vs euclidean:
-  Normalize vektörler için hepsi eşdeğer.
-  Normalize edilmemişse cosine similarity tercih et." \
+Karşılaştırma kriterleri:
+  - MTEB benchmark
+  - Latency
+  - Cost
+  - Dimensionalite (depolama maliyeti)" \
   "$TAG_AI"
 
 create_entry \
-  "RAG — Retrieval Augmented Generation" \
+  "Vector search temelleri" \
   "/notlar/yapay-zeka" \
   "public" \
-  "RAG: LLM'e bilgi tabanından ilgili bağlam ekleyerek cevap ürettirme.
+  "Embedding: Metin → sayı vektörü (örn. 1536 boyut)
 
-Akış:
-  1. Soru → embedding
-  2. Vektör DB'de en yakın N belge → bul
-  3. Belgeler + soru → LLM'e gönder
-  4. LLM cevap üretir
+Similarity metrics:
+  - Cosine similarity: -1 ile 1 arası, yön önemli
+  - Euclidean distance: Mutlak mesafe
+  - Dot product: Cosine * magnitude
 
-Neden gerekli:
-  - LLM'in bilgisi belirli bir tarihe kadar (cutoff)
-  - Özel/gizli bilgi (şirket içi dokümanlar)
-  - Hallucination azaltma (kaynağa bağla)
+Approximate Nearest Neighbor (ANN):
+  - Exact search O(n) → ANN O(log n)
+  - HNSW: Graph-based, yüksek recall
+  - IVF: Clustering-based
+  - LSH: Hash-based
 
-Chunking stratejileri:
-  Sabit boyut      → basit, anlam kopmalar olabilir
-  Cümle bazlı     → daha anlamlı
-  Recursive       → LangChain varsayılanı
-  Semantic        → embedding benzerliğine göre kes
+Typesense vector search:
+  - HNSW kullanır
+  - Cosine similarity
+  - Filter ile combine edilebilir
 
-Değerlendirme:
-  Context recall    → ilgili belgeler bulundu mu?
-  Answer faithfulness → cevap bağlama sadık mı?
-  Answer relevancy  → soruya cevap veriyor mu?
-
-Mahzen bu pattern'ı destekler: içerikler embedding'leniyor, semantic search ile ilgili entry'ler bulunuyor." \
-  "$TAG_AI" "$TAG_ARCH"
+Index parametreleri:
+  - M: Graph connectivity (16-64)
+  - ef_construction: Build quality (100-400)
+  - Yüksek değer = daha iyi recall, yavaş index" \
+  "$TAG_AI" "$TAG_PERF"
 
 # /notlar/frontend
 create_entry \
-  "React performans optimizasyonu" \
+  "React performance optimization" \
   "/notlar/frontend" \
   "public" \
-  "Re-render tetikleyenler: state değişimi, prop değişimi, parent re-render.
-
-useMemo — pahalı hesaplama cache'le:
-  const sorted = useMemo(
-    () => items.sort(compareFn),
-    [items]
-  )
-
-useCallback — fonksiyon referansını sabitle:
-  const handleClick = useCallback(() => {
-    doSomething(id)
-  }, [id])
-
-React.memo — prop değişmezse render etme:
-  export default React.memo(MyComponent)
-
-Ne zaman optimize et:
-  ✓ Profiler gösteriyor ki bu component yavaş
-  ✓ Liste içinde sık render olan item'lar
-  ✗ Her yere ekleme — okunabilirliği bozar, bazen yavaşlatır
-
-Virtualizasyon — büyük listeler için:
-  react-window veya @tanstack/react-virtual
+  "Re-render önleme:
+  - React.memo: Component memoization
+  - useMemo: Value memoization
+  - useCallback: Function memoization
 
 Code splitting:
-  const LazyPage = React.lazy(() => import('./HeavyPage'))
-  <Suspense fallback={<Spinner />}><LazyPage /></Suspense>" \
-  "$TAG_FRONTEND"
+  const LazyComponent = React.lazy(() => import('./Heavy'))
+  <Suspense fallback={<Loading />}>
+    <LazyComponent />
+  </Suspense>
+
+Virtual lists (büyük listeler):
+  import { FixedSizeList } from 'react-window'
+
+Bundle optimization:
+  - Tree shaking (named exports)
+  - Dynamic imports
+  - Analyze: rollup-plugin-visualizer
+
+React DevTools Profiler:
+  - Record bir interaction
+  - Flame graph'ta yavaş component'ları bul
+  - Why did this render? analiz et" \
+  "$TAG_FRONTEND" "$TAG_PERF"
 
 create_entry \
-  "TypeScript utility types hızlı referans" \
+  "React Query best practices" \
   "/notlar/frontend" \
   "public" \
-  "Partial<T>    → tüm property'leri opsiyonel yapar
-Required<T>   → tüm property'leri zorunlu yapar
-Readonly<T>   → tüm property'leri readonly yapar
-Pick<T, K>    → sadece belirli property'leri al
-Omit<T, K>    → belirli property'leri çıkar
-Record<K, V>  → key-value map tipi
-Exclude<T, U> → T'den U'yu çıkar (union için)
-Extract<T, U> → T ve U'nun kesişimi
-NonNullable<T>→ null ve undefined'ı çıkar
-ReturnType<F> → fonksiyon dönüş tipini al
-Parameters<F> → fonksiyon parametre tiplerini al
-Awaited<T>    → Promise'i çöz
+  "Query key yapısı:
+  ['users']                    # tüm kullanıcılar
+  ['users', userId]            # tek kullanıcı
+  ['users', { page: 1 }]       # filtreli
 
-Örnekler:
-  type UpdateUser = Partial<Pick<User, 'name' | 'email'>>
+Stale-while-revalidate:
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['users'],
+    queryFn: fetchUsers,
+    staleTime: 5 * 60 * 1000,  // 5 dk fresh
+    gcTime: 30 * 60 * 1000,    // 30 dk cache
+  })
 
-  type EventHandler<T> = (event: T) => void
+Mutations:
+  const mutation = useMutation({
+    mutationFn: createUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
 
-  type ApiResponse<T> = {
-    data: T
-    error?: string
-    total?: number
-  }
+Optimistic update:
+  onMutate: Cache'i hemen güncelle
+  onError: Rollback yap
+  onSettled: Refetch trigger
 
-Template literal types:
-  type Route = '/users' | '/entries'
-  type GetRoute = \`GET \${Route}\`" \
-  "$TAG_FRONTEND"
+Parallel queries:
+  useQueries({ queries: [...] })" \
+  "$TAG_FRONTEND" "$TAG_API"
 
 # /gunluk
 create_entry \
-  "Haftalık okuma listesi" \
+  "2024-01-15: API redesign kararları" \
   "/gunluk" \
   "private" \
-  "Bu hafta okuyacaklarım:
+  "Bugün API tasarımını gözden geçirdik:
 
-- [ ] Go 1.24 release notes — range over functions GA oldu
-- [ ] 'The Pragmatic Engineer' newsletter — bu haftaki sayı
-- [ ] PostgreSQL 17 yeni özellikleri (özellikle MERGE RETURNING)
-- [ ] Typesense v26 changelog
-- [ ] 'Staff Engineer' kitabı — 3. bölüm
-
-İzleyeceklerim:
-- [ ] GopherCon 2024 konuşmaları (YouTube)
-- [ ] Kelsey Hightower'ın son Kubernetes konuşması
-
-Dinleyeceklerim:
-- [ ] Go Time podcast — context paketi bölümü
-- [ ] Software Engineering Daily — LLM infrastructure
-
-Notlar:
-- range over func gerçekten faydalı görünüyor, deneyelim
-- PostgreSQL MERGE çok güçlü, upsert için doğal" \
-  "$TAG_GO" "$TAG_DB"
-
-create_entry \
-  "Bugün öğrendiklerim" \
-  "/gunluk" \
-  "private" \
-  "Go'da strings.Builder sıfırlamak:
-  var b strings.Builder
-  b.Reset()  // yeniden kullanılabilir
-
-pgx'te named arguments:
-  pgx henüz named arguments desteklemiyor (\$1, \$2... kullan)
-  pgxscan ile struct'a doğrudan map edebilirsin
-
-Typesense multi-search:
-  Tek HTTP isteğiyle birden fazla koleksiyonda arama yapılabilir
-  Performans açısından avantajlı
-
-tmux'ta bir penceredeki tüm pane'leri senkronize komut:
-  prefix + : setw synchronize-panes on
-  Hepsine aynı anda yazılır — çoklu sunucu yönetimi için iyi
-
-curl ile HTTP/3 test:
-  curl --http3 https://localhost:8080/v1/entries
-
-Bugün çözdüğüm sorun:
-  indexEntryAsync timeout'suz bırakılmıştı, OpenAI cevap vermezse
-  goroutine sonsuza kadar açık kalıyordu. 2 dakika timeout eklendi." \
-  ""
-
-create_entry \
-  "Proje fikirleri ve notlar" \
-  "/gunluk" \
-  "private" \
-  "Mahzen için yapılacaklar:
-  - [ ] Full-text search için Türkçe tokenizer araştır
-  - [ ] Entry versiyonlama — her güncelleme geçmişi sakla
-  - [ ] Markdown render desteği (frontend)
-  - [ ] Toplu import (JSON/markdown dosyalarından)
-  - [ ] Entry'e dosya ekleme (PDF, resim)
-  - [ ] Collaborative editing araştır (CRDT? Yjs?)
-  - [ ] CLI client — terminal'den hızlı not ekle
-  - [ ] Obsidian plugin — mevcut vault'u senkronize et
-  - [ ] Webhook desteği — entry oluşununca dış sisteme bildir
-  - [ ] Rate limiting — kullanıcı başına limit
+1. /v1 prefix'i eklendi - future versioning için
+2. Pagination: offset/limit yerine cursor-based düşünüldü ama şu an için offset yeterli
+3. Error response standardize edildi: { \"error\": \"message\" }
+4. Visibility enum: public/private - daha fazlasına gerek yok (team vs user discussion ertelendi)
 
 Teknik borç:
-  - Handler testleri genişletilmeli (infra entegrasyon testleri yok)
-  - Config doğrulama mesajları daha açıklayıcı olabilir
-  - Graceful shutdown'da açık S3 upload'ları beklemeli mi?
+- OpenAPI spec güncellenecek
+- Rate limiting eklemek lazım (token bucket)
+- Response compression (gzip)
 
-Araştırılacak:
-  - pgvector vs Typesense — hangi durumda hangisi?
-  - DragonflyDB — Redis uyumlu, daha hızlı
-  - Litestream — SQLite replikasyonu (küçük kurulumlar için?)" \
-  ""
+Notlar:
+- Tanstack Query frontend'te çok iyi çalışıyor
+- Cache invalidation stratejisi netleştirilecek" \
+  "$TAG_API" "$TAG_ARCH"
 
 # /referans
 create_entry \
-  "HTTP durum kodları tam liste" \
+  "Git komutları quick reference" \
   "/referans" \
   "public" \
-  "1xx — Bilgi:
-  100 Continue
-  101 Switching Protocols
+  "# Temel
+git status                    # durumu gör
+git add -A                    # tüm değişiklikleri stage'e al
+git commit -m \"msg\"         # commit et
+git push origin main          # push et
 
-2xx — Başarı:
-  200 OK
-  201 Created
-  202 Accepted (async işlem başladı)
-  204 No Content
-  206 Partial Content (range request)
+# Branch
+git checkout -b feature/x     # yeni branch
+git branch -a                 # tüm branch'ler
+git branch -d feature/x       # branch sil
 
-3xx — Yönlendirme:
-  301 Moved Permanently (kalıcı, cache'lenir)
-  302 Found (geçici)
-  304 Not Modified (cache geçerli)
-  307 Temporary Redirect (metodu değiştirme)
-  308 Permanent Redirect (metodu değiştirme)
+# History
+git log --oneline -20         # son 20 commit
+git log --graph --all         # görsel tarih
+git show <commit>             # commit detayı
 
-4xx — İstemci Hatası:
-  400 Bad Request
-  401 Unauthorized (kimlik doğrulama gerekli)
-  403 Forbidden (yetkisiz)
-  404 Not Found
-  405 Method Not Allowed
-  408 Request Timeout
-  409 Conflict
-  410 Gone (kalıcı olarak silindi)
-  422 Unprocessable Entity (validasyon)
-  429 Too Many Requests
+# Undo
+git reset HEAD~1              # son commit'i geri al (staged kalır)
+git reset --hard HEAD~1       # son commit'i tamamen sil
+git revert <commit>           # yeni bir commit ile geri al
 
-5xx — Sunucu Hatası:
-  500 Internal Server Error
-  502 Bad Gateway
-  503 Service Unavailable
-  504 Gateway Timeout" \
-  "$TAG_API"
+# Stash
+git stash                     # değişiklikleri sakla
+git stash pop                 # geri al
+
+# Remote
+git remote -v                 # remote'ları gör
+git fetch --all               # tüm remote'ları çek" \
+  "$TAG_GIT"
 
 create_entry \
-  "Regex hızlı başvuru" \
+  "PostgreSQL quick reference" \
   "/referans" \
+  "public" \
+  "-- Bağlantı
+psql -h localhost -U mahzen -d mahzen
+
+-- Temel
+\\dt                          # tabloları listele
+\\d table_name                # tablo yapısı
+\\x                          # genişletilmiş görünüm
+
+-- Sorgular
+SELECT * FROM entries LIMIT 10;
+EXPLAIN ANALYZE SELECT * FROM entries WHERE path = '/notes';
+
+-- Index'ler
+SELECT * FROM pg_indexes WHERE tablename = 'entries';
+CREATE INDEX CONCURRENTLY idx_x ON table(col);
+
+-- Backup
+pg_dump -h localhost -U mahzen mahzen > backup.sql
+psql -h localhost -U mahzen mahzen < backup.sql
+
+-- Maintenance
+VACUUM ANALYZE entries;
+REINDEX TABLE entries;
+
+-- Monitoring
+SELECT * FROM pg_stat_activity;
+SELECT * FROM pg_stat_user_tables;" \
+  "$TAG_DB"
+
+# /notlar/regex
+create_entry \
+  "Regex temel desenleri" \
+  "/notlar/regex" \
   "public" \
   "Karakter sınıfları:
-  .    → herhangi bir karakter (\\n hariç)
-  \\d   → rakam [0-9]
-  \\w   → kelime karakteri [a-zA-Z0-9_]
-  \\s   → boşluk karakteri
-  \\D   → rakam dışı
-  \\W   → kelime dışı
+  .       # herhangi bir karakter
+  \\d      # rakam [0-9]
+  \\w      # kelime karakteri [a-zA-Z0-9_]
+  \\s      # boşluk
+  [abc]    # a, b veya c
+  [^abc]   # a, b, c dışında
 
-Niceleyiciler:
-  *    → 0 veya daha fazla (greedy)
-  +    → 1 veya daha fazla
-  ?    → 0 veya 1
-  {n}  → tam n kez
-  {n,m}→ n ile m arası
-  *?   → lazy (mümkün az)
-
-Çıpalar:
-  ^    → satır başı
-  $    → satır sonu
-  \\b   → kelime sınırı
+Miktarlar:
+  *       # 0 veya daha fazla
+  +       # 1 veya daha fazla
+  ?       # 0 veya 1
+  {n}     # tam n tane
+  {n,m}   # n ile m arası
 
 Gruplar:
-  (abc)       → yakalayan grup
-  (?:abc)     → yakalamayan grup
-  (?P<name>.) → adlandırılmış grup (Go)
-  (?=abc)     → lookahead
-  (?!abc)     → negatif lookahead
+  (abc)   # yakalama grubu
+  (?:abc) # yakalamayan grup
+  a|b     # a veya b
 
-Go'da regex:
-  re := regexp.MustCompile(\`^[a-z]+\$\`)
-  re.MatchString('hello')
-  re.FindAllString(text, -1)
-  re.ReplaceAllString(text, replacement)
+Yaygın desenler:
+  Email: [\\w.-]+@[\\w.-]+\\.\\w+
+  UUID: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+  URL: https?://[\\w.-]+(?:/[\\w.-]*)*
 
-Sık kullanılan:
-  Email:   ^[\\w.+-]+@[\\w-]+\\.[\\w.]+$
-  UUID:    ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$
-  Semver:  ^v?(\\d+)\\.(\\d+)\\.(\\d+)$" \
+Lookahead/lookbehind:
+  a(?=b)  # a'dan sonra b varsa
+  a(?!b)  # a'dan sonra b yoksa" \
   "$TAG_REGEX"
 
+# /notlar/shell
 create_entry \
-  "Go standart kütüphane — sık kullanılan paketler" \
-  "/referans" \
+  "Bash scripting best practices" \
+  "/notlar/shell" \
   "public" \
-  "fmt       — formatlı I/O, Printf, Errorf
-strings   — dize işlemleri (Builder, Contains, Split, TrimSpace)
-strconv   — tip dönüşümleri (Atoi, FormatFloat, ParseBool)
-errors    — New, Is, As, Unwrap
-context   — Context, WithTimeout, WithCancel, WithValue
-io        — Reader, Writer, ReadAll, Copy, NopCloser
-os        — Dosya I/O, env vars, exit
-path/filepath — platform-ağımsız yol işlemleri
-time      — Time, Duration, Since, After, Ticker
-sync      — Mutex, RWMutex, WaitGroup, Once
-sync/atomic — atomik işlemler (counter vb.)
-encoding/json — Marshal, Unmarshal, Decoder, Encoder
-net/http  — HTTP client ve server
-regexp    — regex
-sort      — sliceları sırala
-slices    — Go 1.21+ yeni dilim yardımcıları
-maps      — Go 1.21+ map yardımcıları
-log/slog  — yapılandırılmış loglama (Go 1.21+)
-testing   — test ve benchmark
-crypto/rand — kriptografik rastgelelik" \
-  "$TAG_GO"
-
-create_entry \
-  "Makefile kalıpları" \
-  "/referans" \
-  "public" \
-  ".PHONY hedefleri her zaman tanımla (dosya varsa çakışma olmasın):
-  .PHONY: build test lint clean
+  "Shebang ve strict mode:
+  #!/usr/bin/env bash
+  set -euo pipefail
 
 Değişkenler:
-  BINARY_NAME := myapp
-  BUILD_FLAGS := -ldflags \"-s -w\"
+  readonly MAX_RETRIES=3
+  local temp_file
 
-Bağımlı hedefler:
-  build: deps
-    go build \$(BUILD_FLAGS) -o \$(BINARY_NAME) ./cmd/myapp
+Fonksiyonlar:
+  log() { echo timestamp ve mesaj; }
 
-Hedef açıklaması (help sistemi):
-  ## build: Binary oluştur
+Hata yönetimi:
+  trap ile ERR sinyalini yakala
+
+Safe quoting:
+  Degiskenleri her zaman cift tirnak icine al
+  Varsayilan deger icin syntax kullan
+
+Array ornegi:
+  items=(a b c)
+  for item in items; do echo item; done
+
+Command substitution:
+  result=$(some_command)
+  if result bos degilse; then islem yap
+
+Temp dosyalar:
+  temp=$(mktemp)
+  trap ile cikista sil
+
+Exit codes:
+  exit 0: success
+  exit 1: failure" \
+  "$TAG_SHELL"
+
+# /notlar/docker
+create_entry \
+  "Docker compose override" \
+  "/notlar/docker" \
+  "public" \
+  "# docker-compose.override.yml automatically loaded
+
+# Development override
+services:
+  api:
+    environment:
+      - LOG_LEVEL=debug
+    volumes:
+      - ./:/app  # hot reload için
+    command: go run ./cmd/mahzen
+
+# Production (docker-compose.prod.yml)
+services:
+  api:
+    environment:
+      - LOG_LEVEL=info
+    image: mahzen:v1.0.0
+    restart: always
+
+# Usage
+docker compose up                    # docker-compose.yml + override
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+# Override only specific values
+services:
+  api:
+    environment:
+      LOG_LEVEL: debug  # just override this" \
+  "$TAG_DOCKER"
+
+# /notlar/devops
+create_entry \
+  "CI/CD pipeline yapısı" \
+  "/notlar/devops" \
+  "public" \
+  "GitHub Actions example:
+
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.26' }
+      - run: go test ./... -race
+
   build:
-    @echo 'Building...'
-    go build ...
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: go build -o mahzen ./cmd/mahzen
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mahzen
+          path: mahzen
 
-  help:  ## Bu yardım mesajını göster
-    @grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile | awk 'BEGIN {FS=\":.*?## \"}; {printf \"\\033[36m%-20s\\033[0m %s\\n\", $$1, $$2}'
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo \"Deploy to production\"
 
-Shell komutu sonucu değişkene:
-  VERSION := \$(shell git describe --tags --always)
+Best practices:
+  - Fail fast (test before build)
+  - Cache dependencies
+  - Parallel jobs where possible
+  - Secrets via GitHub Secrets" \
+  "$TAG_DEVOPS"
 
-Hata yoksay:
-  -rm -f generated.go  # - öneki hata olsa bile devam et
-
-Paralel yürütme:
-  make -j4 target1 target2" \
-  "$TAG_SHELL" "$TAG_DEVOPS"
-
+# /projeler/mahzen
 create_entry \
-  "JSON işleme — Go" \
-  "/referans" \
-  "public" \
-  "Temel:
-  type User struct {
-    ID    string \`json:\"id\"\`
-    Name  string \`json:\"name,omitempty\"\`
-    Age   int    \`json:\"-\"\`  // dahil etme
-  }
-
-  data, _ := json.Marshal(user)
-  json.Unmarshal(data, &user)
-
-Streaming (büyük dosyalar):
-  dec := json.NewDecoder(r)
-  for dec.More() {
-    var item Item
-    dec.Decode(&item)
-  }
-
-Dinamik JSON:
-  var raw map[string]json.RawMessage
-  json.Unmarshal(data, &raw)
-
-json.RawMessage — ertelenmiş parse:
-  type Envelope struct {
-    Type    string          \`json:\"type\"\`
-    Payload json.RawMessage \`json:\"payload\"\`
-  }
-
-Özel marshal:
-  func (t *MyTime) UnmarshalJSON(b []byte) error {
-    // özel format parse
-  }
-
-go-json veya sonic — daha hızlı alternatifler:
-  Drop-in replacement, büyük payload'larda fark yaratır." \
-  "$TAG_GO"
-
-# /projeler
-create_entry \
-  "Mahzen — proje notları" \
+  "Mahzen mimari kararları" \
   "/projeler/mahzen" \
   "private" \
-  "Mimari kararlar:
+  "ADR-001: Clean Architecture
+  - handler → service → domain ← infra
+  - Dependency inversion with interfaces
+  - Status: Accepted
 
-1. Neden HTTP/3?
-   QUIC, TCP'nin head-of-line blocking sorununu çözer.
-   quic-go kütüphanesi Go için olgunlaşmış.
-   Alt-Svc header ile HTTP/3 reklam edilir, istemci destekliyorsa geçer.
+ADR-002: PostgreSQL for all storage
+  - All content stored in content column
+  - No S3/object storage
+  - Rationale: Simplicity, single source of truth
+  - Status: Accepted
 
-2. Neden Typesense?
-   Elasticsearch'e göre çok daha az kaynak kullanır.
-   Tek binary, kolay kurulum.
-   Hem full-text hem vector search destekler.
-   Go SDK kaliteli.
+ADR-003: Typesense for search
+  - Keyword + semantic (vector) search
+  - HNSW for ANN
+  - Status: Accepted
 
-3. Neden RustFS?
-   MinIO-uyumlu S3 API.
-   Büyük içerikler (>64KB) object store'a gider, DB şişmez.
+ADR-004: JWT for authentication
+  - Access + refresh token pattern
+  - HttpOnly cookies
+  - Status: Accepted
 
-4. Neden sqlc?
-   Type-safe sorgular, kod üretimi.
-   ORM overhead yok.
-   Sorguları SQL olarak yazıyorsun, Go kodu otomatik oluşuyor.
-
-5. Neden bcrypt?
-   Şifre hashing için endüstri standardı.
-   argon2id geçiş planlanıyor.
-
-Bilinen sınırlamalar:
-- Entry versiyonlama yok
-- Dosya ekleme yok
-- Collaborative editing yok
-- Rate limiting yok" \
-  "$TAG_ARCH" "$TAG_GO"
+ADR-005: Go 1.26
+  - Latest stable features
+  - Improved generics support
+  - Status: Accepted" \
+  "$TAG_ARCH"
 
 create_entry \
-  "Mahzen — API notları ve curl örnekleri" \
+  "Mahzen development roadmap" \
   "/projeler/mahzen" \
   "private" \
-  "Kayıt ve giriş:
-  curl -sk -X POST https://localhost:8080/v1/auth/register \\
-    -H 'Content-Type: application/json' \\
-    -d '{\"email\":\"test@test.com\",\"display_name\":\"Test\",\"password\":\"test1234\"}'
+  "v0.1 MVP:
+  - [x] Entry CRUD
+  - [x] Tag system
+  - [x] Keyword search
+  - [x] JWT auth
 
-Entry oluştur:
-  curl -sk -X POST https://localhost:8080/v1/entries \\
-    -H 'Authorization: Bearer <token>' \\
-    -H 'Content-Type: application/json' \\
-    -d '{\"title\":\"Notum\",\"content\":\"İçerik\",\"path\":\"/notlar\",\"visibility\":\"public\"}'
+v0.2 AI Integration:
+  - [x] OpenAI embeddings
+  - [x] Semantic search
+  - [x] Auto-summary
+  - [ ] Auto-tagging (WIP)
 
-Arama:
-  curl -sk 'https://localhost:8080/v1/search/keyword?query=golang' \\
-    -H 'Authorization: Bearer <token>'
+v0.3 Polish:
+  - [ ] Better error messages
+  - [ ] Rate limiting
+  - [ ] Audit logging
+  - [ ] Batch operations
 
-Tag oluştur ve entry'e ekle:
-  TAG=\$(curl -sk -X POST .../v1/tags -d '{\"name\":\"go\"}' | jq -r .tag.id)
-  curl -sk -X POST .../v1/entries/{id}/tags \\
-    -d \"{\\\"tag_id\\\":\\\"\$TAG\\\"}\"
+v1.0 Production:
+  - [ ] Multi-tenancy (teams)
+  - [ ] Role-based access
+  - [ ] Import/export
+  - [ ] API documentation
 
-HTTP/3 test:
-  curl --http3 -sk https://localhost:8080/v1/entries
+Future:
+  - Self-hosted embeddings
+  - Offline mode
+  - Mobile app" \
+  "$TAG_ARCH" "$TAG_AI"
 
-Profil endpoint (geliştirme):
-  curl http://localhost:6060/debug/pprof/goroutine?debug=1" \
-  "$TAG_API" "$TAG_SHELL"
-
-create_entry \
-  "Go bağımlılık yönetimi" \
-  "/projeler/mahzen" \
-  "public" \
-  "go.mod: Modül tanımı, minimum gereksinim versiyonları
-go.sum: Kriptografik hash'ler, bütünlük doğrulama
-
-Sık kullanılan komutlar:
-  go mod tidy         # gereksiz bağımlılıkları temizle, eksikleri ekle
-  go mod download     # önbelleğe al
-  go mod verify       # hash'leri doğrula
-  go mod vendor       # vendor/ dizinini güncelle
-
-Versiyon:
-  go get github.com/foo/bar@v1.2.3    # belirli versiyon
-  go get github.com/foo/bar@latest    # son kararlı
-  go get github.com/foo/bar@main      # dal
-
-Major versiyon:
-  import \"github.com/foo/bar/v2\"  // v2+ için path değişir
-
-Araçlar:
-  go list -m all              # tüm bağımlılıklar
-  go list -m -u all           # güncellenebilecekler
-  govulncheck ./...           # güvenlik açığı tarama
-
-Workspace (çoklu modül geliştirme):
-  go work init ./mahzen ./shared
-  go work sync" \
-  "$TAG_GO"
-
-info "Entryler oluşturuldu: $created"
-
-# ─── Dosya entry'leri (binary / S3) ──────────────────────────────────────────
-info "Dosya entry'leri oluşturuluyor (S3'e gidecekler)..."
-
-# Geçici büyük içerik dosyası oluştur (her seferinde yeniden üretmek yerine bir kez)
-_big=$(mktemp)
-big_content > "$_big"
-
-# ZIP — dağıtım paketi (~100KB içerik → S3)
-create_file_entry "mahzen-v0.3.2-linux-amd64.zip" "/dosyalar/dagitim" "public"   "zip"  "$_big" "$TAG_DEVOPS" "$TAG_GO"
-big_content > "$_big"
-create_file_entry "frontend-dist-2026-03-05.zip"   "/dosyalar/dagitim" "private"  "zip"  "$_big" "$TAG_FRONTEND" "$TAG_DEVOPS"
-big_content > "$_big"
-create_file_entry "mahzen-mimari-dokumani.pdf"      "/dosyalar/belgeler" "public"  "pdf"  "$_big" "$TAG_ARCH"
-big_content > "$_big"
-create_file_entry "guvenlik-denetim-raporu-2026.pdf" "/dosyalar/belgeler" "private" "pdf" "$_big" "$TAG_SECURITY"
-big_content > "$_big"
-create_file_entry "gophercon-2024-context-konusmasi.mp4" "/dosyalar/videolar" "private" "mp4" "$_big" "$TAG_GO"
-big_content > "$_big"
-create_file_entry "mahzen-demo-ekran-kaydi.mp4"    "/dosyalar/videolar" "public"  "mp4"  "$_big" "$TAG_ARCH" "$TAG_DEVOPS"
-big_content > "$_big"
-create_file_entry "context-ornek-implementasyon.go" "/dosyalar/kod"    "public"  "go"   "$_big" "$TAG_GO"
-big_content > "$_big"
-create_file_entry "pg-yedek-2026-03-05.tar.gz"     "/dosyalar/yedekler" "private" "gz"  "$_big" "$TAG_DB" "$TAG_DEVOPS"
-
-# Küçük içerikli (inline DB'de kalır)
-_small=$(mktemp)
-printf 'PNG diyagram: handler → service → domain ← infra katman şeması. Bağımlılık yönleri ok ile gösterilmiş.' > "$_small"
-create_file_entry "sistem-mimarisi-diyagrami.png"  "/dosyalar/gorseller" "public" "png"  "$_small" "$TAG_ARCH"
-printf 'Yük testi sonuçları: endpoint, p50, p95, p99, hata oranı, RPS. /v1/search/semantic p99=120ms.' > "$_small"
-create_file_entry "yuk-testi-sonuclari.xlsx"        "/dosyalar/belgeler" "private" "xlsx" "$_small" "$TAG_PERF"
-
-rm -f "$_big" "$_small"
-info "Dosya entry'leri oluşturuldu."
+info "Entry'ler oluşturuldu: $created"
 
 # ─── Özet ─────────────────────────────────────────────────────────────────────
 echo ""
@@ -1512,12 +1337,12 @@ echo -e "${GREEN}  Seed tamamlandı!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "  Kullanıcı  : emir@mahzen.dev / mahzen123"
 echo -e "  Taglar     : 15"
-echo -e "  Entry'ler  : $created (metin + dosya)"
+echo -e "  Entry'ler  : $created"
 echo -e "  Yollar     : /notlar/golang, /notlar/veritabani,"
 echo -e "               /notlar/linux, /notlar/git, /notlar/api,"
 echo -e "               /notlar/docker, /notlar/guvenik,"
 echo -e "               /notlar/performans, /notlar/mimari,"
 echo -e "               /notlar/yapay-zeka, /notlar/frontend,"
-echo -e "               /gunluk, /referans, /projeler/mahzen,"
-echo -e "               /dosyalar/{dagitim,belgeler,videolar,gorseller,kod,yedekler}"
+echo -e "               /notlar/regex, /notlar/shell, /notlar/devops,"
+echo -e "               /gunluk, /referans, /projeler/mahzen"
 echo ""

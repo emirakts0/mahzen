@@ -3,7 +3,6 @@ package mock
 
 import (
 	"context"
-	"io"
 	"time"
 
 	"github.com/emirakts0/mahzen/internal/domain"
@@ -125,34 +124,6 @@ func (m *TagRepository) ListByEntry(ctx context.Context, entryID string) ([]*dom
 
 func (m *TagRepository) ListByEntries(ctx context.Context, entryIDs []string) (map[string][]string, error) {
 	return m.ListByEntriesFn(ctx, entryIDs)
-}
-
-// ---------------------------------------------------------------------------
-// ObjectStorage
-// ---------------------------------------------------------------------------
-
-// ObjectStorage is a test double for domain.ObjectStorage.
-type ObjectStorage struct {
-	UploadFn          func(ctx context.Context, key string, reader io.Reader, contentType string, size int64) error
-	DownloadFn        func(ctx context.Context, key string) (io.ReadCloser, error)
-	DeleteFn          func(ctx context.Context, key string) error
-	GetPresignedURLFn func(ctx context.Context, key string, expiry time.Duration) (string, error)
-}
-
-func (m *ObjectStorage) Upload(ctx context.Context, key string, reader io.Reader, contentType string, size int64) error {
-	return m.UploadFn(ctx, key, reader, contentType, size)
-}
-
-func (m *ObjectStorage) Download(ctx context.Context, key string) (io.ReadCloser, error) {
-	return m.DownloadFn(ctx, key)
-}
-
-func (m *ObjectStorage) Delete(ctx context.Context, key string) error {
-	return m.DeleteFn(ctx, key)
-}
-
-func (m *ObjectStorage) GetPresignedURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
-	return m.GetPresignedURLFn(ctx, key, expiry)
 }
 
 // ---------------------------------------------------------------------------

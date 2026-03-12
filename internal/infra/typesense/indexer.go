@@ -106,7 +106,7 @@ func (idx *Indexer) DeleteEntry(ctx context.Context, id string) error {
 // buildDocument converts a domain entry into a Typesense document map.
 // For binary file types (e.g. mp4, zip) the content field is omitted from the
 // index so only the summary is searchable. Text-readable entries always have
-// their full content indexed (the caller passes original content before S3 upload).
+// their full content indexed.
 func buildDocument(entry *domain.Entry, tags []*domain.Tag, embedding []float32) map[string]interface{} {
 	tagNames := make([]string, len(tags))
 	for i, t := range tags {
@@ -125,7 +125,6 @@ func buildDocument(entry *domain.Entry, tags []*domain.Tag, embedding []float32)
 		"created_at": entry.CreatedAt.Unix(),
 		"file_type":  entry.FileType,
 		"file_size":  entry.FileSize,
-		"s3_key":     entry.S3Key,
 	}
 
 	// Only index content for text-readable entries.
