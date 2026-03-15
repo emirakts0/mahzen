@@ -1,0 +1,6 @@
+name: Local development server
+variables:
+  - name: baseUrl
+    value: https://localhost:8080
+  - name: authToken
+    value: ""

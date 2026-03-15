@@ -1,0 +1,17 @@
+info:
+  name: Register a new user
+  type: http
+  seq: 1
+  tags:
+    - Auth
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/auth/register"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

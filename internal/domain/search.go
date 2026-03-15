@@ -25,6 +25,7 @@ type Highlight struct {
 // SearchResult represents a single result from a search query.
 type SearchResult struct {
 	EntryID    string
+	UserID     string // Internal use only, not exposed in API
 	Title      string
 	Summary    string // AI-generated summary stored in the index.
 	Content    string // Content excerpt from Typesense index.

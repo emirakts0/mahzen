@@ -1,0 +1,116 @@
+info:
+  name: List tags
+  type: http
+  seq: 3
+  tags:
+    - Tags
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/tags"
+  params:
+    - name: limit
+      value: "20"
+      type: query
+      description: Maximum number of tags to return
+    - name: offset
+      value: "0"
+      type: query
+      description: Number of tags to skip
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: List of tags
+    request:
+      url: "{{baseUrl}}/v1/tags"
+      method: GET
+      params:
+        - name: limit
+          value: "20"
+          type: query
+          description: Maximum number of tags to return
+        - name: offset
+          value: "0"
+          type: query
+          description: Number of tags to skip
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "tags": [
+              {
+                "id": "",
+                "name": "golang",
+                "slug": "golang",
+                "created_at": ""
+              }
+            ],
+            "total": 0
+          }
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/v1/tags"
+      method: GET
+      params:
+        - name: limit
+          value: "20"
+          type: query
+          description: Maximum number of tags to return
+        - name: offset
+          value: "0"
+          type: query
+          description: Number of tags to skip
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }
+  - name: 500 Response
+    description: Server error
+    request:
+      url: "{{baseUrl}}/v1/tags"
+      method: GET
+      params:
+        - name: limit
+          value: "20"
+          type: query
+          description: Maximum number of tags to return
+        - name: offset
+          value: "0"
+          type: query
+          description: Number of tags to skip
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }

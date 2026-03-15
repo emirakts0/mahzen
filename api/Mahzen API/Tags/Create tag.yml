@@ -1,0 +1,124 @@
+info:
+  name: Create tag
+  type: http
+  seq: 4
+  tags:
+    - Tags
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/tags"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "rust"
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Tag created successfully
+    request:
+      url: "{{baseUrl}}/v1/tags"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "name": "rust"
+          }
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "tag": {
+              "id": "",
+              "name": "golang",
+              "slug": "golang",
+              "created_at": ""
+            }
+          }
+  - name: 400 Response
+    description: Invalid request
+    request:
+      url: "{{baseUrl}}/v1/tags"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "name": "rust"
+          }
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/v1/tags"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "name": "rust"
+          }
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }
+  - name: 500 Response
+    description: Server error
+    request:
+      url: "{{baseUrl}}/v1/tags"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "name": "rust"
+          }
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }

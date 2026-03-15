@@ -1,0 +1,109 @@
+info:
+  name: Get entry
+  type: http
+  seq: 3
+  tags:
+    - Entries
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/entries/:entry_id"
+  params:
+    - name: entry_id
+      value: ""
+      type: path
+      description: Entry ID
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Entry details
+    request:
+      url: "{{baseUrl}}/v1/entries/:entry_id"
+      method: GET
+      params:
+        - name: entry_id
+          value: ""
+          type: path
+          description: Entry ID
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "entry": {
+              "id": "",
+              "user_id": "",
+              "title": "My Notes",
+              "content": "This is the content of my note.",
+              "summary": "",
+              "path": "/notes/work",
+              "visibility": "public",
+              "tags": [
+                "go",
+                "backend",
+                "api"
+              ],
+              "file_type": "text/markdown",
+              "file_size": 0,
+              "created_at": "",
+              "updated_at": ""
+            }
+          }
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/v1/entries/:entry_id"
+      method: GET
+      params:
+        - name: entry_id
+          value: ""
+          type: path
+          description: Entry ID
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }
+  - name: 404 Response
+    description: Entry not found
+    request:
+      url: "{{baseUrl}}/v1/entries/:entry_id"
+      method: GET
+      params:
+        - name: entry_id
+          value: ""
+          type: path
+          description: Entry ID
+    response:
+      status: 404
+      statusText: Not Found
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }

@@ -1,0 +1,186 @@
+info:
+  name: Update entry
+  type: http
+  seq: 4
+  tags:
+    - Entries
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/entries/:entry_id"
+  params:
+    - name: entry_id
+      value: ""
+      type: path
+      description: Entry ID
+  body:
+    type: json
+    data: |-
+      {
+        "title": "",
+        "content": "",
+        "path": "",
+        "visibility": "public",
+        "tag_ids": [],
+        "file_type": ""
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Entry updated successfully
+    request:
+      url: "{{baseUrl}}/v1/entries/:entry_id"
+      method: PUT
+      params:
+        - name: entry_id
+          value: ""
+          type: path
+          description: Entry ID
+      body:
+        type: json
+        data: |-
+          {
+            "title": "",
+            "content": "",
+            "path": "",
+            "visibility": "public",
+            "tag_ids": [],
+            "file_type": ""
+          }
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "entry": {
+              "id": "",
+              "user_id": "",
+              "title": "My Notes",
+              "content": "This is the content of my note.",
+              "summary": "",
+              "path": "/notes/work",
+              "visibility": "public",
+              "tags": [
+                "go",
+                "backend",
+                "api"
+              ],
+              "file_type": "text/markdown",
+              "file_size": 0,
+              "created_at": "",
+              "updated_at": ""
+            }
+          }
+  - name: 400 Response
+    description: Invalid request
+    request:
+      url: "{{baseUrl}}/v1/entries/:entry_id"
+      method: PUT
+      params:
+        - name: entry_id
+          value: ""
+          type: path
+          description: Entry ID
+      body:
+        type: json
+        data: |-
+          {
+            "title": "",
+            "content": "",
+            "path": "",
+            "visibility": "public",
+            "tag_ids": [],
+            "file_type": ""
+          }
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/v1/entries/:entry_id"
+      method: PUT
+      params:
+        - name: entry_id
+          value: ""
+          type: path
+          description: Entry ID
+      body:
+        type: json
+        data: |-
+          {
+            "title": "",
+            "content": "",
+            "path": "",
+            "visibility": "public",
+            "tag_ids": [],
+            "file_type": ""
+          }
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }
+  - name: 500 Response
+    description: Server error
+    request:
+      url: "{{baseUrl}}/v1/entries/:entry_id"
+      method: PUT
+      params:
+        - name: entry_id
+          value: ""
+          type: path
+          description: Entry ID
+      body:
+        type: json
+        data: |-
+          {
+            "title": "",
+            "content": "",
+            "path": "",
+            "visibility": "public",
+            "tag_ids": [],
+            "file_type": ""
+          }
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }

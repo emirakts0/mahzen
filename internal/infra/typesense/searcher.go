@@ -222,6 +222,7 @@ func mapSearchResults(result *api.SearchResult) ([]*domain.SearchResult, int, er
 		doc := *hit.Document
 		sr := &domain.SearchResult{
 			EntryID:    stringFromDoc(doc, "entry_id"),
+			UserID:     stringFromDoc(doc, "user_id"),
 			Title:      stringFromDoc(doc, "title"),
 			Summary:    stringFromDoc(doc, "summary"),
 			Path:       stringFromDoc(doc, "path"),

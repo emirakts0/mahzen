@@ -31,6 +31,7 @@ type highlightResponse struct {
 // searchResultResponse is the JSON representation of a search result.
 type searchResultResponse struct {
 	EntryID    string              `json:"entry_id"`
+	IsMine     bool                `json:"is_mine"`
 	Title      string              `json:"title"`
 	Summary    string              `json:"summary,omitempty"`
 	Content    string              `json:"content,omitempty"`
@@ -77,6 +78,7 @@ func (h *searchHandler) keywordSearch(c *gin.Context) {
 		}
 		items[i] = searchResultResponse{
 			EntryID:    r.EntryID,
+			IsMine:     r.UserID == userID,
 			Title:      r.Title,
 			Summary:    r.Summary,
 			Content:    r.Content,
@@ -129,6 +131,7 @@ func (h *searchHandler) semanticSearch(c *gin.Context) {
 		}
 		items[i] = searchResultResponse{
 			EntryID:    r.EntryID,
+			IsMine:     r.UserID == userID,
 			Title:      r.Title,
 			Summary:    r.Summary,
 			Content:    r.Content,

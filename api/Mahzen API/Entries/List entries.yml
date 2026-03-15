@@ -1,0 +1,270 @@
+info:
+  name: List entries
+  type: http
+  seq: 1
+  tags:
+    - Entries
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/entries"
+  params:
+    - name: path
+      value: ""
+      type: query
+      description: "Path to list entries from (default: /)"
+      disabled: true
+    - name: own
+      value: "false"
+      type: query
+      description: Only show entries owned by the current user
+    - name: visibility
+      value: public
+      type: query
+      description: Filter by visibility
+      disabled: true
+    - name: visibility
+      value: private
+      type: query
+      description: Filter by visibility
+      disabled: true
+    - name: tags
+      value: ""
+      type: query
+      description: Filter by tags (comma-separated)
+      disabled: true
+    - name: from_date
+      value: ""
+      type: query
+      description: Filter entries created on or after this date (YYYY-MM-DD)
+      disabled: true
+    - name: to_date
+      value: ""
+      type: query
+      description: Filter entries created on or before this date (YYYY-MM-DD)
+      disabled: true
+    - name: limit
+      value: "20"
+      type: query
+      description: Maximum number of entries to return
+    - name: offset
+      value: "0"
+      type: query
+      description: Number of entries to skip
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: List of entries and folders
+    request:
+      url: "{{baseUrl}}/v1/entries"
+      method: GET
+      params:
+        - name: path
+          value: ""
+          type: query
+          description: "Path to list entries from (default: /)"
+          disabled: true
+        - name: own
+          value: "false"
+          type: query
+          description: Only show entries owned by the current user
+        - name: visibility
+          value: public
+          type: query
+          description: Filter by visibility
+          disabled: true
+        - name: visibility
+          value: private
+          type: query
+          description: Filter by visibility
+          disabled: true
+        - name: tags
+          value: ""
+          type: query
+          description: Filter by tags (comma-separated)
+          disabled: true
+        - name: from_date
+          value: ""
+          type: query
+          description: Filter entries created on or after this date (YYYY-MM-DD)
+          disabled: true
+        - name: to_date
+          value: ""
+          type: query
+          description: Filter entries created on or before this date (YYYY-MM-DD)
+          disabled: true
+        - name: limit
+          value: "20"
+          type: query
+          description: Maximum number of entries to return
+        - name: offset
+          value: "0"
+          type: query
+          description: Number of entries to skip
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "entries": [
+              {
+                "id": "",
+                "user_id": "",
+                "title": "My Notes",
+                "content": "This is the content of my note.",
+                "summary": "",
+                "path": "/notes/work",
+                "visibility": "public",
+                "tags": [
+                  "go",
+                  "backend",
+                  "api"
+                ],
+                "file_type": "text/markdown",
+                "file_size": 0,
+                "created_at": "",
+                "updated_at": ""
+              }
+            ],
+            "folders": [
+              {
+                "path": "/notes/work",
+                "count": 0
+              }
+            ],
+            "total": 0
+          }
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/v1/entries"
+      method: GET
+      params:
+        - name: path
+          value: ""
+          type: query
+          description: "Path to list entries from (default: /)"
+          disabled: true
+        - name: own
+          value: "false"
+          type: query
+          description: Only show entries owned by the current user
+        - name: visibility
+          value: public
+          type: query
+          description: Filter by visibility
+          disabled: true
+        - name: visibility
+          value: private
+          type: query
+          description: Filter by visibility
+          disabled: true
+        - name: tags
+          value: ""
+          type: query
+          description: Filter by tags (comma-separated)
+          disabled: true
+        - name: from_date
+          value: ""
+          type: query
+          description: Filter entries created on or after this date (YYYY-MM-DD)
+          disabled: true
+        - name: to_date
+          value: ""
+          type: query
+          description: Filter entries created on or before this date (YYYY-MM-DD)
+          disabled: true
+        - name: limit
+          value: "20"
+          type: query
+          description: Maximum number of entries to return
+        - name: offset
+          value: "0"
+          type: query
+          description: Number of entries to skip
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }
+  - name: 500 Response
+    description: Server error
+    request:
+      url: "{{baseUrl}}/v1/entries"
+      method: GET
+      params:
+        - name: path
+          value: ""
+          type: query
+          description: "Path to list entries from (default: /)"
+          disabled: true
+        - name: own
+          value: "false"
+          type: query
+          description: Only show entries owned by the current user
+        - name: visibility
+          value: public
+          type: query
+          description: Filter by visibility
+          disabled: true
+        - name: visibility
+          value: private
+          type: query
+          description: Filter by visibility
+          disabled: true
+        - name: tags
+          value: ""
+          type: query
+          description: Filter by tags (comma-separated)
+          disabled: true
+        - name: from_date
+          value: ""
+          type: query
+          description: Filter entries created on or after this date (YYYY-MM-DD)
+          disabled: true
+        - name: to_date
+          value: ""
+          type: query
+          description: Filter entries created on or before this date (YYYY-MM-DD)
+          disabled: true
+        - name: limit
+          value: "20"
+          type: query
+          description: Maximum number of entries to return
+        - name: offset
+          value: "0"
+          type: query
+          description: Number of entries to skip
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }

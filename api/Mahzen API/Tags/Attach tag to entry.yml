@@ -1,0 +1,141 @@
+info:
+  name: Attach tag to entry
+  type: http
+  seq: 1
+  tags:
+    - Tags
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/entries/:entry_id/tags"
+  params:
+    - name: entry_id
+      value: ""
+      type: path
+      description: Entry ID
+  body:
+    type: json
+    data: |-
+      {
+        "tag_id": ""
+      }
+  auth:
+    type: bearer
+    token: "{{authToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 200 Response
+    description: Tag attached successfully
+    request:
+      url: "{{baseUrl}}/v1/entries/:entry_id/tags"
+      method: POST
+      params:
+        - name: entry_id
+          value: ""
+          type: path
+          description: Entry ID
+      body:
+        type: json
+        data: |-
+          {
+            "tag_id": ""
+          }
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: "{}"
+  - name: 400 Response
+    description: Invalid request
+    request:
+      url: "{{baseUrl}}/v1/entries/:entry_id/tags"
+      method: POST
+      params:
+        - name: entry_id
+          value: ""
+          type: path
+          description: Entry ID
+      body:
+        type: json
+        data: |-
+          {
+            "tag_id": ""
+          }
+    response:
+      status: 400
+      statusText: Bad Request
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/v1/entries/:entry_id/tags"
+      method: POST
+      params:
+        - name: entry_id
+          value: ""
+          type: path
+          description: Entry ID
+      body:
+        type: json
+        data: |-
+          {
+            "tag_id": ""
+          }
+    response:
+      status: 401
+      statusText: Unauthorized
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }
+  - name: 500 Response
+    description: Server error
+    request:
+      url: "{{baseUrl}}/v1/entries/:entry_id/tags"
+      method: POST
+      params:
+        - name: entry_id
+          value: ""
+          type: path
+          description: Entry ID
+      body:
+        type: json
+        data: |-
+          {
+            "tag_id": ""
+          }
+    response:
+      status: 500
+      statusText: Internal Server Error
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "error": ""
+          }

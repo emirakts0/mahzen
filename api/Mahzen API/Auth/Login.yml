@@ -1,0 +1,39 @@
+info:
+  name: Login
+  type: http
+  seq: 2
+  tags:
+    - Auth
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "emir@mahzen.dev",
+        "password": "mahzen123"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // Post-Response Script for Login
+          const response = res.getBody();
+
+          if (res.getStatus() >= 200 && res.getStatus() < 300 &&
+          response.access_token) {
+            bru.setEnvVar("authToken", response.access_token);
+            console.log("✅ Token saved to environment variable: authToken");
+          } else {
+            console.log("❌ Failed to extract token from response");
+          }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
