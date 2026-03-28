@@ -1,25 +1,37 @@
-import { apiGet, apiPost, tokenStorage } from "./client";
-import type { AuthTokens, LoginRequest, RegisterRequest, UserResponse } from "@/types/api";
+import { invoke } from "@tauri-apps/api/core";
+import { apiGet, tokenStorage } from "./client";
+import type { UserResponse } from "@/types/api";
 
-export async function login(data: LoginRequest): Promise<AuthTokens> {
-  const tokens = await apiPost<AuthTokens>("/v1/auth/login", data, { skipAuth: true });
-  tokenStorage.setTokens(tokens.access_token, tokens.refresh_token);
-  return tokens;
+interface ApiResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
 }
 
-export async function register(data: RegisterRequest): Promise<AuthTokens> {
-  const tokens = await apiPost<AuthTokens>("/v1/auth/register", data, { skipAuth: true });
-  tokenStorage.setTokens(tokens.access_token, tokens.refresh_token);
-  return tokens;
+export async function connectWithToken(serverUrl: string, accessToken: string): Promise<void> {
+  tokenStorage.setAccessToken(accessToken, serverUrl);
+
+  const baseUrl = serverUrl.replace(/\/$/, "");
+  const response = await invoke<ApiResponse>("api_request", {
+    request: {
+      url: `${baseUrl}/v1/users/me`,
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  });
+
+  if (response.status !== 200) {
+    tokenStorage.clearTokens();
+    throw new Error("Invalid token or server unreachable");
+  }
 }
 
 export async function logout(): Promise<void> {
-   const refreshToken = tokenStorage.getRefresh()
-   if (refreshToken) {
-     await apiPost("/v1/auth/logout", { refresh_token: refreshToken }).catch(() => {})
-   }
-   tokenStorage.clearTokens()
- }
+  tokenStorage.clearTokens();
+}
 
 export async function getCurrentUser(): Promise<UserResponse> {
   return apiGet<UserResponse>("/v1/users/me");

@@ -48,7 +48,7 @@ func isPublicRoute(method, path string) bool {
 // AuthMiddleware returns a Gin middleware that validates JWT access tokens
 // and sets the user ID in the context. For public routes, authentication
 // is optional. For protected routes, a valid token is required.
-func AuthMiddleware(logger *slog.Logger, tokenGen domain.TokenGenerator) gin.HandlerFunc {
+func AuthMiddleware(logger *slog.Logger, tokenGen domain.TokenGenerator, tokenStore domain.AccessTokenStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// If x-user-id header is already set (dev mode), pass through.
 		if uid := c.GetHeader("X-User-Id"); uid != "" {
@@ -67,24 +67,35 @@ func AuthMiddleware(logger *slog.Logger, tokenGen domain.TokenGenerator) gin.Han
 				token = strings.TrimPrefix(token, "Bearer ")
 			}
 
-			id, err := tokenGen.ValidateAccessToken(token)
-			if err != nil {
-				logger.Debug("jwt validation failed",
-					"method", c.Request.Method,
-					"path", c.Request.URL.Path,
-					"error", err,
-				)
-				if !isPublic {
-					c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-						"error": "invalid or expired token",
-					})
-					return
+			// Optimization: opaque tokens start with "mah_"
+			if strings.HasPrefix(token, "mah_") {
+				if uid, ok := tokenStore.Lookup(token); ok {
+					userID = uid
 				}
-				// For public routes, continue without user ID.
+			} else {
+				id, err := tokenGen.ValidateAccessToken(token)
+				if err != nil {
+					logger.Debug("jwt validation failed",
+						"method", c.Request.Method,
+						"path", c.Request.URL.Path,
+						"error", err,
+					)
+				} else {
+					userID = id
+				}
+			}
+
+			if userID == "" && !isPublic {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error": "invalid or expired token",
+				})
+				return
+			}
+
+			if userID == "" && isPublic {
 				c.Next()
 				return
 			}
-			userID = id
 		}
 
 		if userID == "" {

@@ -93,3 +93,17 @@ func (p *TokenProvider) HashToken(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(h[:])
 }
+
+// GenerateOpaqueToken creates a random opaque access token.
+// Returns the raw token (prefixed with "mah_"), its SHA-256 hash, and a display prefix.
+func (p *TokenProvider) GenerateOpaqueToken() (raw, hash, prefix string, err error) {
+	b := make([]byte, 48)
+	if _, err = rand.Read(b); err != nil {
+		return "", "", "", fmt.Errorf("generating opaque token: %w", err)
+	}
+	raw = "mah_" + hex.EncodeToString(b)
+	h := sha256.Sum256([]byte(raw))
+	hash = hex.EncodeToString(h[:])
+	prefix = raw[:12] + "..."
+	return raw, hash, prefix, nil
+}

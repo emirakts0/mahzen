@@ -16,11 +16,12 @@ type RouterDeps struct {
 	Logger   *slog.Logger
 	TokenGen domain.TokenGenerator
 
-	EntrySvc  *service.EntryService
-	TagSvc    *service.TagService
-	SearchSvc *service.SearchService
-	AuthSvc   *service.AuthService
-	UserRepo  domain.UserRepository
+	EntrySvc       *service.EntryService
+	TagSvc         *service.TagService
+	SearchSvc      *service.SearchService
+	AuthSvc        *service.AuthService
+	AccessTokenSvc *service.AccessTokenService
+	UserRepo       domain.UserRepository
 
 	// Health check dependencies
 	DBPing     func(context.Context) error
@@ -39,7 +40,7 @@ func SetupRouter(deps RouterDeps) *gin.Engine {
 	r.Use(CORSMiddleware())
 	r.Use(RecoveryMiddleware(deps.Logger))
 	r.Use(LoggingMiddleware(deps.Logger))
-	r.Use(AuthMiddleware(deps.Logger, deps.TokenGen))
+	r.Use(AuthMiddleware(deps.Logger, deps.TokenGen, deps.AccessTokenSvc.Store()))
 
 	// Create handlers.
 	auth := newAuthHandler(deps.AuthSvc)
@@ -47,6 +48,7 @@ func SetupRouter(deps RouterDeps) *gin.Engine {
 	tags := newTagHandler(deps.TagSvc)
 	search := newSearchHandler(deps.SearchSvc)
 	users := newUserHandler(deps.UserRepo)
+	accessTokens := newAccessTokenHandler(deps.AccessTokenSvc)
 	health := newHealthHandler(deps.DBPing, deps.DBCount, deps.TSHealth, deps.TSDocCount)
 
 	// Health check endpoint (no auth required).
@@ -98,6 +100,14 @@ func SetupRouter(deps RouterDeps) *gin.Engine {
 		userGroup := v1.Group("/users")
 		{
 			userGroup.GET("/me", users.getCurrentUser)
+		}
+
+		// Access token routes.
+		tokenGroup := v1.Group("/tokens")
+		{
+			tokenGroup.POST("", accessTokens.createToken)
+			tokenGroup.GET("", accessTokens.listTokens)
+			tokenGroup.POST("/:id/revoke", accessTokens.revokeToken)
 		}
 	}
 

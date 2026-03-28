@@ -1,14 +1,13 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { tokenStorage, getBaseUrl } from "@/api/client";
-import { login as apiLogin, register as apiRegister, logout as apiLogout, getCurrentUser } from "@/api/auth";
-import type { User, LoginRequest, RegisterRequest } from "@/types/api";
+import { tokenStorage, getBaseUrl, setBaseUrl } from "@/api/client";
+import { connectWithToken, logout as apiLogout, getCurrentUser } from "@/api/auth";
+import type { User } from "@/types/api";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (data: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
+  connect: (serverUrl: string, accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -46,18 +45,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     };
-    
+
     restore();
   }, []);
 
-  const login = useCallback(async (data: LoginRequest) => {
-    await apiLogin(data);
-    const res = await getCurrentUser();
-    setUser(res.user);
-  }, []);
-
-  const register = useCallback(async (data: RegisterRequest) => {
-    await apiRegister(data);
+  const connect = useCallback(async (serverUrl: string, accessToken: string) => {
+    await setBaseUrl(serverUrl);
+    await connectWithToken(serverUrl, accessToken);
     const res = await getCurrentUser();
     setUser(res.user);
   }, []);
@@ -68,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, connect, logout }}>
       {children}
     </AuthContext.Provider>
   );

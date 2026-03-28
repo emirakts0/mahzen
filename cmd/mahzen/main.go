@@ -48,7 +48,18 @@ func main() {
 	infra := mustInitInfra(ctx, cfg, logger)
 	defer infra.close()
 
-	buildServer(cfg, infra, logger).run(ctx, logger)
+	srv, accessTokenSvc := buildServer(cfg, infra, logger)
+
+	// Load access token cache from DB before starting server.
+	if err := accessTokenSvc.LoadCacheFromDB(ctx); err != nil {
+		logger.Error("failed to load access token cache", "error", err)
+		os.Exit(1)
+	}
+
+	// Start background expiry worker.
+	accessTokenSvc.StartExpiryWorker(ctx)
+
+	srv.run(ctx, logger)
 }
 
 // ---------------------------------------------------------------------------
@@ -58,12 +69,13 @@ func main() {
 // infrastructure groups all external clients and connections. A single
 // defer infra.close() in main handles cleanup.
 type infrastructure struct {
-	pool          *pgxpool.Pool
-	tsClient      *tsclient.Client
-	embedder      domain.Embedder
-	summarizer    domain.Summarizer
-	tokenProvider *auth.TokenProvider
-	hasher        *auth.BcryptHasher
+	pool             *pgxpool.Pool
+	tsClient         *tsclient.Client
+	embedder         domain.Embedder
+	summarizer       domain.Summarizer
+	tokenProvider    *auth.TokenProvider
+	hasher           *auth.BcryptHasher
+	accessTokenStore *auth.AccessTokenStore
 }
 
 func (i *infrastructure) close() {
@@ -94,15 +106,17 @@ func mustInitInfra(ctx context.Context, cfg *config.Config, logger *slog.Logger)
 
 	tokenProvider := auth.NewTokenProvider(cfg.Auth)
 	hasher := auth.NewBcryptHasher()
+	accessTokenStore := auth.NewAccessTokenStore()
 	logger.Info("auth provider initialized")
 
 	return &infrastructure{
-		pool:          pool,
-		tsClient:      tsClient,
-		embedder:      embedder,
-		summarizer:    summarizer,
-		tokenProvider: tokenProvider,
-		hasher:        hasher,
+		pool:             pool,
+		tsClient:         tsClient,
+		embedder:         embedder,
+		summarizer:       summarizer,
+		tokenProvider:    tokenProvider,
+		hasher:           hasher,
+		accessTokenStore: accessTokenStore,
 	}
 }
 
@@ -117,25 +131,33 @@ type server struct {
 	tlsEnabled bool
 }
 
-func buildServer(cfg *config.Config, infra *infrastructure, logger *slog.Logger) *server {
+func buildServer(cfg *config.Config, infra *infrastructure, logger *slog.Logger) (*server, *service.AccessTokenService) {
 	entryRepo := postgres.NewEntryRepository(infra.pool)
 	tagRepo := postgres.NewTagRepository(infra.pool)
 	userRepo := postgres.NewUserRepository(infra.pool)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(infra.pool)
+	accessTokenRepo := postgres.NewAccessTokenRepository(infra.pool)
 
 	entrySvc := service.NewEntryService(entryRepo, tagRepo, typesense.NewIndexer(infra.tsClient), infra.embedder)
 	tagSvc := service.NewTagService(tagRepo)
 	searchSvc := service.NewSearchService(typesense.NewSearcher(infra.tsClient), infra.embedder)
 	authSvc := service.NewAuthService(userRepo, refreshTokenRepo, infra.tokenProvider, infra.hasher, infra.tokenProvider.RefreshTokenExpiry())
 
+	defaultTTL := cfg.Auth.AccessTokenDefaultExpiry
+	if defaultTTL == 0 {
+		defaultTTL = 90 * 24 * time.Hour // 90 days
+	}
+	accessTokenSvc := service.NewAccessTokenService(accessTokenRepo, infra.tokenProvider, infra.accessTokenStore, defaultTTL)
+
 	router := handler.SetupRouter(handler.RouterDeps{
-		Logger:    logger,
-		TokenGen:  infra.tokenProvider,
-		EntrySvc:  entrySvc,
-		TagSvc:    tagSvc,
-		SearchSvc: searchSvc,
-		AuthSvc:   authSvc,
-		UserRepo:  userRepo,
+		Logger:         logger,
+		TokenGen:       infra.tokenProvider,
+		EntrySvc:       entrySvc,
+		TagSvc:         tagSvc,
+		SearchSvc:      searchSvc,
+		AuthSvc:        authSvc,
+		AccessTokenSvc: accessTokenSvc,
+		UserRepo:       userRepo,
 		DBPing: func(ctx context.Context) error {
 			return infra.pool.Ping(ctx)
 		},
@@ -200,7 +222,7 @@ func buildServer(cfg *config.Config, infra *infrastructure, logger *slog.Logger)
 		httpServer: httpServer,
 		h3Server:   h3Srv,
 		tlsEnabled: tlsEnabled,
-	}
+	}, accessTokenSvc
 }
 
 func (s *server) run(ctx context.Context, logger *slog.Logger) {

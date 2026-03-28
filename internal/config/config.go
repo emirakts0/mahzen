@@ -88,9 +88,10 @@ type OpenAIConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret          string        `mapstructure:"jwt_secret"`
-	AccessTokenExpiry  time.Duration `mapstructure:"access_token_expiry"`
-	RefreshTokenExpiry time.Duration `mapstructure:"refresh_token_expiry"`
+	JWTSecret                string        `mapstructure:"jwt_secret"`
+	AccessTokenExpiry        time.Duration `mapstructure:"access_token_expiry"`
+	RefreshTokenExpiry       time.Duration `mapstructure:"refresh_token_expiry"`
+	AccessTokenDefaultExpiry time.Duration `mapstructure:"access_token_default_expiry"`
 }
 
 type LogConfig struct {

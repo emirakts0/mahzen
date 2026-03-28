@@ -5,23 +5,20 @@ import { useAuth } from "@/providers/auth-provider";
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultMode?: "login" | "signup";
 }
 
-export function AuthModal({ isOpen, onClose, defaultMode = "login" }: AuthModalProps) {
-  const [mode, setMode] = useState<"login" | "signup">(defaultMode);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
+export function AuthModal({ isOpen, onClose }: AuthModalProps) {
+  const [serverUrl, setServerUrl] = useState("https://localhost:8080");
+  const [accessToken, setAccessToken] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { login, register } = useAuth();
+  const { connect } = useAuth();
 
   useEffect(() => {
     if (isOpen) {
-      setMode(defaultMode);
+      setError("");
     }
-  }, [isOpen, defaultMode]);
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,14 +26,10 @@ export function AuthModal({ isOpen, onClose, defaultMode = "login" }: AuthModalP
     setIsLoading(true);
 
     try {
-      if (mode === "login") {
-        await login({ email, password });
-      } else {
-        await register({ email, password, display_name: displayName || undefined });
-      }
+      await connect(serverUrl, accessToken);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(err instanceof Error ? err.message : "Connection failed");
     } finally {
       setIsLoading(false);
     }
@@ -61,7 +54,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = "login" }: AuthModalP
             className="text-sm font-semibold"
             style={{ color: "var(--glass-text)" }}
           >
-            {mode === "login" ? "Sign In" : "Create Account"}
+            Connect to Server
           </h2>
           <button
             onClick={onClose}
@@ -73,40 +66,17 @@ export function AuthModal({ isOpen, onClose, defaultMode = "login" }: AuthModalP
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          {mode === "signup" && (
-            <div>
-              <label
-                className="mb-1 block text-xs"
-                style={{ color: "var(--glass-text-muted)" }}
-              >
-                Display Name
-              </label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="h-9 w-full rounded-md border px-3 text-sm outline-none"
-                style={{
-                  background: "var(--glass-hover)",
-                  borderColor: "var(--glass-border)",
-                  color: "var(--glass-text)",
-                }}
-                placeholder="Your name"
-              />
-            </div>
-          )}
-
           <div>
             <label
               className="mb-1 block text-xs"
               style={{ color: "var(--glass-text-muted)" }}
             >
-              Email
+              Server URL
             </label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="url"
+              value={serverUrl}
+              onChange={(e) => setServerUrl(e.target.value)}
               required
               className="h-9 w-full rounded-md border px-3 text-sm outline-none"
               style={{
@@ -114,7 +84,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = "login" }: AuthModalP
                 borderColor: "var(--glass-border)",
                 color: "var(--glass-text)",
               }}
-              placeholder="you@example.com"
+              placeholder="https://your-server.com"
             />
           </div>
 
@@ -123,21 +93,20 @@ export function AuthModal({ isOpen, onClose, defaultMode = "login" }: AuthModalP
               className="mb-1 block text-xs"
               style={{ color: "var(--glass-text-muted)" }}
             >
-              Password
+              Access Token
             </label>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={accessToken}
+              onChange={(e) => setAccessToken(e.target.value)}
               required
-              minLength={8}
-              className="h-9 w-full rounded-md border px-3 text-sm outline-none"
+              className="h-9 w-full rounded-md border px-3 text-sm outline-none font-mono"
               style={{
                 background: "var(--glass-hover)",
                 borderColor: "var(--glass-border)",
                 color: "var(--glass-text)",
               }}
-              placeholder="********"
+              placeholder="mah_..."
             />
           </div>
 
@@ -161,25 +130,11 @@ export function AuthModal({ isOpen, onClose, defaultMode = "login" }: AuthModalP
           >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
-            ) : mode === "login" ? (
-              "Sign In"
             ) : (
-              "Create Account"
+              "Connect"
             )}
           </button>
         </form>
-
-        <div className="mt-3 text-center">
-          <button
-            onClick={() => setMode(mode === "login" ? "signup" : "login")}
-            className="text-xs transition-opacity hover:opacity-80"
-            style={{ color: "var(--glass-text-muted)" }}
-          >
-            {mode === "login"
-              ? "Don't have an account? Sign up"
-              : "Already have an account? Sign in"}
-          </button>
-        </div>
       </div>
     </div>
   );

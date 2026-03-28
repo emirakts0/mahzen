@@ -183,6 +183,33 @@ export interface ListTagsParams {
 }
 
 // ─────────────────────────────────────────────
+// Access Tokens
+// ─────────────────────────────────────────────
+
+export interface AccessToken {
+  id: string
+  name: string
+  prefix: string
+  status: "active" | "revoked" | "expired"
+  expires_at: string
+  created_at: string
+}
+
+export interface AccessTokenListResponse {
+  tokens: AccessToken[]
+}
+
+export interface CreateTokenRequest {
+  name: string
+  expires_in?: string
+}
+
+export interface CreateTokenResponse {
+  token: AccessToken
+  raw_token: string
+}
+
+// ─────────────────────────────────────────────
 // API Error
 // ─────────────────────────────────────────────
 

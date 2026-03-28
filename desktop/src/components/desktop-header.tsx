@@ -5,7 +5,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { BookOpen, Search, LogOut, Settings, LogIn, UserPlus } from "lucide-react"
+import { BookOpen, Search, LogOut, Settings, LogIn } from "lucide-react"
 import { useAuth } from "@/providers/auth-provider"
 
 const NAV_ITEMS = [
@@ -17,16 +17,14 @@ interface DesktopHeaderProps {
   viewMode: "search" | "entries"
   onViewModeChange: (mode: "search" | "entries") => void
   onSettingsClick: () => void
-  onLoginClick: () => void
-  onSignupClick: () => void
+  onConnectClick: () => void
 }
 
-export function DesktopHeader({ 
-  viewMode, 
-  onViewModeChange, 
-  onSettingsClick, 
-  onLoginClick,
-  onSignupClick,
+export function DesktopHeader({
+  viewMode,
+  onViewModeChange,
+  onSettingsClick,
+  onConnectClick,
 }: DesktopHeaderProps) {
   const { user, isAuthenticated, logout } = useAuth()
 
@@ -132,20 +130,7 @@ export function DesktopHeader({
             <div className="mx-1 h-4 w-px" style={{ background: "var(--glass-divider)" }} />
 
             <button
-              onClick={onLoginClick}
-              className="flex h-7 items-center gap-1.5 rounded-xl px-3 text-xs font-medium transition-colors"
-              style={{
-                background: "transparent",
-                color: "var(--glass-text-muted)",
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--glass-bg)" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              Login
-            </button>
-            <button
-              onClick={onSignupClick}
+              onClick={onConnectClick}
               className="flex h-7 items-center gap-1.5 rounded-xl px-3 text-xs font-medium transition-colors"
               style={{
                 background: "var(--glass-hover)",
@@ -153,8 +138,8 @@ export function DesktopHeader({
                 color: "var(--glass-text)",
               }}
             >
-              <UserPlus className="h-3.5 w-3.5" />
-              Sign up
+              <LogIn className="h-3.5 w-3.5" />
+              Connect
             </button>
           </>
         )}

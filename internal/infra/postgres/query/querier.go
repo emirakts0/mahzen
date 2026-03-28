@@ -18,6 +18,7 @@ type Querier interface {
 	CountEntriesByUser(ctx context.Context, userID pgtype.UUID) (int64, error)
 	CountEntriesInPath(ctx context.Context, arg CountEntriesInPathParams) (int64, error)
 	CountTags(ctx context.Context) (int64, error)
+	CreateAccessToken(ctx context.Context, arg CreateAccessTokenParams) (AccessToken, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteEntry(ctx context.Context, id pgtype.UUID) error
@@ -25,6 +26,7 @@ type Querier interface {
 	DeleteRefreshTokensByUserID(ctx context.Context, userID pgtype.UUID) error
 	DeleteTag(ctx context.Context, id pgtype.UUID) error
 	DetachTagFromEntry(ctx context.Context, arg DetachTagFromEntryParams) error
+	GetAccessTokenByHash(ctx context.Context, tokenHash string) (AccessToken, error)
 	GetEntryByID(ctx context.Context, id pgtype.UUID) (GetEntryByIDRow, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
 	GetTagByID(ctx context.Context, id pgtype.UUID) (Tag, error)
@@ -33,6 +35,7 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	InsertEntry(ctx context.Context, arg InsertEntryParams) (InsertEntryRow, error)
 	InsertTag(ctx context.Context, arg InsertTagParams) (Tag, error)
+	ListAccessTokensByUserID(ctx context.Context, userID pgtype.UUID) ([]AccessToken, error)
 	ListAccessibleEntries(ctx context.Context, arg ListAccessibleEntriesParams) ([]ListAccessibleEntriesRow, error)
 	ListAccessibleEntriesByPath(ctx context.Context, arg ListAccessibleEntriesByPathParams) ([]ListAccessibleEntriesByPathRow, error)
 	ListAllEntries(ctx context.Context) ([]ListAllEntriesRow, error)
@@ -44,6 +47,9 @@ type Querier interface {
 	ListTags(ctx context.Context, arg ListTagsParams) ([]Tag, error)
 	ListTagsByEntries(ctx context.Context, dollar_1 []pgtype.UUID) ([]ListTagsByEntriesRow, error)
 	ListTagsByEntry(ctx context.Context, entryID pgtype.UUID) ([]Tag, error)
+	LoadAllActiveAccessTokens(ctx context.Context) ([]AccessToken, error)
+	MarkAccessTokensExpiredBatch(ctx context.Context, dollar_1 []pgtype.UUID) error
+	UpdateAccessTokenStatus(ctx context.Context, arg UpdateAccessTokenStatusParams) error
 	UpdateEntry(ctx context.Context, arg UpdateEntryParams) (UpdateEntryRow, error)
 	UpdateEntryEmbedding(ctx context.Context, arg UpdateEntryEmbeddingParams) error
 }

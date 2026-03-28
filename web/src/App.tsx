@@ -4,6 +4,7 @@ import RootLayout from "@/components/layout/root-layout"
 
 const SearchPage = lazy(() => import("@/pages/search-page"))
 const EntriesPage = lazy(() => import("@/pages/entries-page"))
+const TokensPage = lazy(() => import("@/pages/tokens-page"))
 
 function PageLoader() {
   return (
@@ -35,6 +36,14 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<PageLoader />}>
             <EntriesPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: "tokens",
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <TokensPage />
           </Suspense>
         ),
       },

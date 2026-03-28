@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { BookOpen, Search, LogOut, Moon, Sun, LogIn, UserPlus } from "lucide-react"
+import { BookOpen, Search, LogOut, Moon, Sun, LogIn, UserPlus, Key } from "lucide-react"
 
 const NAV_ITEMS = [
   { to: "/search", label: "Search", icon: Search },
@@ -122,6 +122,15 @@ export function Header() {
                   <p className="text-xs font-medium" style={{ color: "var(--glass-text)" }}>{user?.display_name || "User"}</p>
                   <p className="truncate text-xs" style={{ color: "var(--glass-text-muted)" }}>{user?.email}</p>
                 </div>
+                <DropdownMenuSeparator style={{ background: "var(--glass-divider)" }} />
+                <DropdownMenuItem
+                  className="flex cursor-pointer items-center gap-2"
+                  style={{ color: "var(--glass-text)" }}
+                  onClick={() => void navigate("/tokens")}
+                >
+                  <Key className="h-3.5 w-3.5" />
+                  API Tokens
+                </DropdownMenuItem>
                 <DropdownMenuSeparator style={{ background: "var(--glass-divider)" }} />
                 <DropdownMenuItem
                   className="flex cursor-pointer items-center gap-2 focus:bg-destructive/10"

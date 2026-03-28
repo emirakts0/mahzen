@@ -40,7 +40,6 @@ export function DesktopSearch() {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
-  const [authMode, setAuthMode] = useState<"login" | "signup">("login")
   const [configLoaded, setConfigLoaded] = useState(false)
   const [backendUrl, setBackendUrl] = useState<string | null>(null)
   const [previewEntryId, setPreviewEntryId] = useState<string | null>(null)
@@ -207,18 +206,11 @@ export function DesktopSearch() {
     clearBaseUrlCache()
     setSettingsOpen(false)
     if (newUrl && !isAuthenticated) {
-      setAuthMode("login")
       setAuthModalOpen(true)
     }
   }, [isAuthenticated])
 
-  const handleLoginClick = useCallback(() => {
-    setAuthMode("login")
-    setAuthModalOpen(true)
-  }, [])
-
-  const handleSignupClick = useCallback(() => {
-    setAuthMode("signup")
+  const handleConnectClick = useCallback(() => {
     setAuthModalOpen(true)
   }, [])
 
@@ -256,8 +248,7 @@ export function DesktopSearch() {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           onSettingsClick={() => setSettingsOpen(true)}
-          onLoginClick={handleLoginClick}
-          onSignupClick={handleSignupClick}
+          onConnectClick={handleConnectClick}
         />
       </motion.div>
 
@@ -538,7 +529,6 @@ export function DesktopSearch() {
       <AuthModal
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
-        defaultMode={authMode}
       />
       <CreateEntryDialog open={createOpen} onOpenChange={setCreateOpen} defaultPath="/" />
       <EntryPreviewModal entryId={previewEntryId} onClose={() => setPreviewEntryId(null)} />
