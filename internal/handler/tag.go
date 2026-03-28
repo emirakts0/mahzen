@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -81,19 +80,7 @@ func (h *tagHandler) getTag(c *gin.Context) {
 }
 
 func (h *tagHandler) listTags(c *gin.Context) {
-	limit := 20
-	if l := c.Query("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 {
-			limit = v
-		}
-	}
-
-	offset := 0
-	if o := c.Query("offset"); o != "" {
-		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
-			offset = v
-		}
-	}
+	limit, offset := parsePagination(c, 20)
 
 	tags, total, err := h.svc.ListTags(c.Request.Context(), limit, offset)
 	if err != nil {

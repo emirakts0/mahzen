@@ -140,7 +140,7 @@ func (s *Searcher) SemanticSearch(ctx context.Context, embedding []float32, user
 // buildFilterBy creates a Typesense filter_by expression that enforces
 // visibility rules and applies optional filters for tags, path, date range, etc.
 func buildFilterBy(userID string, filters *domain.SearchFilters) string {
-	var conditions []string
+	conditions := make([]string, 0, 6)
 
 	// Visibility filter with security
 	// - public: anyone can see
@@ -219,6 +219,9 @@ func mapSearchResults(result *api.SearchResult) ([]*domain.SearchResult, int, er
 
 	results := make([]*domain.SearchResult, 0, len(*result.Hits))
 	for _, hit := range *result.Hits {
+		if hit.Document == nil {
+			continue
+		}
 		doc := *hit.Document
 		sr := &domain.SearchResult{
 			EntryID:    stringFromDoc(doc, "entry_id"),
@@ -272,7 +275,7 @@ func mapSearchResults(result *api.SearchResult) ([]*domain.SearchResult, int, er
 }
 
 // stringFromDoc safely extracts a string value from a document map.
-func stringFromDoc(doc map[string]interface{}, key string) string {
+func stringFromDoc(doc map[string]any, key string) string {
 	v, ok := doc[key]
 	if !ok {
 		return ""
@@ -286,7 +289,7 @@ func stringFromDoc(doc map[string]interface{}, key string) string {
 
 // stringsFromDoc safely extracts a []string value from a document map.
 // Typesense returns string arrays as []interface{} with string elements.
-func stringsFromDoc(doc map[string]interface{}, key string) []string {
+func stringsFromDoc(doc map[string]any, key string) []string {
 	v, ok := doc[key]
 	if !ok {
 		return nil
@@ -306,7 +309,7 @@ func stringsFromDoc(doc map[string]interface{}, key string) []string {
 
 // int64FromDoc safely extracts an int64 value from a document map.
 // Typesense returns numbers as float64 in JSON.
-func int64FromDoc(doc map[string]interface{}, key string) int64 {
+func int64FromDoc(doc map[string]any, key string) int64 {
 	v, ok := doc[key]
 	if !ok {
 		return 0
@@ -335,11 +338,4 @@ func floatsToString(fs []float32) string {
 		b.WriteString(strconv.FormatFloat(float64(f), 'f', -1, 32))
 	}
 	return b.String()
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

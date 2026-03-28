@@ -18,7 +18,6 @@ CREATE TABLE entries (
     title      TEXT        NOT NULL,
     content    TEXT        NOT NULL DEFAULT '',
     summary    TEXT        NOT NULL DEFAULT '',
-    s3_key     TEXT        NOT NULL DEFAULT '',
     path       TEXT        NOT NULL DEFAULT '/',
     visibility TEXT        NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

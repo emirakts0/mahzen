@@ -286,25 +286,7 @@ func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, o
 		}
 	}
 
-	// Build filter params
-	filterVisibility := ""
-	var fromDate, toDate pgtype.Timestamptz
-	var filterTags []string
-
-	if filter != nil {
-		if filter.Visibility != "" {
-			filterVisibility = filter.Visibility
-		}
-		if !filter.FromDate.IsZero() {
-			fromDate = pgtype.Timestamptz{Time: filter.FromDate, Valid: true}
-		}
-		if !filter.ToDate.IsZero() {
-			toDate = pgtype.Timestamptz{Time: filter.ToDate, Valid: true}
-		}
-		if len(filter.Tags) > 0 {
-			filterTags = filter.Tags
-		}
-	}
+	filterVisibility, fromDate, toDate, filterTags := extractFilterParams(filter)
 
 	entries, err := r.q.ListEntriesInPath(ctx, query.ListEntriesInPathParams{
 		UserID:           uid,
@@ -364,25 +346,7 @@ func (r *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, pref
 		}
 	}
 
-	// Build filter params
-	filterVisibility := ""
-	var fromDate, toDate pgtype.Timestamptz
-	var filterTags []string
-
-	if filter != nil {
-		if filter.Visibility != "" {
-			filterVisibility = filter.Visibility
-		}
-		if !filter.FromDate.IsZero() {
-			fromDate = pgtype.Timestamptz{Time: filter.FromDate, Valid: true}
-		}
-		if !filter.ToDate.IsZero() {
-			toDate = pgtype.Timestamptz{Time: filter.ToDate, Valid: true}
-		}
-		if len(filter.Tags) > 0 {
-			filterTags = filter.Tags
-		}
-	}
+	filterVisibility, fromDate, toDate, filterTags := extractFilterParams(filter)
 
 	var paths []string
 	var err error
@@ -413,6 +377,29 @@ func (r *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, pref
 	}
 
 	return paths, nil
+}
+
+func extractFilterParams(filter *domain.ListEntriesFilter) (string, pgtype.Timestamptz, pgtype.Timestamptz, []string) {
+	var filterVisibility string
+	var fromDate, toDate pgtype.Timestamptz
+	var filterTags []string
+
+	if filter != nil {
+		if filter.Visibility != "" {
+			filterVisibility = filter.Visibility
+		}
+		if !filter.FromDate.IsZero() {
+			fromDate = pgtype.Timestamptz{Time: filter.FromDate, Valid: true}
+		}
+		if !filter.ToDate.IsZero() {
+			toDate = pgtype.Timestamptz{Time: filter.ToDate, Valid: true}
+		}
+		if len(filter.Tags) > 0 {
+			filterTags = filter.Tags
+		}
+	}
+
+	return filterVisibility, fromDate, toDate, filterTags
 }
 
 // parseUUID converts a string UUID to pgtype.UUID.

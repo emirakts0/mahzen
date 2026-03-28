@@ -78,10 +78,18 @@ func NormalizePath(p string) (string, error) {
 		return "/", nil
 	}
 
-	// Collapse consecutive slashes.
-	for strings.Contains(p, "//") {
-		p = strings.ReplaceAll(p, "//", "/")
+	// Collapse consecutive slashes in a single pass.
+	parts := strings.Split(p, "/")
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part != "" {
+			filtered = append(filtered, part)
+		}
 	}
+	if len(filtered) == 0 {
+		return "/", nil
+	}
+	p = "/" + strings.Join(filtered, "/")
 
 	// Validate each segment.
 	segments := strings.Split(p[1:], "/") // skip leading "/"
@@ -127,6 +135,18 @@ func isPathRune(r rune) bool {
 		return true
 	}
 	return false
+}
+
+// EmbedText returns the text suitable for generating an embedding.
+// It uses the content, falling back to title + summary.
+func (e *Entry) EmbedText() string {
+	if e.Content != "" {
+		return e.Content
+	}
+	if e.Summary != "" {
+		return e.Title + " " + e.Summary
+	}
+	return e.Title
 }
 
 // ListEntriesFilter contains optional filters for listing entries.

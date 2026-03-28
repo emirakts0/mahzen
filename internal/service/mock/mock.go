@@ -74,8 +74,6 @@ func (m *EntryRepository) UpdateEmbedding(ctx context.Context, entryID string, e
 // ---------------------------------------------------------------------------
 // TagRepository
 // ---------------------------------------------------------------------------
-// TagRepository
-// ---------------------------------------------------------------------------
 
 // TagRepository is a test double for domain.TagRepository.
 type TagRepository struct {

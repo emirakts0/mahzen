@@ -114,7 +114,7 @@ func TestNormalizePath_SegmentTooLong(t *testing.T) {
 func TestNormalizePath_PathTooLong(t *testing.T) {
 	// Build a path that exceeds 4096 bytes using many valid segments.
 	var segments []string
-	for i := 0; i < 500; i++ {
+	for range 500 {
 		segments = append(segments, strings.Repeat("x", 10))
 	}
 	longPath := "/" + strings.Join(segments, "/")

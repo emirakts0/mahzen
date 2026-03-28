@@ -3,7 +3,6 @@ package handler
 import (
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -179,19 +178,7 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 	fromDate := c.Query("from_date")
 	toDate := c.Query("to_date")
 
-	limit := 20
-	if l := c.Query("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v >= 0 {
-			limit = v
-		}
-	}
-
-	offset := 0
-	if o := c.Query("offset"); o != "" {
-		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
-			offset = v
-		}
-	}
+	limit, offset := parsePagination(c, 20)
 
 	// Build filter
 	filter := &domain.ListEntriesFilter{}

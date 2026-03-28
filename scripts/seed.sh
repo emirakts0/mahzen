@@ -16,10 +16,10 @@ warn()    { echo -e "${YELLOW}[!]${NC} $*"; }
 die()     { echo -e "${RED}[✗]${NC} $*" >&2; exit 1; }
 
 # ─── Register & login ─────────────────────────────────────────────────────────
-info "Kullanıcı kaydediliyor: emir@mahzen.dev"
+info "Kullanıcı kaydediliyor: emir@emir.com"
 REG=$($CURL -X POST "$BASE/v1/auth/register" \
   -H "Content-Type: application/json" \
-  -d '{"email":"emir@mahzen.dev","display_name":"Emir","password":"mahzen123"}')
+  -d '{"email":"emir@emir.com","display_name":"Emir","password":"emir1234"}')
 
 ACCESS=$(echo "$REG" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4 || true)
 REFRESH=$(echo "$REG" | grep -o '"refresh_token":"[^"]*"' | cut -d'"' -f4 || true)
@@ -28,7 +28,7 @@ if [ -z "$ACCESS" ]; then
   warn "Kayıt başarısız, giriş deneniyor (kullanıcı zaten var)"
   LOGIN=$($CURL -X POST "$BASE/v1/auth/login" \
     -H "Content-Type: application/json" \
-    -d '{"email":"emir@mahzen.dev","password":"mahzen123"}')
+    -d '{"email":"emir@emir.com","password":"emir1234"}')
   ACCESS=$(echo "$LOGIN" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4 || true)
   REFRESH=$(echo "$LOGIN" | grep -o '"refresh_token":"[^"]*"' | cut -d'"' -f4 || true)
 fi
@@ -1335,7 +1335,7 @@ echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}  Seed tamamlandı!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "  Kullanıcı  : emir@mahzen.dev / mahzen123"
+echo -e "  Kullanıcı  : emir@emir.com / emir1234"
 echo -e "  Taglar     : 15"
 echo -e "  Entry'ler  : $created"
 echo -e "  Yollar     : /notlar/golang, /notlar/veritabani,"

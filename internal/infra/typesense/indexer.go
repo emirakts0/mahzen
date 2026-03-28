@@ -107,13 +107,13 @@ func (idx *Indexer) DeleteEntry(ctx context.Context, id string) error {
 // For binary file types (e.g. mp4, zip) the content field is omitted from the
 // index so only the summary is searchable. Text-readable entries always have
 // their full content indexed.
-func buildDocument(entry *domain.Entry, tags []*domain.Tag, embedding []float32) map[string]interface{} {
+func buildDocument(entry *domain.Entry, tags []*domain.Tag, embedding []float32) map[string]any {
 	tagNames := make([]string, len(tags))
 	for i, t := range tags {
 		tagNames[i] = t.Name
 	}
 
-	doc := map[string]interface{}{
+	doc := map[string]any{
 		"id":         entry.ID,
 		"entry_id":   entry.ID,
 		"user_id":    entry.UserID,
@@ -145,53 +145,54 @@ func buildDocument(entry *domain.Entry, tags []*domain.Tag, embedding []float32)
 
 // textReadableTypes is the set of file extensions that contain human-readable text
 // and whose content should be indexed for full-text search.
-var textReadableTypes = map[string]bool{
-	"":      true, // plain text entry (no file type)
-	"txt":   true,
-	"md":    true,
-	"go":    true,
-	"java":  true,
-	"py":    true,
-	"js":    true,
-	"ts":    true,
-	"jsx":   true,
-	"tsx":   true,
-	"css":   true,
-	"html":  true,
-	"htm":   true,
-	"xml":   true,
-	"json":  true,
-	"yaml":  true,
-	"yml":   true,
-	"toml":  true,
-	"ini":   true,
-	"sh":    true,
-	"bash":  true,
-	"zsh":   true,
-	"rs":    true,
-	"c":     true,
-	"cpp":   true,
-	"h":     true,
-	"hpp":   true,
-	"cs":    true,
-	"rb":    true,
-	"php":   true,
-	"sql":   true,
-	"r":     true,
-	"kt":    true,
-	"swift": true,
-	"scala": true,
-	"lua":   true,
-	"pl":    true,
-	"csv":   true,
-	"log":   true,
-	"conf":  true,
-	"env":   true,
-	"tf":    true,
+var textReadableTypes = map[string]struct{}{
+	"":      {}, // plain text entry (no file type)
+	"txt":   {},
+	"md":    {},
+	"go":    {},
+	"java":  {},
+	"py":    {},
+	"js":    {},
+	"ts":    {},
+	"jsx":   {},
+	"tsx":   {},
+	"css":   {},
+	"html":  {},
+	"htm":   {},
+	"xml":   {},
+	"json":  {},
+	"yaml":  {},
+	"yml":   {},
+	"toml":  {},
+	"ini":   {},
+	"sh":    {},
+	"bash":  {},
+	"zsh":   {},
+	"rs":    {},
+	"c":     {},
+	"cpp":   {},
+	"h":     {},
+	"hpp":   {},
+	"cs":    {},
+	"rb":    {},
+	"php":   {},
+	"sql":   {},
+	"r":     {},
+	"kt":    {},
+	"swift": {},
+	"scala": {},
+	"lua":   {},
+	"pl":    {},
+	"csv":   {},
+	"log":   {},
+	"conf":  {},
+	"env":   {},
+	"tf":    {},
 }
 
 // isTextReadable reports whether the given file extension corresponds to a
 // human-readable text format that should have its content indexed.
 func isTextReadable(fileType string) bool {
-	return textReadableTypes[fileType]
+	_, ok := textReadableTypes[fileType]
+	return ok
 }

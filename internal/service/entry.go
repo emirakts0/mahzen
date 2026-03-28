@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -163,7 +163,9 @@ func (s *EntryService) UpdateEntry(ctx context.Context, id, title, content, path
 	existingTags, err := s.tags.ListByEntry(ctx, id)
 	if err == nil {
 		for _, t := range existingTags {
-			_ = s.tags.DetachFromEntry(ctx, id, t.ID)
+			if err := s.tags.DetachFromEntry(ctx, id, t.ID); err != nil {
+				slog.Warn("failed to detach tag during update", "entry_id", id, "tag_id", t.ID, "error", err)
+			}
 		}
 	}
 	for _, tagID := range tagIDs {
@@ -264,14 +266,7 @@ func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, con
 		tags = append(tags, tag)
 	}
 
-	// Use content for embedding; fall back to title + summary.
-	embedText := content
-	if embedText == "" {
-		embedText = entry.Title
-		if entry.Summary != "" {
-			embedText += " " + entry.Summary
-		}
-	}
+	embedText := entry.EmbedText()
 
 	slog.Info("generating embedding for entry",
 		"entry_id", entry.ID,
@@ -324,7 +319,7 @@ func (s *EntryService) ListFolders(ctx context.Context, userID string) ([]string
 		return nil, fmt.Errorf("listing folders: %w", err)
 	}
 
-	folderSet := make(map[string]struct{})
+	folderSet := make(map[string]struct{}, len(paths)*2)
 	for _, p := range paths {
 		folderSet[p] = struct{}{}
 		segments := strings.Split(p, "/")
@@ -342,14 +337,10 @@ func (s *EntryService) ListFolders(ctx context.Context, userID string) ([]string
 		folders = append(folders, f)
 	}
 
-	sortFolders(folders)
+	slices.Sort(folders)
 
 	slog.Info("folders listed", "user_id", userID, "count", len(folders))
 	return folders, nil
-}
-
-func sortFolders(folders []string) {
-	sort.Strings(folders)
 }
 
 // ListChildren returns entries directly in a path and direct subfolders with counts.
@@ -421,8 +412,15 @@ func extractFolderInfos(prefix string, paths []string) []FolderInfo {
 		folderInfos = append(folderInfos, FolderInfo{Path: path, Count: count})
 	}
 
-	sort.Slice(folderInfos, func(i, j int) bool {
-		return folderInfos[i].Path < folderInfos[j].Path
+	slices.SortFunc(folderInfos, func(a, b FolderInfo) int {
+		switch {
+		case a.Path < b.Path:
+			return -1
+		case a.Path > b.Path:
+			return 1
+		default:
+			return 0
+		}
 	})
 
 	return folderInfos

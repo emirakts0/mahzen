@@ -64,13 +64,7 @@ func main() {
 			"title", entry.Title,
 		)
 
-		embedText := entry.Content
-		if embedText == "" {
-			embedText = entry.Title
-			if entry.Summary != "" {
-				embedText += " " + entry.Summary
-			}
-		}
+		embedText := entry.EmbedText()
 
 		embedding, err := embedder.Embed(ctx, embedText)
 		if err != nil {

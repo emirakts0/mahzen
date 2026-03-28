@@ -12,6 +12,47 @@ import (
 	"github.com/emirakts0/mahzen/internal/service"
 )
 
+func parsePagination(c *gin.Context, defaultLimit int) (limit, offset int) {
+	limit = defaultLimit
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+	return
+}
+
+func domainSearchResultsToResponses(results []*domain.SearchResult, userID string) []searchResultResponse {
+	items := make([]searchResultResponse, len(results))
+	for i, r := range results {
+		highlights := make([]highlightResponse, len(r.Highlights))
+		for j, h := range r.Highlights {
+			highlights[j] = highlightResponse{Field: h.Field, Snippet: h.Snippet}
+		}
+		items[i] = searchResultResponse{
+			EntryID:    r.EntryID,
+			IsMine:     r.UserID == userID,
+			Title:      r.Title,
+			Summary:    r.Summary,
+			Content:    r.Content,
+			Score:      r.Score,
+			Highlights: highlights,
+			Path:       r.Path,
+			Visibility: r.Visibility,
+			Tags:       r.Tags,
+			CreatedAt:  r.CreatedAt,
+			FileType:   r.FileType,
+			FileSize:   r.FileSize,
+		}
+	}
+	return items
+}
+
 // searchHandler implements the search HTTP handlers.
 type searchHandler struct {
 	svc *service.SearchService
@@ -50,19 +91,7 @@ func (h *searchHandler) keywordSearch(c *gin.Context) {
 	userID := userIDFromContext(c)
 	filters := parseSearchFilters(c)
 
-	limit := 20
-	if l := c.Query("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 {
-			limit = v
-		}
-	}
-
-	offset := 0
-	if o := c.Query("offset"); o != "" {
-		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
-			offset = v
-		}
-	}
+	limit, offset := parsePagination(c, 20)
 
 	results, total, err := h.svc.KeywordSearch(c.Request.Context(), query, userID, filters, limit, offset)
 	if err != nil {
@@ -70,30 +99,8 @@ func (h *searchHandler) keywordSearch(c *gin.Context) {
 		return
 	}
 
-	items := make([]searchResultResponse, len(results))
-	for i, r := range results {
-		highlights := make([]highlightResponse, len(r.Highlights))
-		for j, h := range r.Highlights {
-			highlights[j] = highlightResponse{Field: h.Field, Snippet: h.Snippet}
-		}
-		items[i] = searchResultResponse{
-			EntryID:    r.EntryID,
-			IsMine:     r.UserID == userID,
-			Title:      r.Title,
-			Summary:    r.Summary,
-			Content:    r.Content,
-			Highlights: highlights,
-			Path:       r.Path,
-			Visibility: r.Visibility,
-			Tags:       r.Tags,
-			CreatedAt:  r.CreatedAt,
-			FileType:   r.FileType,
-			FileSize:   r.FileSize,
-		}
-	}
-
 	c.JSON(http.StatusOK, gin.H{
-		"results": items,
+		"results": domainSearchResultsToResponses(results, userID),
 		"total":   total,
 	})
 }
@@ -103,19 +110,7 @@ func (h *searchHandler) semanticSearch(c *gin.Context) {
 	userID := userIDFromContext(c)
 	filters := parseSearchFilters(c)
 
-	limit := 20
-	if l := c.Query("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 {
-			limit = v
-		}
-	}
-
-	offset := 0
-	if o := c.Query("offset"); o != "" {
-		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
-			offset = v
-		}
-	}
+	limit, offset := parsePagination(c, 20)
 
 	results, total, err := h.svc.SemanticSearch(c.Request.Context(), query, userID, filters, limit, offset)
 	if err != nil {
@@ -123,31 +118,8 @@ func (h *searchHandler) semanticSearch(c *gin.Context) {
 		return
 	}
 
-	items := make([]searchResultResponse, len(results))
-	for i, r := range results {
-		highlights := make([]highlightResponse, len(r.Highlights))
-		for j, h := range r.Highlights {
-			highlights[j] = highlightResponse{Field: h.Field, Snippet: h.Snippet}
-		}
-		items[i] = searchResultResponse{
-			EntryID:    r.EntryID,
-			IsMine:     r.UserID == userID,
-			Title:      r.Title,
-			Summary:    r.Summary,
-			Content:    r.Content,
-			Score:      r.Score,
-			Highlights: highlights,
-			Path:       r.Path,
-			Visibility: r.Visibility,
-			Tags:       r.Tags,
-			CreatedAt:  r.CreatedAt,
-			FileType:   r.FileType,
-			FileSize:   r.FileSize,
-		}
-	}
-
 	c.JSON(http.StatusOK, gin.H{
-		"results": items,
+		"results": domainSearchResultsToResponses(results, userID),
 		"total":   total,
 	})
 }
