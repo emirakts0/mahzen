@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { X, Loader2 } from "lucide-react";
-import { clearBaseUrlCache } from "@/api/client";
+import { clearBaseUrlCache, tokenStorage } from "@/api/client";
 
 interface AppConfig {
   backend_url: string;
@@ -11,25 +11,44 @@ interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onSave?: (url: string) => void;
+  onTokenChange?: (serverUrl: string, accessToken: string) => Promise<void>;
+  isAuthenticated: boolean;
 }
 
-export function SettingsPanel({ isOpen, onClose, onSave }: SettingsPanelProps) {
+export function SettingsPanel({ isOpen, onClose, onSave, onTokenChange, isAuthenticated }: SettingsPanelProps) {
   const [url, setUrl] = useState("");
+  const [token, setToken] = useState("");
+  const [originalToken, setOriginalToken] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const loadedRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
       loadConfig();
+    } else {
+      loadedRef.current = false;
     }
   }, [isOpen]);
 
   const loadConfig = async () => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
     try {
       const config = await invoke<AppConfig>("get_config");
       setUrl(config.backend_url);
+      if (isAuthenticated) {
+        const stored = tokenStorage.getAccess();
+        if (stored) {
+          setOriginalToken(stored);
+          setToken(stored);
+        }
+      } else {
+        setOriginalToken("");
+        setToken("");
+      }
       setError("");
-    } catch (e) {
+    } catch {
       setError("Failed to load config");
     }
   };
@@ -37,15 +56,31 @@ export function SettingsPanel({ isOpen, onClose, onSave }: SettingsPanelProps) {
   const saveConfig = async () => {
     setIsSaving(true);
     try {
+      const tokenChanged = isAuthenticated && token !== originalToken;
       await invoke("set_config", { config: { backend_url: url } });
       clearBaseUrlCache();
+
+      if (tokenChanged && onTokenChange) {
+        await onTokenChange(url, token);
+      }
+
       onSave?.(url);
-    } catch (e) {
+    } catch {
       setError("Failed to save config");
     } finally {
       setIsSaving(false);
     }
   };
+
+  const maskToken = (t: string) => {
+    if (!t) return "";
+    if (t.length <= 8) return "mah_••••••";
+    return t.slice(0, 4) + "••••••" + t.slice(-4);
+  };
+
+  // null = not editing (show masked), string = editing (show raw)
+  const [editingValue, setEditingValue] = useState<string | null>(null);
+  const tokenDisplay = editingValue !== null ? editingValue : (token ? maskToken(token) : "");
 
   if (!isOpen) return null;
 
@@ -101,6 +136,38 @@ export function SettingsPanel({ isOpen, onClose, onSave }: SettingsPanelProps) {
               placeholder="https://localhost:8080"
             />
           </div>
+
+          {isAuthenticated && (
+            <div>
+              <label
+                className="mb-1 block text-xs"
+                style={{ color: "var(--glass-text-muted)" }}
+              >
+                Access Token
+              </label>
+              <input
+                type="text"
+                value={tokenDisplay}
+                onChange={(e) => {
+                  setEditingValue(e.target.value);
+                  setError("");
+                }}
+                onFocus={() => setEditingValue(token)}
+                onBlur={() => {
+                  const newToken = editingValue ?? token;
+                  setToken(newToken);
+                  setEditingValue(null);
+                }}
+                className="h-9 w-full rounded-md border px-3 font-mono text-sm outline-none"
+                style={{
+                  background: "var(--glass-hover)",
+                  borderColor: "var(--glass-border)",
+                  color: "var(--glass-text)",
+                }}
+                placeholder="mah_..."
+              />
+            </div>
+          )}
 
           {error && (
              <p className="text-xs" style={{ color: "var(--color-destructive)" }}>

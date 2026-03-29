@@ -125,7 +125,7 @@ WHERE
   );
 
 -- name: ListPathsUnderPrefix :many
-SELECT DISTINCT e.path FROM entries e
+SELECT e.path FROM entries e
 WHERE
   CASE
     WHEN sqlc.arg('own')::boolean THEN e.user_id = sqlc.narg('user_id')::uuid
@@ -157,7 +157,7 @@ WHERE
 ORDER BY e.path ASC;
 
 -- name: ListAllPaths :many
-SELECT DISTINCT e.path FROM entries e
+SELECT e.path FROM entries e
 WHERE
   CASE
     WHEN sqlc.arg('own')::boolean THEN e.user_id = sqlc.narg('user_id')::uuid

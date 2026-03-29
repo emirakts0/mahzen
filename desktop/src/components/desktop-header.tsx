@@ -115,33 +115,18 @@ export function DesktopHeader({
              </DropdownMenu>
           </>
         ) : (
-          <>
-            <button
-              onClick={onSettingsClick}
-              aria-label="Settings"
-              className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
-              style={{ color: "var(--glass-icon)", background: "transparent" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--glass-bg)" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
-            >
-              <Settings className="h-3.5 w-3.5" />
-            </button>
-
-            <div className="mx-1 h-4 w-px" style={{ background: "var(--glass-divider)" }} />
-
-            <button
-              onClick={onConnectClick}
-              className="flex h-7 items-center gap-1.5 rounded-xl px-3 text-xs font-medium transition-colors"
-              style={{
-                background: "var(--glass-hover)",
-                border: "1px solid var(--glass-border)",
-                color: "var(--glass-text)",
-              }}
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              Connect
-            </button>
-          </>
+          <button
+            onClick={onConnectClick}
+            className="flex h-7 items-center gap-1.5 rounded-xl px-3 text-xs font-medium transition-colors"
+            style={{
+              background: "var(--glass-hover)",
+              border: "1px solid var(--glass-border)",
+              color: "var(--glass-text)",
+            }}
+          >
+            <LogIn className="h-3.5 w-3.5" />
+            Connect
+          </button>
         )}
       </header>
     </div>

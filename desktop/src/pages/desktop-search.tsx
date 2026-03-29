@@ -33,7 +33,7 @@ interface AppConfig {
 type ViewMode = "search" | "entries"
 
 export function DesktopSearch() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, connect } = useAuth()
   const [viewMode, setViewMode] = useState<ViewMode>("search")
   const [query, setQuery] = useState("")
   const [filters, setFilters] = useState<SearchFiltersType>({})
@@ -93,10 +93,22 @@ export function DesktopSearch() {
   }, [configLoaded, backendUrl])
 
   useEffect(() => {
-    if (configLoaded && backendUrl && !isAuthenticated && !settingsOpen) {
+    if (!authLoading && configLoaded && backendUrl && !isAuthenticated && !settingsOpen) {
       setAuthModalOpen(true)
     }
-  }, [configLoaded, backendUrl, isAuthenticated, settingsOpen])
+  }, [authLoading, configLoaded, backendUrl, isAuthenticated, settingsOpen])
+
+  const wasAuthenticatedRef = useRef(isAuthenticated)
+  useEffect(() => {
+    if (wasAuthenticatedRef.current && !isAuthenticated) {
+      setViewMode("search")
+      setQuery("")
+      setFilters({})
+      setIsFilterOpen(false)
+      setAuthModalOpen(false)
+    }
+    wasAuthenticatedRef.current = isAuthenticated
+  }, [isAuthenticated])
 
   useEffect(() => {
     const container = scrollContainerRef.current
@@ -525,6 +537,8 @@ export function DesktopSearch() {
           }
         }}
         onSave={handleSettingsSave}
+        onTokenChange={connect}
+        isAuthenticated={isAuthenticated}
       />
       <AuthModal
         isOpen={authModalOpen}

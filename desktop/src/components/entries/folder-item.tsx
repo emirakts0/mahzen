@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { Folder, FolderOpen, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { TreeNode } from "./tree-utils"
@@ -67,19 +67,18 @@ export function FolderItem({
         )}
       </motion.button>
 
-      <AnimatePresence initial={false}>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="overflow-hidden"
-          >
-            {children}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateRows: isExpanded ? "1fr" : "0fr",
+          opacity: isExpanded ? 1 : 0,
+          transition: "grid-template-rows 0.2s ease-out, opacity 0.15s ease-out",
+        }}
+      >
+        <div className="overflow-hidden" style={{ minHeight: 0 }}>
+          {children}
+        </div>
+      </div>
     </div>
   )
 }

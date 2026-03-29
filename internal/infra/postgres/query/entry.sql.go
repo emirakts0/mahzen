@@ -419,7 +419,7 @@ func (q *Queries) ListAllEntries(ctx context.Context) ([]ListAllEntriesRow, erro
 }
 
 const listAllPaths = `-- name: ListAllPaths :many
-SELECT DISTINCT e.path FROM entries e
+SELECT e.path FROM entries e
 WHERE
   CASE
     WHEN $1::boolean THEN e.user_id = $2::uuid
@@ -680,7 +680,7 @@ func (q *Queries) ListEntriesInPath(ctx context.Context, arg ListEntriesInPathPa
 }
 
 const listPathsUnderPrefix = `-- name: ListPathsUnderPrefix :many
-SELECT DISTINCT e.path FROM entries e
+SELECT e.path FROM entries e
 WHERE
   CASE
     WHEN $1::boolean THEN e.user_id = $2::uuid
