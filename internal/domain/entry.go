@@ -167,7 +167,13 @@ type EntryRepository interface {
 	ListAccessible(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*Entry, int, error)
 	ListDistinctPaths(ctx context.Context, userID string) ([]string, error)
 	ListInPath(ctx context.Context, userID, path string, own bool, filter *ListEntriesFilter, limit, offset int) ([]*Entry, int, error)
-	ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool, filter *ListEntriesFilter) ([]string, error)
+	ListPathCountsUnderPrefix(ctx context.Context, userID, prefix string, own bool, filter *ListEntriesFilter) ([]PathCount, error)
 	ListAll(ctx context.Context) ([]*Entry, error)
 	UpdateEmbedding(ctx context.Context, entryID string, embedding []float32) error
+}
+
+// PathCount holds a path and the number of entries at that path.
+type PathCount struct {
+	Path  string
+	Count int
 }

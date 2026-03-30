@@ -14,17 +14,17 @@ import (
 
 // EntryRepository is a test double for domain.EntryRepository.
 type EntryRepository struct {
-	CreateFn               func(ctx context.Context, entry *domain.Entry) error
-	GetByIDFn              func(ctx context.Context, id string) (*domain.Entry, error)
-	UpdateFn               func(ctx context.Context, entry *domain.Entry) error
-	DeleteFn               func(ctx context.Context, id string) error
-	ListByUserFn           func(ctx context.Context, userID string, limit, offset int) ([]*domain.Entry, int, error)
-	ListAccessibleFn       func(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error)
-	ListDistinctPathsFn    func(ctx context.Context, userID string) ([]string, error)
-	ListInPathFn           func(ctx context.Context, userID, path string, own bool, filter *domain.ListEntriesFilter, limit, offset int) ([]*domain.Entry, int, error)
-	ListPathsUnderPrefixFn func(ctx context.Context, userID, prefix string, own bool, filter *domain.ListEntriesFilter) ([]string, error)
-	ListAllFn              func(ctx context.Context) ([]*domain.Entry, error)
-	UpdateEmbeddingFn      func(ctx context.Context, entryID string, embedding []float32) error
+	CreateFn                    func(ctx context.Context, entry *domain.Entry) error
+	GetByIDFn                   func(ctx context.Context, id string) (*domain.Entry, error)
+	UpdateFn                    func(ctx context.Context, entry *domain.Entry) error
+	DeleteFn                    func(ctx context.Context, id string) error
+	ListByUserFn                func(ctx context.Context, userID string, limit, offset int) ([]*domain.Entry, int, error)
+	ListAccessibleFn            func(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error)
+	ListDistinctPathsFn         func(ctx context.Context, userID string) ([]string, error)
+	ListInPathFn                func(ctx context.Context, userID, path string, own bool, filter *domain.ListEntriesFilter, limit, offset int) ([]*domain.Entry, int, error)
+	ListPathCountsUnderPrefixFn func(ctx context.Context, userID, prefix string, own bool, filter *domain.ListEntriesFilter) ([]domain.PathCount, error)
+	ListAllFn                   func(ctx context.Context) ([]*domain.Entry, error)
+	UpdateEmbeddingFn           func(ctx context.Context, entryID string, embedding []float32) error
 }
 
 func (m *EntryRepository) Create(ctx context.Context, entry *domain.Entry) error {
@@ -59,8 +59,8 @@ func (m *EntryRepository) ListInPath(ctx context.Context, userID, path string, o
 	return m.ListInPathFn(ctx, userID, path, own, filter, limit, offset)
 }
 
-func (m *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool, filter *domain.ListEntriesFilter) ([]string, error) {
-	return m.ListPathsUnderPrefixFn(ctx, userID, prefix, own, filter)
+func (m *EntryRepository) ListPathCountsUnderPrefix(ctx context.Context, userID, prefix string, own bool, filter *domain.ListEntriesFilter) ([]domain.PathCount, error) {
+	return m.ListPathCountsUnderPrefixFn(ctx, userID, prefix, own, filter)
 }
 
 func (m *EntryRepository) ListAll(ctx context.Context) ([]*domain.Entry, error) {

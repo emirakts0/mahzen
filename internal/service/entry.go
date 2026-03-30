@@ -363,46 +363,49 @@ func (s *EntryService) ListChildren(ctx context.Context, userID, path string, ow
 		return nil, nil, 0, fmt.Errorf("listing entries in path: %w", err)
 	}
 
-	allPaths, err := s.entries.ListPathsUnderPrefix(ctx, userID, path, own, filter)
+	pathCounts, err := s.entries.ListPathCountsUnderPrefix(ctx, userID, path, own, filter)
 	if err != nil {
-		return nil, nil, 0, fmt.Errorf("listing paths under prefix: %w", err)
+		return nil, nil, 0, fmt.Errorf("listing path counts under prefix: %w", err)
 	}
 
-	folderInfos := extractFolderInfos(path, allPaths)
+	folderInfos, subfolderTotal := extractFolderInfos(path, pathCounts)
 
 	// Total includes entries directly at this path + all entries in subfolders
-	total := directCount + len(allPaths)
+	total := directCount + subfolderTotal
 
 	slog.Info("children listed", "user_id", userID, "path", path, "own", own, "entries", len(entries), "folders", len(folderInfos), "total", total)
 	return entries, folderInfos, total, nil
 }
 
-// extractFolderInfos extracts direct subfolder paths with counts from paths under a prefix.
-// For prefix "/abc" and paths ["/abc/def/file", "/abc/def/sub/file", "/abc/ghi/file"],
-// returns [{Path: "/abc/def", Count: 2}, {Path: "/abc/ghi", Count: 1}].
-func extractFolderInfos(prefix string, paths []string) []FolderInfo {
+// extractFolderInfos extracts direct subfolder paths with counts from path counts under a prefix.
+// For prefix "/abc" and pathCounts [{"/abc/def", 3}, {"/abc/def/sub", 2}, {"/abc/ghi", 1}],
+// returns [{Path: "/abc/def", Count: 5}, {Path: "/abc/ghi", Count: 1}], subfolderTotal=6.
+func extractFolderInfos(prefix string, pathCounts []domain.PathCount) ([]FolderInfo, int) {
 	folderCounts := make(map[string]int)
+	var subfolderTotal int
 
-	for _, p := range paths {
+	for _, pc := range pathCounts {
+		subfolderTotal += pc.Count
+
 		if prefix == "/" {
-			remaining := strings.TrimPrefix(p, "/")
+			remaining := strings.TrimPrefix(pc.Path, "/")
 			if remaining == "" {
 				continue
 			}
 			parts := strings.SplitN(remaining, "/", 2)
 			if parts[0] != "" {
 				fullPath := "/" + parts[0]
-				folderCounts[fullPath]++
+				folderCounts[fullPath] += pc.Count
 			}
 		} else {
-			remaining := strings.TrimPrefix(p, prefix+"/")
-			if remaining == "" || remaining == p {
+			remaining := strings.TrimPrefix(pc.Path, prefix+"/")
+			if remaining == "" || remaining == pc.Path {
 				continue
 			}
 			parts := strings.SplitN(remaining, "/", 2)
 			if parts[0] != "" {
 				fullPath := prefix + "/" + parts[0]
-				folderCounts[fullPath]++
+				folderCounts[fullPath] += pc.Count
 			}
 		}
 	}
@@ -423,5 +426,5 @@ func extractFolderInfos(prefix string, paths []string) []FolderInfo {
 		}
 	})
 
-	return folderInfos
+	return folderInfos, subfolderTotal
 }

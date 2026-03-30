@@ -288,7 +288,7 @@ func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, o
 
 	filterVisibility, fromDate, toDate, filterTags := extractFilterParams(filter)
 
-	entries, err := r.q.ListEntriesInPath(ctx, query.ListEntriesInPathParams{
+	rows, err := r.q.ListEntriesInPathWithCount(ctx, query.ListEntriesInPathWithCountParams{
 		UserID:           uid,
 		Path:             path,
 		Limit:            int32(limit),
@@ -303,21 +303,12 @@ func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, o
 		return nil, 0, fmt.Errorf("listing entries in path: %w", err)
 	}
 
-	count, err := r.q.CountEntriesInPath(ctx, query.CountEntriesInPathParams{
-		UserID:           uid,
-		Path:             path,
-		Own:              own,
-		FilterVisibility: filterVisibility,
-		FromDate:         fromDate,
-		ToDate:           toDate,
-		FilterTags:       filterTags,
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("counting entries in path: %w", err)
-	}
-
-	result := make([]*domain.Entry, len(entries))
-	for i, e := range entries {
+	var totalCount int
+	result := make([]*domain.Entry, len(rows))
+	for i, e := range rows {
+		if i == 0 {
+			totalCount = int(e.TotalCount)
+		}
 		result[i] = &domain.Entry{
 			ID:         uuidToString(e.ID),
 			UserID:     uuidToString(e.UserID),
@@ -333,10 +324,10 @@ func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, o
 		}
 	}
 
-	return result, int(count), nil
+	return result, totalCount, nil
 }
 
-func (r *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, prefix string, own bool, filter *domain.ListEntriesFilter) ([]string, error) {
+func (r *EntryRepository) ListPathCountsUnderPrefix(ctx context.Context, userID, prefix string, own bool, filter *domain.ListEntriesFilter) ([]domain.PathCount, error) {
 	var uid pgtype.UUID
 	if userID != "" {
 		var err error
@@ -348,11 +339,8 @@ func (r *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, pref
 
 	filterVisibility, fromDate, toDate, filterTags := extractFilterParams(filter)
 
-	var paths []string
-	var err error
-
 	if prefix == "/" {
-		paths, err = r.q.ListAllPaths(ctx, query.ListAllPathsParams{
+		rows, err := r.q.CountAllPaths(ctx, query.CountAllPathsParams{
 			UserID:           uid,
 			Own:              own,
 			FilterVisibility: filterVisibility,
@@ -360,23 +348,33 @@ func (r *EntryRepository) ListPathsUnderPrefix(ctx context.Context, userID, pref
 			ToDate:           toDate,
 			FilterTags:       filterTags,
 		})
-	} else {
-		paths, err = r.q.ListPathsUnderPrefix(ctx, query.ListPathsUnderPrefixParams{
-			UserID:           uid,
-			Prefix:           prefix,
-			Own:              own,
-			FilterVisibility: filterVisibility,
-			FromDate:         fromDate,
-			ToDate:           toDate,
-			FilterTags:       filterTags,
-		})
+		if err != nil {
+			return nil, fmt.Errorf("counting all paths: %w", err)
+		}
+		result := make([]domain.PathCount, len(rows))
+		for i, r := range rows {
+			result[i] = domain.PathCount{Path: r.Path, Count: int(r.Count)}
+		}
+		return result, nil
 	}
 
+	rows, err := r.q.CountPathsUnderPrefix(ctx, query.CountPathsUnderPrefixParams{
+		UserID:           uid,
+		Prefix:           prefix,
+		Own:              own,
+		FilterVisibility: filterVisibility,
+		FromDate:         fromDate,
+		ToDate:           toDate,
+		FilterTags:       filterTags,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("listing paths under prefix: %w", err)
+		return nil, fmt.Errorf("counting paths under prefix: %w", err)
 	}
-
-	return paths, nil
+	result := make([]domain.PathCount, len(rows))
+	for i, r := range rows {
+		result[i] = domain.PathCount{Path: r.Path, Count: int(r.Count)}
+	}
+	return result, nil
 }
 
 func extractFilterParams(filter *domain.ListEntriesFilter) (string, pgtype.Timestamptz, pgtype.Timestamptz, []string) {
