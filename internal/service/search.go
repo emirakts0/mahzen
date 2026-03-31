@@ -78,6 +78,12 @@ func (s *SearchService) SemanticSearch(ctx context.Context, query, userID string
 		return nil, 0, fmt.Errorf("embedding query: %w", err)
 	}
 
+	// No embedding provider configured — semantic search unavailable.
+	if len(embedding) == 0 {
+		slog.Warn("semantic search skipped: embedding provider not configured")
+		return nil, 0, nil
+	}
+
 	slog.Info("semantic search embedding ready",
 		"query", query,
 		"embed_duration", embedDuration,

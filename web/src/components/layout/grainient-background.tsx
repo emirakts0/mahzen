@@ -16,7 +16,7 @@ const LIGHT_PALETTE = {
 } as const
 
 export default function GrainientBackground() {
-  const { theme } = useTheme()
+  const { theme, bgAnimation } = useTheme()
   const palette = theme === "dark" ? DARK_PALETTE : LIGHT_PALETTE
 
   return (
@@ -30,6 +30,7 @@ export default function GrainientBackground() {
       }}
     >
       <Grainient
+        animated={bgAnimation}
         color1={palette.color1}
         color2={palette.color2}
         color3={palette.color3}

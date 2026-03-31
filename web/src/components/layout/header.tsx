@@ -9,7 +9,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { BookOpen, Search, LogOut, Moon, Sun, LogIn, UserPlus, Key } from "lucide-react"
+import { BookOpen, Search, LogOut, Moon, Sun, LogIn, UserPlus, Key, Sparkles } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 
 const NAV_ITEMS = [
   { to: "/search", label: "Search", icon: Search },
@@ -21,7 +22,7 @@ export function Header() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { user, isAuthenticated, logout } = useAuth()
-  const { theme, toggleTheme } = useTheme()
+  const { theme, toggleTheme, bgAnimation, toggleBgAnimation } = useTheme()
   const [isHidden, setIsHidden] = useState(false)
 
   const authType = searchParams.get("auth")
@@ -126,6 +127,20 @@ export function Header() {
                 <DropdownMenuItem
                   className="flex cursor-pointer items-center gap-2"
                   style={{ color: "var(--glass-text)" }}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  <Sparkles className={`h-3.5 w-3.5 ${bgAnimation ? "" : "opacity-40"}`} />
+                  <span className="flex-1">Animated BG</span>
+                  <Switch
+                    checked={bgAnimation}
+                    onCheckedChange={() => toggleBgAnimation()}
+                    className="data-[state=checked]:bg-primary/70 data-[state=unchecked]:bg-muted-foreground/30"
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuSeparator style={{ background: "var(--glass-divider)" }} />
+                <DropdownMenuItem
+                  className="flex cursor-pointer items-center gap-2"
+                  style={{ color: "var(--glass-text)" }}
                   onClick={() => void navigate("/tokens")}
                 >
                   <Key className="h-3.5 w-3.5" />
@@ -145,7 +160,7 @@ export function Header() {
           </>
         ) : (
           <>
-            {/* Unauthenticated: dark toggle + login/signup */}
+            {/* Unauthenticated: dark toggle + bg animation toggle + login/signup */}
             <button
               onClick={toggleTheme}
               aria-label="Toggle theme"
@@ -155,6 +170,17 @@ export function Header() {
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
             >
               {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+            </button>
+
+            <button
+              onClick={toggleBgAnimation}
+              aria-label="Toggle background animation"
+              className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${bgAnimation ? "" : "opacity-40"}`}
+              style={{ color: "var(--glass-icon)", background: "transparent" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--glass-bg)" }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
             </button>
 
             <div className="mx-1 h-4 w-px" style={{ background: "var(--glass-divider)" }} />

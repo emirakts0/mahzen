@@ -26,6 +26,7 @@ interface GrainientProps {
   color2?: string;
   color3?: string;
   className?: string;
+  animated?: boolean;
 }
 
 const hexToRgb = (hex: string): [number, number, number] => {
@@ -148,7 +149,8 @@ const Grainient: React.FC<GrainientProps> = ({
   color1 = '#FF9FFC',
   color2 = '#5227FF',
   color3 = '#B19EEF',
-  className = ''
+  className = '',
+  animated = true
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -223,7 +225,9 @@ const Grainient: React.FC<GrainientProps> = ({
     const loop = (t: number) => {
       (program.uniforms.iTime as { value: number }).value = (t - t0) * 0.001;
       renderer.render({ scene: mesh });
-      raf = requestAnimationFrame(loop);
+      if (animated) {
+        raf = requestAnimationFrame(loop);
+      }
     };
     raf = requestAnimationFrame(loop);
 
@@ -258,7 +262,8 @@ const Grainient: React.FC<GrainientProps> = ({
     zoom,
     color1,
     color2,
-    color3
+    color3,
+    animated
   ]);
 
   return <div ref={containerRef} className={`grainient-container ${className}`.trim()} />;
