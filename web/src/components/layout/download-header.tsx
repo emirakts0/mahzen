@@ -6,13 +6,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Download } from "lucide-react"
 import { SiLinux, SiApple } from "@icons-pack/react-simple-icons"
 
 function WindowsIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return (
     <svg className={className} style={style} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-      <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" />
+      <path d="M0 0h11.4v11.4H0zM12.6 0H24v11.4H12.6zM0 12.6h11.4V24H0zM12.6 12.6H24V24H12.6z" />
     </svg>
   )
 }
@@ -58,7 +57,7 @@ export function DownloadHeader() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="flex items-center gap-2 rounded-lg px-3 py-2 shadow-lg backdrop-blur-md transition-colors cursor-pointer min-w-[7rem]"
+            className="flex items-center gap-2 rounded-2xl px-3.5 py-2 shadow-lg backdrop-blur-md transition-colors cursor-pointer"
             style={{
               background: "var(--glass-bg)",
               border: "1px solid var(--glass-border)",
@@ -70,26 +69,27 @@ export function DownloadHeader() {
               ;(e.currentTarget as HTMLElement).style.background = "var(--glass-bg)"
             }}
           >
-            <Download className="h-3.5 w-3.5" style={{ color: "var(--glass-icon)" }} />
-            <span className="text-xs font-medium" style={{ color: "var(--glass-text)" }}>
-              Download
-            </span>
-            <div className="relative flex h-3.5 w-3.5 items-center justify-center overflow-hidden">
+            <div className="flex h-7 items-center gap-2">
+              <div className="relative flex h-4 w-4 items-center justify-center overflow-hidden">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeIcon}
-                  initial={{ y: 6, opacity: 0 }}
+                  initial={{ y: 7, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: -6, opacity: 0 }}
+                  exit={{ y: -7, opacity: 0 }}
                   transition={{ duration: 0.25 }}
                   className="flex items-center justify-center"
                 >
                   {(() => {
                     const Icon = OS_ICONS[activeIcon]
-                    return <Icon className="h-3.5 w-3.5" style={{ color: "var(--glass-icon)" }} />
+                    return <Icon className="h-4 w-4" style={{ color: "var(--glass-icon)" }} />
                   })()}
                 </motion.div>
               </AnimatePresence>
+            </div>
+              <span className="text-xs font-medium" style={{ color: "var(--glass-text)" }}>
+                Download
+              </span>
             </div>
           </button>
         </DropdownMenuTrigger>
