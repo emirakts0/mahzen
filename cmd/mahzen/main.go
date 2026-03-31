@@ -16,15 +16,14 @@ import (
 	"github.com/quic-go/quic-go/http3"
 	"github.com/rs/zerolog"
 	slogzerolog "github.com/samber/slog-zerolog/v2"
-	tsclient "github.com/typesense/typesense-go/v3/typesense"
 
 	"github.com/emirakts0/mahzen/internal/config"
 	"github.com/emirakts0/mahzen/internal/domain"
 	"github.com/emirakts0/mahzen/internal/handler"
 	"github.com/emirakts0/mahzen/internal/infra/ai"
 	"github.com/emirakts0/mahzen/internal/infra/auth"
+	"github.com/emirakts0/mahzen/internal/infra/meilisearch"
 	"github.com/emirakts0/mahzen/internal/infra/postgres"
-	"github.com/emirakts0/mahzen/internal/infra/typesense"
 	"github.com/emirakts0/mahzen/internal/service"
 )
 
@@ -70,7 +69,10 @@ func main() {
 // defer infra.close() in main handles cleanup.
 type infrastructure struct {
 	pool             *pgxpool.Pool
-	tsClient         *tsclient.Client
+	indexer          domain.Indexer
+	searcher         domain.Searcher
+	searchHealth     func(context.Context, time.Duration) (bool, error)
+	searchDocCount   func(context.Context) (int64, error)
 	embedder         domain.Embedder
 	summarizer       domain.Summarizer
 	tokenProvider    *auth.TokenProvider
@@ -90,16 +92,16 @@ func mustInitInfra(ctx context.Context, cfg *config.Config, logger *slog.Logger)
 	}
 	logger.Info("connected to database")
 
-	tsClient, err := typesense.NewClient(cfg.Typesense)
+	meilClient, err := meilisearch.NewClient(cfg.Meilisearch)
 	if err != nil {
-		logger.Error("failed to create typesense client", "error", err)
+		logger.Error("failed to create meilisearch client", "error", err)
 		os.Exit(1)
 	}
-	if err := typesense.EnsureCollections(ctx, tsClient); err != nil {
-		logger.Error("failed to ensure typesense collections", "error", err)
+	if err := meilisearch.EnsureIndex(ctx, meilClient); err != nil {
+		logger.Error("failed to ensure meilisearch index", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("connected to typesense")
+	logger.Info("connected to meilisearch")
 
 	embedder, summarizer := ai.NewProvider(cfg.OpenAI)
 	logger.Info("ai provider initialized")
@@ -110,8 +112,23 @@ func mustInitInfra(ctx context.Context, cfg *config.Config, logger *slog.Logger)
 	logger.Info("auth provider initialized")
 
 	return &infrastructure{
-		pool:             pool,
-		tsClient:         tsClient,
+		pool:     pool,
+		indexer:  meilisearch.NewIndexer(meilClient),
+		searcher: meilisearch.NewSearcher(meilClient),
+		searchHealth: func(ctx context.Context, _ time.Duration) (bool, error) {
+			health, err := meilClient.HealthWithContext(ctx)
+			if err != nil {
+				return false, err
+			}
+			return health.Status == "available", nil
+		},
+		searchDocCount: func(ctx context.Context) (int64, error) {
+			stats, err := meilClient.Index(meilisearch.IndexName).GetStatsWithContext(ctx)
+			if err != nil {
+				return 0, err
+			}
+			return stats.NumberOfDocuments, nil
+		},
 		embedder:         embedder,
 		summarizer:       summarizer,
 		tokenProvider:    tokenProvider,
@@ -138,9 +155,9 @@ func buildServer(cfg *config.Config, infra *infrastructure, logger *slog.Logger)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(infra.pool)
 	accessTokenRepo := postgres.NewAccessTokenRepository(infra.pool)
 
-	entrySvc := service.NewEntryService(entryRepo, tagRepo, typesense.NewIndexer(infra.tsClient), infra.embedder)
+	entrySvc := service.NewEntryService(entryRepo, tagRepo, infra.indexer, infra.embedder)
 	tagSvc := service.NewTagService(tagRepo)
-	searchSvc := service.NewSearchService(typesense.NewSearcher(infra.tsClient), infra.embedder)
+	searchSvc := service.NewSearchService(infra.searcher, infra.embedder)
 	authSvc := service.NewAuthService(userRepo, refreshTokenRepo, infra.tokenProvider, infra.hasher, infra.tokenProvider.RefreshTokenExpiry())
 
 	defaultTTL := cfg.Auth.AccessTokenDefaultExpiry
@@ -164,17 +181,8 @@ func buildServer(cfg *config.Config, infra *infrastructure, logger *slog.Logger)
 		DBCount: func(ctx context.Context) (int64, error) {
 			return entryRepo.CountAll(ctx)
 		},
-		TSHealth: infra.tsClient.Health,
-		TSDocCount: func(ctx context.Context) (int64, error) {
-			coll, err := infra.tsClient.Collection(typesense.CollectionName).Retrieve(ctx)
-			if err != nil {
-				return 0, err
-			}
-			if coll.NumDocuments == nil {
-				return 0, nil
-			}
-			return *coll.NumDocuments, nil
-		},
+		SearchEngineHealth:   infra.searchHealth,
+		SearchEngineDocCount: infra.searchDocCount,
 	})
 
 	// Register SPA handler for non-API routes.

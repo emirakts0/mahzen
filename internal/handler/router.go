@@ -24,10 +24,10 @@ type RouterDeps struct {
 	UserRepo       domain.UserRepository
 
 	// Health check dependencies
-	DBPing     func(context.Context) error
-	DBCount    func(context.Context) (int64, error)
-	TSHealth   func(context.Context, time.Duration) (bool, error)
-	TSDocCount func(context.Context) (int64, error)
+	DBPing               func(context.Context) error
+	DBCount              func(context.Context) (int64, error)
+	SearchEngineHealth   func(context.Context, time.Duration) (bool, error)
+	SearchEngineDocCount func(context.Context) (int64, error)
 }
 
 // SetupRouter creates a Gin engine with all middleware and routes registered.
@@ -49,7 +49,7 @@ func SetupRouter(deps RouterDeps) *gin.Engine {
 	search := newSearchHandler(deps.SearchSvc)
 	users := newUserHandler(deps.UserRepo)
 	accessTokens := newAccessTokenHandler(deps.AccessTokenSvc)
-	health := newHealthHandler(deps.DBPing, deps.DBCount, deps.TSHealth, deps.TSDocCount)
+	health := newHealthHandler(deps.DBPing, deps.DBCount, deps.SearchEngineHealth, deps.SearchEngineDocCount)
 
 	// Health check endpoint (no auth required).
 	r.GET("/health", health.check)

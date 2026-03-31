@@ -943,7 +943,7 @@ Approximate Nearest Neighbor (ANN):
   - IVF: Clustering-based
   - LSH: Hash-based
 
-Typesense vector search:
+Meilisearch vector search:
   - HNSW kullanır
   - Cosine similarity
   - Filter ile combine edilebilir
@@ -1278,9 +1278,8 @@ ADR-002: PostgreSQL for all storage
   - Rationale: Simplicity, single source of truth
   - Status: Accepted
 
-ADR-003: Typesense for search
+ADR-003: Meilisearch for search
   - Keyword + semantic (vector) search
-  - HNSW for ANN
   - Status: Accepted
 
 ADR-004: JWT for authentication

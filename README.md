@@ -9,7 +9,7 @@ A personal knowledge management platform with semantic search, built with Go, Gi
 | Backend | Go 1.26, Gin, HTTP/3 (QUIC via quic-go) |
 | Frontend | React 19, TypeScript, Vite 7, Tailwind CSS v4, React Router v7, TanStack Query v5 |
 | Database | PostgreSQL 18 |
-| Search | Typesense 30.1 (keyword + semantic/vector) |
+| Search | Meilisearch v1.41 (keyword + semantic/vector search) |
 | AI | OpenAI `text-embedding-3-small` + `gpt-4o-mini` |
 
 ---
@@ -22,7 +22,7 @@ A personal knowledge management platform with semantic search, built with Go, Gi
 make docker-up
 ```
 
-Starts PostgreSQL and Typesense. Wait for containers to be healthy.
+Starts PostgreSQL and Meilisearch. Wait for containers to be healthy.
 
 ### 2. Apply database migrations
 
@@ -102,6 +102,6 @@ make dist
 | Service | Port |
 |---|---|
 | PostgreSQL | 5432 |
-| Typesense | 8108 |
+| Meilisearch | 7700 |
 | Backend REST | 8080 |
 | Frontend dev | 3000 |

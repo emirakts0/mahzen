@@ -168,7 +168,7 @@ export function EntryPreviewModal({ entryId, onClose }: EntryPreviewModalProps) 
                     <span style={{ color: "var(--glass-text-muted)", fontStyle: "italic" }}>No content available</span>
                   )}
                 </div>
-                
+
                 {entry.content && (
                   <div className="absolute top-2 right-2 flex items-center gap-1.5">
                     <button

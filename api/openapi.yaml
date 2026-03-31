@@ -7,7 +7,13 @@ info:
 
     ## Authentication
     All endpoints except `/health` and `/v1/auth/*` require a Bearer token
-    in the Authorization header.
+    in the Authorization header. Two token types are accepted:
+
+    - **JWT access token**: Short-lived token obtained from `/v1/auth/login` or `/v1/auth/register`
+    - **Opaque API token**: Long-lived token starting with `mah_`, created via `/v1/tokens`
+
+    Some endpoints (entry listing, search) are publicly accessible but return richer
+    results when authenticated.
   version: 1.0.0
   contact:
     name: Mahzen
@@ -29,14 +35,17 @@ tags:
     description: Keyword and semantic search
   - name: Users
     description: User profile operations
+  - name: Tokens
+    description: API access token management
 
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
-      description: JWT access token obtained from /v1/auth/login or /v1/auth/register
+      description: >
+        JWT access token obtained from /v1/auth/login or /v1/auth/register,
+        or an opaque API token (starting with `mah_`) created via /v1/tokens.
 
   schemas:
     # Common schemas
@@ -375,6 +384,7 @@ components:
       type: object
       required:
         - entry_id
+        - is_mine
         - title
         - path
         - visibility
@@ -383,6 +393,9 @@ components:
         entry_id:
           type: string
           format: uuid
+        is_mine:
+          type: boolean
+          description: Whether the current user owns this entry
         title:
           type: string
         summary:
@@ -390,7 +403,7 @@ components:
           description: AI-generated summary
         content:
           type: string
-          description: Full content (optional)
+          description: Content excerpt (truncated to 300 characters)
         score:
           type: number
           format: double
@@ -431,6 +444,77 @@ components:
           type: integer
           description: Total number of results
 
+    # Access Token schemas
+    CreateTokenRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Human-readable name for the token
+          example: My API Token
+        expires_in:
+          type: string
+          description: >
+            Token lifetime as a Go duration string (e.g. "720h" for 30 days).
+            If omitted, defaults to the server-configured default (90 days).
+          example: "720h"
+
+    Token:
+      type: object
+      required:
+        - id
+        - name
+        - prefix
+        - status
+        - expires_at
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Human-readable token name
+        prefix:
+          type: string
+          description: First few characters of the token for identification
+          example: mah_abc1
+        status:
+          type: string
+          enum: [active, expired, revoked]
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    CreateTokenResponse:
+      type: object
+      required:
+        - token
+        - raw_token
+      properties:
+        token:
+          $ref: '#/components/schemas/Token'
+        raw_token:
+          type: string
+          description: >
+            The full opaque token string. This is only returned once during creation
+            and cannot be retrieved again.
+
+    TokenListResponse:
+      type: object
+      required:
+        - tokens
+      properties:
+        tokens:
+          type: array
+          items:
+            $ref: '#/components/schemas/Token'
+
     # Health schemas
     HealthStatus:
       type: object
@@ -453,14 +537,14 @@ components:
       required:
         - status
         - database
-        - typesense
+        - search_engine
       properties:
         status:
           type: string
           enum: [ok, degraded]
         database:
           $ref: '#/components/schemas/HealthStatus'
-        typesense:
+        search_engine:
           $ref: '#/components/schemas/HealthStatus'
 
 paths:
@@ -469,7 +553,7 @@ paths:
       tags:
         - Health
       summary: Health check
-      description: Returns the health status of all system components
+      description: Returns the health status of all system components (database and search engine)
       operationId: checkHealth
       security: []
       responses:
@@ -629,9 +713,12 @@ paths:
       summary: List entries
       description: |
         Lists entries and folders at a given path. Supports pagination and filtering.
+
+        Authentication is optional — unauthenticated users see only public entries.
       operationId: listEntries
       security:
         - bearerAuth: []
+        - []
       parameters:
         - name: path
           in: query
@@ -746,10 +833,14 @@ paths:
       tags:
         - Entries
       summary: Get entry
-      description: Retrieves a single entry by ID
+      description: |
+        Retrieves a single entry by ID.
+
+        Authentication is optional — unauthenticated users can access public entries.
       operationId: getEntry
       security:
         - bearerAuth: []
+        - []
       parameters:
         - name: entry_id
           in: path
@@ -1116,9 +1207,12 @@ paths:
       description: |
         Performs a keyword-based search across entries. Returns highlighted
         snippets showing where the search terms were found.
+
+        Authentication is optional — unauthenticated users search only public entries.
       operationId: keywordSearch
       security:
         - bearerAuth: []
+        - []
       parameters:
         - name: query
           in: query
@@ -1180,12 +1274,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SearchResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
         '500':
           description: Server error
           content:
@@ -1201,9 +1289,12 @@ paths:
       description: |
         Performs a semantic (vector-based) search using AI embeddings.
         Finds conceptually similar content even without exact keyword matches.
+
+        Authentication is optional — unauthenticated users search only public entries.
       operationId: semanticSearch
       security:
         - bearerAuth: []
+        - []
       parameters:
         - name: query
           in: query
@@ -1264,12 +1355,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SearchResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
         '500':
           description: Server error
           content:
@@ -1301,6 +1386,113 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/tokens:
+    get:
+      tags:
+        - Tokens
+      summary: List access tokens
+      description: Lists all API access tokens for the authenticated user
+      operationId: listTokens
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of access tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - Tokens
+      summary: Create access token
+      description: |
+        Creates a new opaque API access token. The full token is only returned
+        once in the response and cannot be retrieved again.
+      operationId: createToken
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTokenRequest'
+      responses:
+        '201':
+          description: Token created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTokenResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/tokens/{id}/revoke:
+    post:
+      tags:
+        - Tokens
+      summary: Revoke access token
+      description: Revokes an API access token, making it unusable for future requests
+      operationId: revokeToken
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Token ID (not the token value)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Token revoked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empty'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Token not found
           content:
             application/json:
               schema:

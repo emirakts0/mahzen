@@ -18,31 +18,31 @@ type HealthStatus struct {
 
 // HealthResponse is the response for the health check endpoint.
 type HealthResponse struct {
-	Status    string       `json:"status"`
-	Database  HealthStatus `json:"database"`
-	Typesense HealthStatus `json:"typesense"`
+	Status       string       `json:"status"`
+	Database     HealthStatus `json:"database"`
+	SearchEngine HealthStatus `json:"search_engine"`
 }
 
 // healthHandler handles health check requests.
 type healthHandler struct {
-	dbPing     func(context.Context) error
-	dbCount    func(context.Context) (int64, error)
-	tsHealth   func(context.Context, time.Duration) (bool, error)
-	tsDocCount func(context.Context) (int64, error)
+	dbPing         func(context.Context) error
+	dbCount        func(context.Context) (int64, error)
+	searchHealth   func(context.Context, time.Duration) (bool, error)
+	searchDocCount func(context.Context) (int64, error)
 }
 
 // newHealthHandler creates a new health handler.
 func newHealthHandler(
 	dbPing func(context.Context) error,
 	dbCount func(context.Context) (int64, error),
-	tsHealth func(context.Context, time.Duration) (bool, error),
-	tsDocCount func(context.Context) (int64, error),
+	searchHealth func(context.Context, time.Duration) (bool, error),
+	searchDocCount func(context.Context) (int64, error),
 ) *healthHandler {
 	return &healthHandler{
-		dbPing:     dbPing,
-		dbCount:    dbCount,
-		tsHealth:   tsHealth,
-		tsDocCount: tsDocCount,
+		dbPing:         dbPing,
+		dbCount:        dbCount,
+		searchHealth:   searchHealth,
+		searchDocCount: searchDocCount,
 	}
 }
 
@@ -51,13 +51,13 @@ func (h *healthHandler) check(c *gin.Context) {
 	defer cancel()
 
 	resp := HealthResponse{
-		Status:    "ok",
-		Database:  h.checkDatabase(ctx),
-		Typesense: h.checkTypesense(ctx),
+		Status:       "ok",
+		Database:     h.checkDatabase(ctx),
+		SearchEngine: h.checkSearchEngine(ctx),
 	}
 
 	// If any component is unhealthy, return 503.
-	if resp.Database.Status != "healthy" || resp.Typesense.Status != "healthy" {
+	if resp.Database.Status != "healthy" || resp.SearchEngine.Status != "healthy" {
 		resp.Status = "degraded"
 		c.JSON(http.StatusServiceUnavailable, resp)
 		return
@@ -88,13 +88,13 @@ func (h *healthHandler) checkDatabase(ctx context.Context) HealthStatus {
 	return status
 }
 
-func (h *healthHandler) checkTypesense(ctx context.Context) HealthStatus {
-	if h.tsHealth == nil {
+func (h *healthHandler) checkSearchEngine(ctx context.Context) HealthStatus {
+	if h.searchHealth == nil {
 		return HealthStatus{Status: "unknown", Error: "health function not configured"}
 	}
 
 	start := time.Now()
-	ok, err := h.tsHealth(ctx, 3*time.Second)
+	ok, err := h.searchHealth(ctx, 3*time.Second)
 	if err != nil {
 		return HealthStatus{Status: "unhealthy", Error: err.Error()}
 	}
@@ -105,8 +105,8 @@ func (h *healthHandler) checkTypesense(ctx context.Context) HealthStatus {
 	status := HealthStatus{Status: "healthy", Latency: time.Since(start).String()}
 
 	// Get document count if available.
-	if h.tsDocCount != nil {
-		if count, err := h.tsDocCount(ctx); err == nil {
+	if h.searchDocCount != nil {
+		if count, err := h.searchDocCount(ctx); err == nil {
 			status.Count = count
 		}
 	}

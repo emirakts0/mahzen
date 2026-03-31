@@ -9,12 +9,12 @@ import (
 )
 
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	Database  DatabaseConfig  `mapstructure:"database"`
-	Typesense TypesenseConfig `mapstructure:"typesense"`
-	OpenAI    OpenAIConfig    `mapstructure:"openai"`
-	Auth      AuthConfig      `mapstructure:"auth"`
-	Log       LogConfig       `mapstructure:"log"`
+	Server      ServerConfig      `mapstructure:"server"`
+	Database    DatabaseConfig    `mapstructure:"database"`
+	Meilisearch MeilisearchConfig `mapstructure:"meilisearch"`
+	OpenAI      OpenAIConfig      `mapstructure:"openai"`
+	Auth        AuthConfig        `mapstructure:"auth"`
+	Log         LogConfig         `mapstructure:"log"`
 }
 
 type ServerConfig struct {
@@ -63,22 +63,9 @@ type PoolConfig struct {
 	HealthCheckPeriod time.Duration `mapstructure:"health_check_period"`
 }
 
-type TypesenseConfig struct {
-	Host              string               `mapstructure:"host"`
-	Port              int                  `mapstructure:"port"`
-	APIKey            string               `mapstructure:"api_key"`
-	ConnectionTimeout time.Duration        `mapstructure:"connection_timeout"`
-	CircuitBreaker    CircuitBreakerConfig `mapstructure:"circuit_breaker"`
-}
-
-func (t TypesenseConfig) URL() string {
-	return fmt.Sprintf("http://%s:%d", t.Host, t.Port)
-}
-
-type CircuitBreakerConfig struct {
-	MaxRequests uint32        `mapstructure:"max_requests"`
-	Interval    time.Duration `mapstructure:"interval"`
-	Timeout     time.Duration `mapstructure:"timeout"`
+type MeilisearchConfig struct {
+	Host   string `mapstructure:"host"` // e.g. "localhost:7700"
+	APIKey string `mapstructure:"api_key"`
 }
 
 type OpenAIConfig struct {
@@ -136,11 +123,11 @@ func (c *Config) validate() error {
 	if c.Database.Name == "" {
 		return fmt.Errorf("database.name is required")
 	}
-	if c.Typesense.Host == "" {
-		return fmt.Errorf("typesense.host is required")
+	if c.Meilisearch.Host == "" {
+		return fmt.Errorf("meilisearch.host is required")
 	}
-	if c.Typesense.APIKey == "" {
-		return fmt.Errorf("typesense.api_key is required")
+	if c.Meilisearch.APIKey == "" {
+		return fmt.Errorf("meilisearch.api_key is required")
 	}
 	if c.Auth.JWTSecret == "" {
 		return fmt.Errorf("auth.jwt_secret is required")

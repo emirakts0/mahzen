@@ -15,7 +15,7 @@ type SearchFilters struct {
 	Visibility string    // "public", "private", or empty for default behavior
 }
 
-// Highlight represents a single field-attributed highlight snippet from Typesense.
+// Highlight represents a single field-attributed highlight snippet from the search engine.
 // Snippet contains the matched text with query tokens.
 type Highlight struct {
 	Field   string // "title" | "content" | "summary"
@@ -28,7 +28,7 @@ type SearchResult struct {
 	UserID     string // Internal use only, not exposed in API
 	Title      string
 	Summary    string // AI-generated summary stored in the index.
-	Content    string // Content excerpt from Typesense index.
+	Content    string // Content excerpt from the search index.
 	Score      float64
 	Highlights []Highlight // field-attributed; only populated for keyword search
 	Path       string

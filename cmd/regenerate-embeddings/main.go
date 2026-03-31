@@ -1,5 +1,5 @@
 // cmd/regenerate-embeddings regenerates OpenAI embeddings for all entries
-// and saves them to the database. It does NOT index to Typesense.
+// and saves them to the database. It does NOT index to Meilisearch.
 //
 // Usage:
 //

@@ -17,19 +17,17 @@ services:
       retries: 5
     restart: unless-stopped
 
-  typesense:
-    image: typesense/typesense:30.1
-    container_name: mahzen-typesense
+  meilisearch:
+    image: getmeili/meilisearch:v1.41
+    container_name: mahzen-meilisearch
     environment:
-      TYPESENSE_API_KEY: mahzen-typesense-key
-      TYPESENSE_DATA_DIR: /data
-      TYPESENSE_ENABLE_CORS: "true"
+      MEILI_MASTER_KEY: mahzen-meilisearch-key
     ports:
-      - "8108:8108"
+      - "7700:7700"
     volumes:
-      - typesense_data:/data
+      - meilisearch_data:/data.ms
     healthcheck:
-      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8108"]
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -37,4 +35,4 @@ services:
 
 volumes:
   postgres_data:
-  typesense_data:
+  meilisearch_data:

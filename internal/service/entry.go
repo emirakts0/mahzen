@@ -94,7 +94,7 @@ func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, 
 		}
 	}
 
-	// Async: generate embedding and index in Typesense.
+	// Async: generate embedding and index in the search engine.
 	go s.indexEntryAsync(entry, tagIDs, content, false)
 
 	return entry, nil
@@ -246,7 +246,7 @@ func (s *EntryService) ListEntries(ctx context.Context, userID, pathPrefix strin
 	return entries, total, nil
 }
 
-// indexEntryAsync generates an embedding and indexes the entry in Typesense.
+// indexEntryAsync generates an embedding and indexes the entry in the search engine.
 // Runs in a background goroutine — errors are logged, not returned.
 // isUpdate controls whether to call UpdateEntry (for updates) or IndexEntry (for creates).
 func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, content string, isUpdate bool) {

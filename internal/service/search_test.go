@@ -52,7 +52,7 @@ func TestKeywordSearch_NoResults(t *testing.T) {
 func TestKeywordSearch_Error(t *testing.T) {
 	searcher := &mock.Searcher{
 		KeywordSearchFn: func(ctx context.Context, query, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error) {
-			return nil, 0, errors.New("typesense unavailable")
+			return nil, 0, errors.New("search unavailable")
 		},
 	}
 

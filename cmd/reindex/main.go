@@ -1,5 +1,5 @@
 // cmd/reindex reads all entries from the database (with existing embeddings)
-// and indexes them to Typesense. It does NOT regenerate embeddings.
+// and indexes them to Meilisearch. It does NOT regenerate embeddings.
 //
 // Usage:
 //
@@ -20,14 +20,14 @@ import (
 
 	"github.com/emirakts0/mahzen/internal/config"
 	"github.com/emirakts0/mahzen/internal/domain"
+	"github.com/emirakts0/mahzen/internal/infra/meilisearch"
 	"github.com/emirakts0/mahzen/internal/infra/postgres"
-	"github.com/emirakts0/mahzen/internal/infra/typesense"
 )
 
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to configuration file")
-	batchDelay := flag.Duration("batch-delay", 50*time.Millisecond, "delay between Typesense upserts")
-	dryRun := flag.Bool("dry-run", false, "list entries but do not index to Typesense")
+	batchDelay := flag.Duration("batch-delay", 50*time.Millisecond, "delay between Meilisearch upserts")
+	dryRun := flag.Bool("dry-run", false, "list entries but do not index to Meilisearch")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
@@ -47,21 +47,21 @@ func main() {
 	defer pool.Close()
 	slog.Info("connected to postgres")
 
-	// Connect to Typesense.
-	tsClient, err := typesense.NewClient(cfg.Typesense)
+	// Connect to Meilisearch.
+	meilClient, err := meilisearch.NewClient(cfg.Meilisearch)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "connect to typesense: %v\n", err)
+		fmt.Fprintf(os.Stderr, "connect to meilisearch: %v\n", err)
 		os.Exit(1)
 	}
-	slog.Info("connected to typesense")
+	slog.Info("connected to meilisearch")
 
-	// Ensure collection exists.
-	if err := typesense.EnsureCollections(ctx, tsClient); err != nil {
-		fmt.Fprintf(os.Stderr, "ensure typesense collections: %v\n", err)
+	// Ensure index exists.
+	if err := meilisearch.EnsureIndex(ctx, meilClient); err != nil {
+		fmt.Fprintf(os.Stderr, "ensure meilisearch index: %v\n", err)
 		os.Exit(1)
 	}
 
-	indexer := typesense.NewIndexer(tsClient)
+	indexer := meilisearch.NewIndexer(meilClient)
 
 	// Fetch all entries from Postgres.
 	entries, err := listAllEntries(ctx, pool)
@@ -82,7 +82,7 @@ func main() {
 		)
 
 		if *dryRun {
-			slog.Info("dry-run: skipping typesense upsert", "entry_id", entry.ID)
+			slog.Info("dry-run: skipping meilisearch upsert", "entry_id", entry.ID)
 			if entry.Embedding == nil {
 				noEmbedding++
 			} else {
@@ -99,7 +99,7 @@ func main() {
 		}
 
 		if err := indexer.IndexEntry(ctx, entry, tags, entry.Embedding); err != nil {
-			slog.Error("typesense upsert failed", "entry_id", entry.ID, "error", err)
+			slog.Error("meilisearch upsert failed", "entry_id", entry.ID, "error", err)
 			failed++
 			continue
 		}
@@ -124,11 +124,6 @@ func main() {
 	if failed > 0 {
 		os.Exit(1)
 	}
-}
-
-type dbEntry struct {
-	*domain.Entry
-	embeddingJSON *string
 }
 
 func listAllEntries(ctx context.Context, pool *pgxpool.Pool) ([]*domain.Entry, error) {
