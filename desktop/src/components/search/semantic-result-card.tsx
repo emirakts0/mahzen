@@ -22,7 +22,7 @@ function MatchBadge({ score }: { score: number }) {
   const percent = Math.round(score * 100)
   const style =
     percent >= MATCH_THRESHOLDS.HIGH
-      ? { bg: "rgba(34, 197, 94, 0.15)", color: "#22c55e" }
+      ? { bg: "var(--glass-success-bg)", color: "var(--glass-success)" }
       : percent >= MATCH_THRESHOLDS.MEDIUM
         ? { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" }
         : { bg: "var(--glass-hover)", color: "var(--glass-text-muted)" }

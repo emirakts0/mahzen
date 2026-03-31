@@ -50,6 +50,7 @@ func SetupRouter(deps RouterDeps) *gin.Engine {
 	users := newUserHandler(deps.UserRepo)
 	accessTokens := newAccessTokenHandler(deps.AccessTokenSvc)
 	health := newHealthHandler(deps.DBPing, deps.DBCount, deps.SearchEngineHealth, deps.SearchEngineDocCount)
+	download := newDownloadHandler()
 
 	// Health check endpoint (no auth required).
 	r.GET("/health", health.check)
@@ -109,6 +110,9 @@ func SetupRouter(deps RouterDeps) *gin.Engine {
 			tokenGroup.GET("", accessTokens.listTokens)
 			tokenGroup.POST("/:id/revoke", accessTokens.revokeToken)
 		}
+
+		// Download routes (public).
+		v1.GET("/downloads/:platform", download.download)
 	}
 
 	return r

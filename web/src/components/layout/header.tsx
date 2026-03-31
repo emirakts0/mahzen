@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { BookOpen, Search, LogOut, Moon, Sun, LogIn, UserPlus, Key, Sparkles } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
+import { DownloadHeader } from "./download-header"
 
 const NAV_ITEMS = [
   { to: "/search", label: "Search", icon: Search },
@@ -44,9 +45,9 @@ export function Header() {
   }
 
   return (
-    /* Floating island wrapper — centered, no full-width bar */
-    <div 
-      className="fixed top-4 inset-x-0 z-[60] flex justify-center px-4 pointer-events-none transition-transform duration-300 ease-out"
+    /* Floating island wrapper — two islands centered */
+    <div
+      className="fixed top-4 inset-x-0 z-[60] flex items-center justify-center gap-2 px-4 pointer-events-none transition-transform duration-300 ease-out"
       style={{
         transform: isHidden ? "translateY(-150%)" : "translateY(0)",
       }}
@@ -219,6 +220,7 @@ export function Header() {
           </>
         )}
       </header>
+      <DownloadHeader />
     </div>
   )
 }

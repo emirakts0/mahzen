@@ -39,6 +39,12 @@
     --glass-text-muted: rgba(30, 20, 60, 0.55);
     --glass-icon: rgba(30, 20, 60, 0.65);
     --glass-divider: rgba(30, 20, 60, 0.18);
+
+    /* Status badges */
+    --glass-success:     #16a34a;
+    --glass-success-bg:  rgba(22, 163, 74, 0.12);
+    --glass-warning:     #d97706;
+    --glass-warning-bg:  rgba(217, 119, 6, 0.12);
   }
 
   .dark {
@@ -49,7 +55,13 @@
     --glass-text-muted: rgba(255, 255, 255, 0.55);
     --glass-icon: rgba(255, 255, 255, 0.65);
     --glass-divider: rgba(255, 255, 255, 0.14);
-    --color-background: oklch(0.08 0.020 265.0);
+
+    /* Status badges — brighter for dark backgrounds */
+    --glass-success:     #4ade80;
+    --glass-success-bg:  rgba(74, 222, 128, 0.12);
+    --glass-warning:     #fbbf24;
+    --glass-warning-bg:  rgba(251, 191, 36, 0.12);
+
     --color-foreground: oklch(0.93 0.010 250.0);
     --color-card: oklch(0.12 0.022 265.0);
     --color-card-foreground: oklch(0.93 0.010 250.0);

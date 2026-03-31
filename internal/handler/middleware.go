@@ -22,13 +22,14 @@ func userIDFromContext(c *gin.Context) string {
 // publicPaths lists path patterns that do not require authentication.
 // Auth is still attempted (to extract user ID) but failure is not an error.
 var publicPaths = map[string]bool{
-	"POST /v1/auth/register":  true,
-	"POST /v1/auth/login":     true,
-	"POST /v1/auth/refresh":   true,
-	"POST /v1/auth/logout":    true,
-	"GET /v1/entries":         true,
-	"GET /v1/search/keyword":  true,
-	"GET /v1/search/semantic": true,
+	"POST /v1/auth/register":      true,
+	"POST /v1/auth/login":         true,
+	"POST /v1/auth/refresh":       true,
+	"POST /v1/auth/logout":        true,
+	"GET /v1/entries":             true,
+	"GET /v1/search/keyword":      true,
+	"GET /v1/search/semantic":     true,
+	"GET /v1/downloads/:platform": true,
 }
 
 // isPublicRoute checks whether the current request matches a public path.

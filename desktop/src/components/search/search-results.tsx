@@ -125,9 +125,8 @@ export function SearchResults({
         className="grid grid-cols-1 gap-4 md:grid-cols-2 h-full"
         style={{ marginTop: "2rem" }}
       >
-        <div 
-          className="flex flex-col gap-2 min-h-0 transition-opacity"
-          style={{ opacity: activeColumn === "keyword" ? 1 : 0.5 }}
+        <div
+          className="flex flex-col gap-2 min-h-0"
         >
           <ColumnHeader
             icon={BookText}
@@ -165,9 +164,8 @@ export function SearchResults({
           )}
         </div>
 
-        <div 
-          className="flex flex-col gap-2 min-h-0 transition-opacity"
-          style={{ opacity: activeColumn === "semantic" ? 1 : 0.5 }}
+        <div
+          className="flex flex-col gap-2 min-h-0"
         >
           <ColumnHeader
             icon={Sparkles}
