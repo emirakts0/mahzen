@@ -2,7 +2,7 @@
 <h1 align="center">Mahzen</h1>
 
 <p align="center">
-  A self-hosted, AI-powered knowledge management platform with dual-mode search, written in Go and React.
+  A self-hosted, AI-powered knowledge management platform with dual-mode search..
 </p>
 
 <div align="center">
