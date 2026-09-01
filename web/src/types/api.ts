@@ -8,13 +8,14 @@ export interface AuthTokens {
 }
 
 export interface RegisterRequest {
+  username: string
   email: string
   display_name?: string
   password: string
 }
 
 export interface LoginRequest {
-  email: string
+  identifier: string
   password: string
 }
 
@@ -28,6 +29,7 @@ export interface RefreshRequest {
 
 export interface User {
   id: string
+  username: string
   email: string
   display_name: string
 }

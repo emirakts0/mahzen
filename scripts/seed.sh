@@ -19,7 +19,7 @@ die()     { echo -e "${RED}[✗]${NC} $*" >&2; exit 1; }
 info "Kullanıcı kaydediliyor: emir@emir.com"
 REG=$($CURL -X POST "$BASE/v1/auth/register" \
   -H "Content-Type: application/json" \
-  -d '{"email":"emir@emir.com","display_name":"Emir","password":"emir1234"}')
+  -d '{"username":"emir","email":"emir@emir.com","display_name":"Emir","password":"emir1234"}')
 
 ACCESS=$(echo "$REG" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4 || true)
 REFRESH=$(echo "$REG" | grep -o '"refresh_token":"[^"]*"' | cut -d'"' -f4 || true)

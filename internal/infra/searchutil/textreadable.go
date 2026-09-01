@@ -3,9 +3,9 @@ package searchutil
 // ContentExcerptLen is the maximum length of content excerpts returned in search results.
 const ContentExcerptLen = 300
 
-// TextReadableTypes is the set of file extensions that contain human-readable text
-// and whose content should be indexed for full-text search.
-var TextReadableTypes = map[string]struct{}{
+// textReadableTypes is the set of file extensions whose content is
+// human-readable and should be indexed for full-text search.
+var textReadableTypes = map[string]struct{}{
 	"":      {}, // plain text entry (no file type)
 	"txt":   {},
 	"md":    {},
@@ -50,9 +50,8 @@ var TextReadableTypes = map[string]struct{}{
 	"tf":    {},
 }
 
-// IsTextReadable reports whether the given file extension corresponds to a
-// human-readable text format that should have its content indexed.
+// IsTextReadable reports whether content for the file extension should be indexed.
 func IsTextReadable(fileType string) bool {
-	_, ok := TextReadableTypes[fileType]
+	_, ok := textReadableTypes[fileType]
 	return ok
 }

@@ -15,7 +15,8 @@ export function AuthModal() {
   const authType = searchParams.get("auth") // 'login' | 'signup' | null
   const isOpen = authType === "login" || authType === "signup"
 
-  const [email, setEmail] = useState("")
+  const [identifier, setIdentifier] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [displayName, setDisplayName] = useState("")
@@ -56,15 +57,19 @@ export function AuthModal() {
         setError("Passwords do not match.")
         return
       }
+      if (!/^[a-z][a-z0-9_]{2,31}$/.test(username.trim().toLowerCase())) {
+        setError("Username must be 3-32 characters: lowercase letters, digits and underscores, starting with a letter.")
+        return
+      }
     }
 
     setIsLoading(true)
 
     try {
       if (authType === "signup") {
-        await register({ email, display_name: displayName, password })
+        await register({ username: username.trim().toLowerCase(), email: identifier.trim(), display_name: displayName, password })
       } else {
-        await login({ email, password })
+        await login({ identifier: identifier.trim(), password })
       }
       handleOpenChange(false)
     } catch (err) {
@@ -131,18 +136,41 @@ export function AuthModal() {
             </div>
           )}
 
+          {authType === "signup" && (
+            <div className="space-y-2">
+              <Label htmlFor="username" style={{ color: "var(--glass-text)" }}>
+                Username
+              </Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="jane_doe"
+                autoComplete="username"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={isLoading}
+                className="h-11 rounded-xl bg-transparent transition-colors"
+                style={{
+                  borderColor: "var(--glass-border)",
+                  color: "var(--glass-text)",
+                }}
+              />
+            </div>
+          )}
+
           <div className="space-y-2">
-            <Label htmlFor="email" style={{ color: "var(--glass-text)" }}>
-              Email
+            <Label htmlFor="identifier" style={{ color: "var(--glass-text)" }}>
+              {authType === "signup" ? "Email" : "Email or username"}
             </Label>
             <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              autoComplete="email"
+              id="identifier"
+              type="text"
+              placeholder={authType === "signup" ? "you@example.com" : "you@example.com or username"}
+              autoComplete={authType === "signup" ? "email" : "username"}
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               disabled={isLoading}
               className="h-11 rounded-xl bg-transparent transition-colors"
               style={{
@@ -222,9 +250,9 @@ export function AuthModal() {
             <div
               className="rounded-xl p-3 text-sm"
               style={{
-                background: "rgba(239, 68, 68, 0.1)",
-                border: "1px solid rgba(239, 68, 68, 0.2)",
-                color: "var(--glass-error, #ef4444)",
+                background: "var(--glass-error-bg)",
+                border: "1px solid var(--glass-error-border)",
+                color: "var(--glass-error)",
               }}
             >
               {error}
@@ -237,7 +265,7 @@ export function AuthModal() {
             disabled={isLoading}
             style={{
               background: "var(--glass-text)",
-              color: "hsl(var(--background))",
+              color: "var(--background)",
             }}
           >
             {isLoading 

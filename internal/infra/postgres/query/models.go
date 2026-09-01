@@ -27,11 +27,11 @@ type Entry struct {
 	Summary    string             `json:"summary"`
 	Path       string             `json:"path"`
 	Visibility string             `json:"visibility"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	FileType   string             `json:"file_type"`
 	FileSize   int64              `json:"file_size"`
 	Embedding  pgtype.Text        `json:"embedding"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
 type EntryTag struct {
@@ -56,6 +56,7 @@ type Tag struct {
 
 type User struct {
 	ID           pgtype.UUID        `json:"id"`
+	Username     string             `json:"username"`
 	Email        string             `json:"email"`
 	DisplayName  string             `json:"display_name"`
 	PasswordHash string             `json:"password_hash"`

@@ -151,26 +151,6 @@ func TestDetachTag(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// ListTagsByEntry
-// ---------------------------------------------------------------------------
-
-func TestListTagsByEntry(t *testing.T) {
-	tags := &mock.TagRepository{
-		ListByEntryFn: func(ctx context.Context, entryID string) ([]*domain.Tag, error) {
-			return []*domain.Tag{
-				{ID: "t1", Name: "go"},
-				{ID: "t2", Name: "testing"},
-			}, nil
-		},
-	}
-
-	svc := NewTagService(tags)
-	results, err := svc.ListTagsByEntry(context.Background(), "entry-1")
-	require.NoError(t, err)
-	assert.Len(t, results, 2)
-}
-
-// ---------------------------------------------------------------------------
 // slugify (internal function, white-box tests)
 // ---------------------------------------------------------------------------
 

@@ -58,11 +58,6 @@ func (s *TagService) DetachTag(ctx context.Context, entryID, tagID string) error
 	return s.tags.DetachFromEntry(ctx, entryID, tagID)
 }
 
-// ListTagsByEntry returns all tags attached to a given entry.
-func (s *TagService) ListTagsByEntry(ctx context.Context, entryID string) ([]*domain.Tag, error) {
-	return s.tags.ListByEntry(ctx, entryID)
-}
-
 var nonAlphanumeric = regexp.MustCompile(`[^a-z0-9]+`)
 
 // slugify converts a string to a URL-friendly slug.

@@ -19,9 +19,9 @@ func userIDFromContext(c *gin.Context) string {
 	return c.GetString(userIDKey)
 }
 
-// publicPaths lists path patterns that do not require authentication.
-// Auth is still attempted (to extract user ID) but failure is not an error.
+// publicPaths lists routes that work without authentication.
 var publicPaths = map[string]bool{
+	"GET /health":                 true,
 	"POST /v1/auth/register":      true,
 	"POST /v1/auth/login":         true,
 	"POST /v1/auth/refresh":       true,
@@ -32,7 +32,6 @@ var publicPaths = map[string]bool{
 	"GET /v1/downloads/:platform": true,
 }
 
-// isPublicRoute checks whether the current request matches a public path.
 func isPublicRoute(method, path string) bool {
 	// Exact match first.
 	key := method + " " + path
@@ -47,11 +46,12 @@ func isPublicRoute(method, path string) bool {
 }
 
 // AuthMiddleware returns a Gin middleware that validates JWT access tokens
-// and sets the user ID in the context. For public routes, authentication
-// is optional. For protected routes, a valid token is required.
+// and opaque "mah_" tokens, setting the user ID in the request context.
+// Public routes work without authentication; a valid token still scopes
+// results to the caller when provided.
 func AuthMiddleware(logger *slog.Logger, tokenGen domain.TokenGenerator, tokenStore domain.AccessTokenStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// If x-user-id header is already set (dev mode), pass through.
+		// Dev bypass: a raw user ID header skips token validation.
 		if uid := c.GetHeader("X-User-Id"); uid != "" {
 			c.Set(userIDKey, uid)
 			c.Next()
@@ -59,54 +59,40 @@ func AuthMiddleware(logger *slog.Logger, tokenGen domain.TokenGenerator, tokenSt
 		}
 
 		isPublic := isPublicRoute(c.Request.Method, c.FullPath())
-
-		// Try to extract Bearer token from Authorization header.
-		var userID string
-		if authHeader := c.GetHeader("Authorization"); authHeader != "" {
-			token := authHeader
-			if strings.HasPrefix(token, "Bearer ") {
-				token = strings.TrimPrefix(token, "Bearer ")
-			}
-
-			// Optimization: opaque tokens start with "mah_"
-			if strings.HasPrefix(token, "mah_") {
-				if uid, ok := tokenStore.Lookup(token); ok {
-					userID = uid
-				}
-			} else {
-				id, err := tokenGen.ValidateAccessToken(token)
-				if err != nil {
-					logger.Debug("jwt validation failed",
-						"method", c.Request.Method,
-						"path", c.Request.URL.Path,
-						"error", err,
-					)
-				} else {
-					userID = id
-				}
-			}
-
-			if userID == "" && !isPublic {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-					"error": "invalid or expired token",
-				})
-				return
-			}
-
-			if userID == "" && isPublic {
-				c.Next()
-				return
-			}
-		}
-
-		if userID == "" {
+		unauthorized := func(msg string) {
 			if isPublic {
 				c.Next()
 				return
 			}
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "authentication required",
-			})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": msg})
+		}
+
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			unauthorized("authentication required")
+			return
+		}
+
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		var userID string
+		switch {
+		// Opaque tokens start with "mah_" — skip JWT parsing.
+		case strings.HasPrefix(token, "mah_"):
+			userID, _ = tokenStore.Lookup(token)
+		default:
+			if id, err := tokenGen.ValidateAccessToken(token); err != nil {
+				logger.Debug("jwt validation failed",
+					"method", c.Request.Method,
+					"path", c.Request.URL.Path,
+					"error", err,
+				)
+			} else {
+				userID = id
+			}
+		}
+
+		if userID == "" {
+			unauthorized("invalid or expired token")
 			return
 		}
 
@@ -115,7 +101,6 @@ func AuthMiddleware(logger *slog.Logger, tokenGen domain.TokenGenerator, tokenSt
 	}
 }
 
-// LoggingMiddleware returns a Gin middleware that logs requests.
 func LoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -141,7 +126,6 @@ func LoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
 	}
 }
 
-// RecoveryMiddleware returns a Gin middleware that recovers from panics.
 func RecoveryMiddleware(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
@@ -162,7 +146,6 @@ func RecoveryMiddleware(logger *slog.Logger) gin.HandlerFunc {
 	}
 }
 
-// CORSMiddleware returns a Gin middleware that handles CORS headers.
 func CORSMiddleware() gin.HandlerFunc {
 	allowedOrigins := map[string]bool{
 		"http://localhost:3000": true,

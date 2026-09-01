@@ -124,6 +124,8 @@ func buildDocument(entry *domain.Entry, tags []*domain.Tag, embedding []float32)
 		content = entry.Content
 	}
 
+	// The "openai" embedder is userProvided: every document must either carry
+	// its vectors in _vectors.openai or opt out with an explicit null.
 	doc := entryDocument{
 		ID:         entry.ID,
 		UserID:     entry.UserID,
@@ -136,12 +138,7 @@ func buildDocument(entry *domain.Entry, tags []*domain.Tag, embedding []float32)
 		CreatedAt:  entry.CreatedAt.Unix(),
 		FileType:   entry.FileType,
 		FileSize:   entry.FileSize,
-	}
-
-	if len(embedding) > 0 {
-		doc.Vectors = map[string][]float32{
-			"openai": embedding,
-		}
+		Vectors:    map[string][]float32{"openai": embedding},
 	}
 
 	return doc

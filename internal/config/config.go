@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ type Config struct {
 	Meilisearch MeilisearchConfig `mapstructure:"meilisearch"`
 	OpenAI      OpenAIConfig      `mapstructure:"openai"`
 	Auth        AuthConfig        `mapstructure:"auth"`
+	DefaultUser DefaultUserConfig `mapstructure:"default_user"`
 	Log         LogConfig         `mapstructure:"log"`
 }
 
@@ -26,8 +28,7 @@ type HTTPConfig struct {
 	TLS  TLSConfig `mapstructure:"tls"`
 }
 
-// TLSConfig holds TLS/HTTP3 certificate paths.
-// When both CertFile and KeyFile are set, the server starts with HTTP/3 (QUIC).
+// TLSConfig enables TLS + HTTP/3 when both cert paths are set.
 type TLSConfig struct {
 	CertFile string `mapstructure:"cert_file"`
 	KeyFile  string `mapstructure:"key_file"`
@@ -86,9 +87,38 @@ type LogConfig struct {
 	Format string `mapstructure:"format"`
 }
 
-// Load reads the configuration from the given path and environment variables.
-// Environment variables are prefixed with MAHZEN_ and use underscore as separator.
-// For example, MAHZEN_DATABASE_HOST overrides database.host.
+// DefaultUserConfig holds the bootstrap user created on startup.
+// The password is only applied while it is still the default —
+// once changed (or absent), the existing account is left untouched.
+type DefaultUserConfig struct {
+	Username    string `mapstructure:"username"`
+	Email       string `mapstructure:"email"`
+	Password    string `mapstructure:"password"`
+	DisplayName string `mapstructure:"display_name"`
+}
+
+// UsernameOrDefault returns the configured username or the built-in default.
+func (d DefaultUserConfig) UsernameOrDefault() string {
+	return cmp.Or(d.Username, "admin")
+}
+
+// EmailOrDefault returns the configured email or the built-in default.
+func (d DefaultUserConfig) EmailOrDefault() string {
+	return cmp.Or(d.Email, "admin@mahzen.local")
+}
+
+// PasswordOrDefault returns the configured password or the built-in default.
+func (d DefaultUserConfig) PasswordOrDefault() string {
+	return cmp.Or(d.Password, "mahzen")
+}
+
+// DisplayNameOrDefault returns the configured display name or the built-in default.
+func (d DefaultUserConfig) DisplayNameOrDefault() string {
+	return cmp.Or(d.DisplayName, "Admin")
+}
+
+// Load reads config from the given file path; MAHZEN_* env vars override
+// values (e.g. MAHZEN_DATABASE_HOST overrides database.host).
 func Load(path string) (*Config, error) {
 	v := viper.New()
 

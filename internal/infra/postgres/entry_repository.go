@@ -43,8 +43,8 @@ func (r *EntryRepository) Create(ctx context.Context, entry *domain.Entry) error
 		return fmt.Errorf("inserting entry: %w", err)
 	}
 
-	entry.ID = uuidToString(row.ID)
-	entry.UserID = uuidToString(row.UserID)
+	entry.ID = row.ID.String()
+	entry.UserID = row.UserID.String()
 	entry.Title = row.Title
 	entry.Content = row.Content
 	entry.Summary = row.Summary
@@ -70,8 +70,8 @@ func (r *EntryRepository) GetByID(ctx context.Context, id string) (*domain.Entry
 	}
 
 	return &domain.Entry{
-		ID:         uuidToString(row.ID),
-		UserID:     uuidToString(row.UserID),
+		ID:         row.ID.String(),
+		UserID:     row.UserID.String(),
 		Title:      row.Title,
 		Content:    row.Content,
 		Summary:    row.Summary,
@@ -106,8 +106,8 @@ func (r *EntryRepository) Update(ctx context.Context, entry *domain.Entry) error
 		return fmt.Errorf("updating entry: %w", err)
 	}
 
-	entry.ID = uuidToString(row.ID)
-	entry.UserID = uuidToString(row.UserID)
+	entry.ID = row.ID.String()
+	entry.UserID = row.UserID.String()
 	entry.Title = row.Title
 	entry.Content = row.Content
 	entry.Summary = row.Summary
@@ -133,139 +133,10 @@ func (r *EntryRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *EntryRepository) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*domain.Entry, int, error) {
-	uid, err := parseUUID(userID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("parsing user id: %w", err)
-	}
-
-	count, err := r.q.CountEntriesByUser(ctx, uid)
-	if err != nil {
-		return nil, 0, fmt.Errorf("counting entries: %w", err)
-	}
-
-	rows, err := r.q.ListEntriesByUser(ctx, query.ListEntriesByUserParams{
-		UserID: uid,
-		Limit:  int32(limit),
-		Offset: int32(offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("listing entries: %w", err)
-	}
-
-	entries := make([]*domain.Entry, len(rows))
-	for i, row := range rows {
-		entries[i] = &domain.Entry{
-			ID:         uuidToString(row.ID),
-			UserID:     uuidToString(row.UserID),
-			Title:      row.Title,
-			Content:    row.Content,
-			Summary:    row.Summary,
-			Path:       row.Path,
-			Visibility: domain.ParseVisibility(row.Visibility),
-			FileType:   row.FileType,
-			FileSize:   row.FileSize,
-			CreatedAt:  row.CreatedAt.Time,
-			UpdatedAt:  row.UpdatedAt.Time,
-		}
-	}
-	return entries, int(count), nil
-}
-
-func (r *EntryRepository) ListAccessible(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error) {
-	// When userID is empty (unauthenticated request), use a nil UUID.
-	// PostgreSQL evaluates "user_id = NULL" as NULL (never true),
-	// so only public entries are returned.
-	var uid pgtype.UUID
-	if userID != "" {
-		var err error
-		uid, err = parseUUID(userID)
-		if err != nil {
-			return nil, 0, fmt.Errorf("parsing user id: %w", err)
-		}
-	}
-
-	// When a path prefix is provided, use the path-filtered queries.
-	if pathPrefix != "" {
-		count, err := r.q.CountAccessibleEntriesByPath(ctx, query.CountAccessibleEntriesByPathParams{
-			UserID: uid,
-			Path:   pathPrefix,
-		})
-		if err != nil {
-			return nil, 0, fmt.Errorf("counting accessible entries by path: %w", err)
-		}
-
-		rows, err := r.q.ListAccessibleEntriesByPath(ctx, query.ListAccessibleEntriesByPathParams{
-			UserID: uid,
-			Path:   pathPrefix,
-			Limit:  int32(limit),
-			Offset: int32(offset),
-		})
-		if err != nil {
-			return nil, 0, fmt.Errorf("listing accessible entries by path: %w", err)
-		}
-
-		entries := make([]*domain.Entry, len(rows))
-		for i, row := range rows {
-			entries[i] = &domain.Entry{
-				ID:         uuidToString(row.ID),
-				UserID:     uuidToString(row.UserID),
-				Title:      row.Title,
-				Content:    row.Content,
-				Summary:    row.Summary,
-				Path:       row.Path,
-				Visibility: domain.ParseVisibility(row.Visibility),
-				FileType:   row.FileType,
-				FileSize:   row.FileSize,
-				CreatedAt:  row.CreatedAt.Time,
-				UpdatedAt:  row.UpdatedAt.Time,
-			}
-		}
-		return entries, int(count), nil
-	}
-
-	// No path filter — list all accessible entries.
-	count, err := r.q.CountAccessibleEntries(ctx, uid)
-	if err != nil {
-		return nil, 0, fmt.Errorf("counting accessible entries: %w", err)
-	}
-
-	rows, err := r.q.ListAccessibleEntries(ctx, query.ListAccessibleEntriesParams{
-		UserID: uid,
-		Limit:  int32(limit),
-		Offset: int32(offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("listing accessible entries: %w", err)
-	}
-
-	entries := make([]*domain.Entry, len(rows))
-	for i, row := range rows {
-		entries[i] = &domain.Entry{
-			ID:         uuidToString(row.ID),
-			UserID:     uuidToString(row.UserID),
-			Title:      row.Title,
-			Content:    row.Content,
-			Summary:    row.Summary,
-			Path:       row.Path,
-			Visibility: domain.ParseVisibility(row.Visibility),
-			FileType:   row.FileType,
-			FileSize:   row.FileSize,
-			CreatedAt:  row.CreatedAt.Time,
-			UpdatedAt:  row.UpdatedAt.Time,
-		}
-	}
-	return entries, int(count), nil
-}
-
 func (r *EntryRepository) ListDistinctPaths(ctx context.Context, userID string) ([]string, error) {
-	var uid pgtype.UUID
-	if userID != "" {
-		var err error
-		uid, err = parseUUID(userID)
-		if err != nil {
-			return nil, fmt.Errorf("parsing user id: %w", err)
-		}
+	uid, err := optionalUUID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("parsing user id: %w", err)
 	}
 
 	paths, err := r.q.ListDistinctPaths(ctx, uid)
@@ -277,13 +148,9 @@ func (r *EntryRepository) ListDistinctPaths(ctx context.Context, userID string) 
 }
 
 func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, own bool, filter *domain.ListEntriesFilter, limit, offset int) ([]*domain.Entry, int, error) {
-	var uid pgtype.UUID
-	if userID != "" {
-		var err error
-		uid, err = parseUUID(userID)
-		if err != nil {
-			return nil, 0, fmt.Errorf("parsing user id: %w", err)
-		}
+	uid, err := optionalUUID(userID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("parsing user id: %w", err)
 	}
 
 	filterVisibility, fromDate, toDate, filterTags := extractFilterParams(filter)
@@ -310,8 +177,8 @@ func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, o
 			totalCount = int(e.TotalCount)
 		}
 		result[i] = &domain.Entry{
-			ID:         uuidToString(e.ID),
-			UserID:     uuidToString(e.UserID),
+			ID:         e.ID.String(),
+			UserID:     e.UserID.String(),
 			Title:      e.Title,
 			Content:    e.Content,
 			Summary:    e.Summary,
@@ -328,13 +195,9 @@ func (r *EntryRepository) ListInPath(ctx context.Context, userID, path string, o
 }
 
 func (r *EntryRepository) ListPathCountsUnderPrefix(ctx context.Context, userID, prefix string, own bool, filter *domain.ListEntriesFilter) ([]domain.PathCount, error) {
-	var uid pgtype.UUID
-	if userID != "" {
-		var err error
-		uid, err = parseUUID(userID)
-		if err != nil {
-			return nil, fmt.Errorf("parsing user id: %w", err)
-		}
+	uid, err := optionalUUID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("parsing user id: %w", err)
 	}
 
 	filterVisibility, fromDate, toDate, filterTags := extractFilterParams(filter)
@@ -400,6 +263,14 @@ func extractFilterParams(filter *domain.ListEntriesFilter) (string, pgtype.Times
 	return filterVisibility, fromDate, toDate, filterTags
 }
 
+// optionalUUID parses a user ID, returning a NULL UUID for anonymous users.
+func optionalUUID(userID string) (pgtype.UUID, error) {
+	if userID == "" {
+		return pgtype.UUID{}, nil
+	}
+	return parseUUID(userID)
+}
+
 // parseUUID converts a string UUID to pgtype.UUID.
 func parseUUID(s string) (pgtype.UUID, error) {
 	var u pgtype.UUID
@@ -407,16 +278,6 @@ func parseUUID(s string) (pgtype.UUID, error) {
 		return u, fmt.Errorf("invalid uuid %q: %w", s, err)
 	}
 	return u, nil
-}
-
-// uuidToString converts a pgtype.UUID to its string representation.
-func uuidToString(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	b := u.Bytes
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 // embeddingToText converts a float32 slice to JSON text for storage.
@@ -443,7 +304,7 @@ func textToEmbedding(t pgtype.Text) []float32 {
 	return emb
 }
 
-// ListAll returns all entries regardless of user or visibility (for admin/reindex operations).
+// ListAll returns all entries regardless of user or visibility.
 func (r *EntryRepository) ListAll(ctx context.Context) ([]*domain.Entry, error) {
 	rows, err := r.q.ListAllEntries(ctx)
 	if err != nil {
@@ -453,8 +314,8 @@ func (r *EntryRepository) ListAll(ctx context.Context) ([]*domain.Entry, error) 
 	entries := make([]*domain.Entry, len(rows))
 	for i, row := range rows {
 		entries[i] = &domain.Entry{
-			ID:         uuidToString(row.ID),
-			UserID:     uuidToString(row.UserID),
+			ID:         row.ID.String(),
+			UserID:     row.UserID.String(),
 			Title:      row.Title,
 			Content:    row.Content,
 			Summary:    row.Summary,

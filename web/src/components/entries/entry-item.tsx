@@ -31,9 +31,9 @@ export function EntryItem({ entry, depth, onSelect }: EntryItemProps) {
           {entry.title || "(Untitled)"}
         </span>
         {entry.visibility === "public" ? (
-          <Eye className="h-3 w-3 text-green-700 shrink-0" />
+          <Eye className="h-3 w-3 shrink-0" style={{ color: "var(--glass-success)" }} />
         ) : (
-          <EyeOff className="h-3 w-3 text-rose-600 shrink-0" />
+          <EyeOff className="h-3 w-3 shrink-0" style={{ color: "var(--glass-error)" }} />
         )}
       </div>
 

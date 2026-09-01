@@ -293,24 +293,3 @@ func TestDeleteEntry_NotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "deleting entry")
 }
-
-// ---------------------------------------------------------------------------
-// ListEntries
-// ---------------------------------------------------------------------------
-
-func TestListEntries(t *testing.T) {
-	entries := &mock.EntryRepository{
-		ListAccessibleFn: func(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error) {
-			return []*domain.Entry{
-				{ID: "e1", Title: "Entry 1"},
-				{ID: "e2", Title: "Entry 2"},
-			}, 2, nil
-		},
-	}
-
-	svc := newTestEntryService(entries, &mock.TagRepository{}, &mock.Indexer{}, &mock.Embedder{})
-	results, total, err := svc.ListEntries(context.Background(), "user-1", "", 10, 0)
-	require.NoError(t, err)
-	assert.Len(t, results, 2)
-	assert.Equal(t, 2, total)
-}

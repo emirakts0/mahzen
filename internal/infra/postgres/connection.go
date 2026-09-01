@@ -9,18 +9,29 @@ import (
 	"github.com/emirakts0/mahzen/internal/config"
 )
 
-// NewPool creates a new PostgreSQL connection pool with the given configuration.
+// NewPool creates a pgxpool from config. Zero-valued pool settings keep the
+// pgx defaults instead of panicking on invalid values.
 func NewPool(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, error) {
 	poolCfg, err := pgxpool.ParseConfig(cfg.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("parsing database config: %w", err)
 	}
 
-	poolCfg.MaxConns = int32(cfg.Pool.MaxConns)
-	poolCfg.MinConns = int32(cfg.Pool.MinConns)
-	poolCfg.MaxConnLifetime = cfg.Pool.MaxConnLifetime
-	poolCfg.MaxConnIdleTime = cfg.Pool.MaxConnIdleTime
-	poolCfg.HealthCheckPeriod = cfg.Pool.HealthCheckPeriod
+	if cfg.Pool.MaxConns > 0 {
+		poolCfg.MaxConns = int32(cfg.Pool.MaxConns)
+	}
+	if cfg.Pool.MinConns > 0 {
+		poolCfg.MinConns = int32(cfg.Pool.MinConns)
+	}
+	if cfg.Pool.MaxConnLifetime > 0 {
+		poolCfg.MaxConnLifetime = cfg.Pool.MaxConnLifetime
+	}
+	if cfg.Pool.MaxConnIdleTime > 0 {
+		poolCfg.MaxConnIdleTime = cfg.Pool.MaxConnIdleTime
+	}
+	if cfg.Pool.HealthCheckPeriod > 0 {
+		poolCfg.HealthCheckPeriod = cfg.Pool.HealthCheckPeriod
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {

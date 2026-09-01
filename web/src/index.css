@@ -7,10 +7,130 @@
   Dark-first theme.
   Light mode is a soft warm-cream variant.
   Dark mode is near-black with deep blue accents.
+
+  Semantic tokens (--background, --glass-* etc.) are defined on :root and
+  overridden on .dark so they cascade at runtime. @theme inline maps the
+  Tailwind --color-* tokens onto them — the `inline` keyword makes utilities
+  emit `var(--background)` (a live reference) instead of baking the value in,
+  which is what allows the .dark overrides to take effect.
 */
 
 /* Tailwind v4: class-based dark mode */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Light mode (default) ── */
+:root {
+  --background:             oklch(0.96 0.008 250.0);
+  --foreground:             oklch(0.10 0.015 250.0);
+
+  --card:                   oklch(0.98 0.006 250.0);
+  --card-foreground:        oklch(0.10 0.015 250.0);
+
+  --popover:                oklch(0.98 0.006 250.0);
+  --popover-foreground:     oklch(0.10 0.015 250.0);
+
+  --primary:                oklch(0.55 0.18 270.0);
+  --primary-foreground:     oklch(0.98 0.006 250.0);
+
+  --secondary:              oklch(0.88 0.04 260.0);
+  --secondary-foreground:   oklch(0.25 0.04 260.0);
+
+  --muted:                  oklch(0.90 0.015 255.0);
+  --muted-foreground:       oklch(0.50 0.025 255.0);
+
+  --accent:                 oklch(0.85 0.06 265.0);
+  --accent-foreground:      oklch(0.20 0.04 260.0);
+
+  --destructive:            oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border:                 oklch(0.84 0.025 255.0);
+  --input:                  oklch(0.84 0.025 255.0);
+  --ring:                   oklch(0.55 0.18 270.0);
+
+  --sidebar:                oklch(0.94 0.010 252.0);
+  --sidebar-foreground:     oklch(0.10 0.015 250.0);
+  --sidebar-border:         oklch(0.84 0.025 255.0);
+  --sidebar-ring:           oklch(0.55 0.18 270.0);
+
+  /* Glass tokens */
+  --glass-bg:         rgba(255, 255, 255, 0.18);
+  --glass-border:     rgba(255, 255, 255, 0.28);
+  --glass-hover:      rgba(255, 255, 255, 0.26);
+  --glass-text:       rgba(30, 20, 60, 0.90);
+  --glass-text-muted: rgba(30, 20, 60, 0.55);
+  --glass-icon:       rgba(30, 20, 60, 0.65);
+  --glass-divider:    rgba(30, 20, 60, 0.18);
+
+  /* Status badges */
+  --glass-success:     #16a34a;
+  --glass-success-bg:  rgba(22, 163, 74, 0.12);
+  --glass-warning:     #d97706;
+  --glass-warning-bg:  rgba(217, 119, 6, 0.12);
+  --glass-error:       #dc2626;
+  --glass-error-bg:    rgba(220, 38, 38, 0.10);
+  --glass-error-border: rgba(220, 38, 38, 0.25);
+  --glass-info:        #2563eb;
+  --glass-info-bg:     rgba(37, 99, 235, 0.12);
+  --glass-accent:      #2563eb;
+}
+
+/* ── Dark mode overrides ── */
+.dark {
+  --background:             oklch(0.08 0.020 265.0);
+  --foreground:             oklch(0.93 0.010 250.0);
+
+  --card:                   oklch(0.12 0.022 265.0);
+  --card-foreground:        oklch(0.93 0.010 250.0);
+
+  --popover:                oklch(0.12 0.022 265.0);
+  --popover-foreground:     oklch(0.93 0.010 250.0);
+
+  --primary:                oklch(0.70 0.14 270.0);
+  --primary-foreground:     oklch(0.08 0.020 265.0);
+
+  --secondary:              oklch(0.22 0.040 265.0);
+  --secondary-foreground:   oklch(0.85 0.018 252.0);
+
+  --muted:                  oklch(0.18 0.025 263.0);
+  --muted-foreground:       oklch(0.58 0.035 255.0);
+
+  --accent:                 oklch(0.25 0.045 265.0);
+  --accent-foreground:      oklch(0.93 0.010 250.0);
+
+  --destructive:            oklch(0.60 0.220 27.0);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border:                 oklch(0.22 0.028 263.0);
+  --input:                  oklch(0.22 0.028 263.0);
+  --ring:                   oklch(0.70 0.14 270.0);
+
+  --sidebar:                oklch(0.10 0.020 265.0);
+  --sidebar-foreground:     oklch(0.93 0.010 250.0);
+  --sidebar-border:         oklch(0.22 0.028 263.0);
+  --sidebar-ring:           oklch(0.70 0.14 270.0);
+
+  /* Glass tokens — brighter for dark backgrounds */
+  --glass-bg:         rgba(255, 255, 255, 0.08);
+  --glass-border:     rgba(255, 255, 255, 0.14);
+  --glass-hover:      rgba(255, 255, 255, 0.14);
+  --glass-text:       rgba(255, 255, 255, 0.92);
+  --glass-text-muted: rgba(255, 255, 255, 0.55);
+  --glass-icon:       rgba(255, 255, 255, 0.65);
+  --glass-divider:    rgba(255, 255, 255, 0.14);
+
+  /* Status badges */
+  --glass-success:     #4ade80;
+  --glass-success-bg:  rgba(74, 222, 128, 0.12);
+  --glass-warning:     #fbbf24;
+  --glass-warning-bg:  rgba(251, 191, 36, 0.12);
+  --glass-error:       #f87171;
+  --glass-error-bg:    rgba(248, 113, 113, 0.12);
+  --glass-error-border: rgba(248, 113, 113, 0.30);
+  --glass-info:        #60a5fa;
+  --glass-info-bg:     rgba(96, 165, 250, 0.15);
+  --glass-accent:      #60a5fa;
+}
 
 @theme inline {
   --radius: 0.625rem;
@@ -18,107 +138,38 @@
   --font-sans: "JetBrains Mono", ui-monospace, monospace;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  /* ── Light mode (defaults) ── */
-  --color-background:         oklch(0.96 0.008 250.0);
-  --color-foreground:         oklch(0.10 0.015 250.0);
+  --color-background:         var(--background);
+  --color-foreground:         var(--foreground);
 
-  --color-card:               oklch(0.98 0.006 250.0);
-  --color-card-foreground:    oklch(0.10 0.015 250.0);
+  --color-card:               var(--card);
+  --color-card-foreground:    var(--card-foreground);
 
-  --color-popover:            oklch(0.98 0.006 250.0);
-  --color-popover-foreground: oklch(0.10 0.015 250.0);
+  --color-popover:            var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
 
-  --color-primary:            oklch(0.55 0.18 270.0);
-  --color-primary-foreground: oklch(0.98 0.006 250.0);
+  --color-primary:            var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
 
-  --color-secondary:          oklch(0.88 0.04 260.0);
-  --color-secondary-foreground: oklch(0.25 0.04 260.0);
+  --color-secondary:          var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
 
-  --color-muted:              oklch(0.90 0.015 255.0);
-  --color-muted-foreground:   oklch(0.50 0.025 255.0);
+  --color-muted:              var(--muted);
+  --color-muted-foreground:   var(--muted-foreground);
 
-  --color-accent:             oklch(0.85 0.06 265.0);
-  --color-accent-foreground:  oklch(0.20 0.04 260.0);
+  --color-accent:             var(--accent);
+  --color-accent-foreground:  var(--accent-foreground);
 
-  --color-destructive:        oklch(0.577 0.245 27.325);
-  --color-destructive-foreground: oklch(0.985 0 0);
+  --color-destructive:        var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
 
-  --color-border:             oklch(0.84 0.025 255.0);
-  --color-input:              oklch(0.84 0.025 255.0);
-  --color-ring:               oklch(0.55 0.18 270.0);
+  --color-border:             var(--border);
+  --color-input:              var(--input);
+  --color-ring:               var(--ring);
 
-  --color-sidebar:            oklch(0.94 0.010 252.0);
-  --color-sidebar-foreground: oklch(0.10 0.015 250.0);
-  --color-sidebar-border:     oklch(0.84 0.025 255.0);
-  --color-sidebar-ring:       oklch(0.55 0.18 270.0);
-}
-
-/* ── Dark mode overrides ── */
-@layer base {
-  /* Glass tokens — light mode (default) */
-  :root {
-    --glass-bg:         rgba(255, 255, 255, 0.18);
-    --glass-border:     rgba(255, 255, 255, 0.28);
-    --glass-hover:      rgba(255, 255, 255, 0.26);
-    --glass-text:       rgba(30, 20, 60, 0.90);
-    --glass-text-muted: rgba(30, 20, 60, 0.55);
-    --glass-icon:       rgba(30, 20, 60, 0.65);
-    --glass-divider:    rgba(30, 20, 60, 0.18);
-
-    /* Status badges */
-    --glass-success:     #16a34a;
-    --glass-success-bg:  rgba(22, 163, 74, 0.12);
-    --glass-warning:     #d97706;
-    --glass-warning-bg:  rgba(217, 119, 6, 0.12);
-  }
-
-  .dark {
-    /* Glass tokens — dark mode */
-    --glass-bg:         rgba(255, 255, 255, 0.08);
-    --glass-border:     rgba(255, 255, 255, 0.14);
-    --glass-hover:      rgba(255, 255, 255, 0.14);
-    --glass-text:       rgba(255, 255, 255, 0.92);
-    --glass-text-muted: rgba(255, 255, 255, 0.55);
-    --glass-icon:       rgba(255, 255, 255, 0.65);
-    --glass-divider:    rgba(255, 255, 255, 0.14);
-
-    /* Status badges — brighter for dark backgrounds */
-    --glass-success:     #4ade80;
-    --glass-success-bg:  rgba(74, 222, 128, 0.12);
-    --glass-warning:     #fbbf24;
-    --glass-warning-bg:  rgba(251, 191, 36, 0.12);
-    --color-foreground:         oklch(0.93 0.010 250.0);
-
-    --color-card:               oklch(0.12 0.022 265.0);
-    --color-card-foreground:    oklch(0.93 0.010 250.0);
-
-    --color-popover:            oklch(0.12 0.022 265.0);
-    --color-popover-foreground: oklch(0.93 0.010 250.0);
-
-    --color-primary:            oklch(0.70 0.14 270.0);
-    --color-primary-foreground: oklch(0.08 0.020 265.0);
-
-    --color-secondary:          oklch(0.22 0.040 265.0);
-    --color-secondary-foreground: oklch(0.85 0.018 252.0);
-
-    --color-muted:              oklch(0.18 0.025 263.0);
-    --color-muted-foreground:   oklch(0.58 0.035 255.0);
-
-    --color-accent:             oklch(0.25 0.045 265.0);
-    --color-accent-foreground:  oklch(0.93 0.010 250.0);
-
-    --color-destructive:        oklch(0.60 0.220 27.0);
-    --color-destructive-foreground: oklch(0.985 0 0);
-
-    --color-border:             oklch(0.22 0.028 263.0);
-    --color-input:              oklch(0.22 0.028 263.0);
-    --color-ring:               oklch(0.70 0.14 270.0);
-
-    --color-sidebar:            oklch(0.10 0.020 265.0);
-    --color-sidebar-foreground: oklch(0.93 0.010 250.0);
-    --color-sidebar-border:     oklch(0.22 0.028 263.0);
-    --color-sidebar-ring:       oklch(0.70 0.14 270.0);
-  }
+  --color-sidebar:            var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border:     var(--sidebar-border);
+  --color-sidebar-ring:       var(--sidebar-ring);
 }
 
 @layer base {
@@ -129,58 +180,7 @@
   html {
     height: 100%;
     overflow-y: auto;
-    background-color: var(--color-background);
-    scrollbar-width: none;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-
-  html::-webkit-scrollbar {
-    display: none;
-  }
-
-  body {
-    @apply text-foreground antialiased;
-    background: transparent;
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    min-height: 100%;
-  }
-
-  input,
-  textarea,
-  [contenteditable="true"],
-  .selectable {
-    user-select: text;
-    -webkit-user-select: text;
-  }
-
-  ::selection {
-    background: rgba(255, 255, 255, 0.4);
-    color: inherit;
-  }
-
-  ::-moz-selection {
-    background: rgba(255, 255, 255, 0.4);
-    color: inherit;
-  }
-
-  .dark ::selection {
-    background: rgba(255, 255, 255, 0.25);
-  }
-
-  .dark ::-moz-selection {
-    background: rgba(255, 255, 255, 0.25);
-  }
-
-  input::placeholder {
-    color: var(--glass-text-muted);
-    opacity: 1;
-  }
-
-  html {
-    height: 100%;
-    overflow-y: auto;
-    background-color: var(--color-background);
+    background-color: var(--background);
     /* Hide the native page scrollbar — content still scrolls via wheel/trackpad/keyboard.
        The fixed Grainient background cannot paint behind browser-chrome scrollbars,
        so hiding it is the only way to keep the background seamless edge-to-edge. */
@@ -199,10 +199,32 @@
     min-height: 100%;
   }
 
-  /* Glass input placeholder inherits muted token */
+  input,
+  textarea,
+  [contenteditable="true"],
+  .selectable {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  ::selection {
+    background: var(--glass-divider);
+    color: inherit;
+  }
+
+  .dark ::selection {
+    background: rgba(255, 255, 255, 0.25);
+  }
+
   input::placeholder {
     color: var(--glass-text-muted);
     opacity: 1;
+  }
+
+  /* Search highlight — theme-aware instead of the browser default yellow */
+  mark {
+    background: var(--glass-warning-bg);
+    color: var(--glass-warning);
   }
 
   /* Custom scrollbar - always visible but subtle */

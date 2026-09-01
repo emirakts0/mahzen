@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"cmp"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -23,23 +24,12 @@ type entryHandler struct {
 	svc *service.EntryService
 }
 
-// newEntryHandler creates a new entryHandler.
 func newEntryHandler(svc *service.EntryService) *entryHandler {
 	return &entryHandler{svc: svc}
 }
 
-// createEntryRequest is the JSON body for POST /v1/entries.
-type createEntryRequest struct {
-	Title      string   `json:"title"`
-	Content    string   `json:"content"`
-	Path       string   `json:"path"`
-	Visibility string   `json:"visibility"`
-	TagIDs     []string `json:"tag_ids"`
-	FileType   string   `json:"file_type"`
-}
-
-// updateEntryRequest is the JSON body for PUT /v1/entries/:id.
-type updateEntryRequest struct {
+// entryRequest is the JSON body for entry create/update.
+type entryRequest struct {
 	Title      string   `json:"title"`
 	Content    string   `json:"content"`
 	Path       string   `json:"path"`
@@ -81,133 +71,92 @@ func domainEntryToResponse(e *domain.Entry, tags []string) *entryResponse {
 	}
 }
 
-func (h *entryHandler) createEntry(c *gin.Context) {
-	userID := userIDFromContext(c)
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
-		return
-	}
-
-	var req createEntryRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	vis := domain.ParseVisibility(req.Visibility)
-
-	entry, err := h.svc.CreateEntry(c.Request.Context(), userID, req.Title, req.Content, req.Path, req.FileType, vis, req.TagIDs)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "creating entry: " + err.Error()})
-		return
-	}
-
+// respondWithEntry renders an entry with its tags as JSON.
+func (h *entryHandler) respondWithEntry(c *gin.Context, entry *domain.Entry) {
 	tags, err := h.svc.GetEntryTags(c.Request.Context(), entry.ID)
 	if err != nil {
-		slog.Warn("failed to fetch tags for created entry", "entry_id", entry.ID, "error", err)
+		slog.Warn("failed to fetch tags for entry", "entry_id", entry.ID, "error", err)
+	}
+	respondData(c, http.StatusOK, gin.H{"entry": domainEntryToResponse(entry, tags)})
+}
+
+func (h *entryHandler) createEntry(c *gin.Context) {
+	userID, ok := requireUser(c)
+	if !ok {
+		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"entry": domainEntryToResponse(entry, tags),
-	})
+	var req entryRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+
+	entry, err := h.svc.CreateEntry(c.Request.Context(), userID, req.Title, req.Content, req.Path, req.FileType, domain.ParseVisibility(req.Visibility), req.TagIDs)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "creating entry: "+err.Error())
+		return
+	}
+
+	h.respondWithEntry(c, entry)
 }
 
 func (h *entryHandler) getEntry(c *gin.Context) {
-	id := c.Param("entry_id")
-
-	entry, err := h.svc.GetEntry(c.Request.Context(), id)
+	entry, err := h.svc.GetEntry(c.Request.Context(), c.Param("entry_id"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "entry not found: " + err.Error()})
+		respondError(c, http.StatusNotFound, "entry not found: "+err.Error())
 		return
 	}
 
-	tags, err := h.svc.GetEntryTags(c.Request.Context(), id)
-	if err != nil {
-		slog.Warn("failed to fetch tags for entry", "entry_id", id, "error", err)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"entry": domainEntryToResponse(entry, tags),
-	})
+	h.respondWithEntry(c, entry)
 }
 
 func (h *entryHandler) updateEntry(c *gin.Context) {
-	id := c.Param("entry_id")
-
-	var req updateEntryRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	var req entryRequest
+	if !bindJSON(c, &req) {
 		return
 	}
 
-	vis := domain.ParseVisibility(req.Visibility)
-
-	entry, err := h.svc.UpdateEntry(c.Request.Context(), id, req.Title, req.Content, req.Path, req.FileType, vis, req.TagIDs)
+	entry, err := h.svc.UpdateEntry(c.Request.Context(), c.Param("entry_id"), req.Title, req.Content, req.Path, req.FileType, domain.ParseVisibility(req.Visibility), req.TagIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "updating entry: " + err.Error()})
+		respondError(c, http.StatusInternalServerError, "updating entry: "+err.Error())
 		return
 	}
 
-	tags, err := h.svc.GetEntryTags(c.Request.Context(), id)
-	if err != nil {
-		slog.Warn("failed to fetch tags for updated entry", "entry_id", id, "error", err)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"entry": domainEntryToResponse(entry, tags),
-	})
+	h.respondWithEntry(c, entry)
 }
 
 func (h *entryHandler) deleteEntry(c *gin.Context) {
-	id := c.Param("entry_id")
-
-	if err := h.svc.DeleteEntry(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "deleting entry: " + err.Error()})
+	if err := h.svc.DeleteEntry(c.Request.Context(), c.Param("entry_id")); err != nil {
+		respondError(c, http.StatusInternalServerError, "deleting entry: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{})
+	respondData(c, http.StatusOK, gin.H{})
 }
 
 func (h *entryHandler) listEntries(c *gin.Context) {
-	userID := userIDFromContext(c)
-	path := c.Query("path")
-	own := c.Query("own") == "true"
-	visibility := c.Query("visibility")
-	tags := c.Query("tags")
-	fromDate := c.Query("from_date")
-	toDate := c.Query("to_date")
+	userID, ok := requireUser(c)
+	if !ok {
+		return
+	}
 
 	limit, offset := parsePagination(c, 20)
+	from, to := parseDateFilter(c.Query("from_date"), c.Query("to_date"))
 
-	// Build filter
-	filter := &domain.ListEntriesFilter{}
-	if visibility != "" {
-		filter.Visibility = visibility
+	filter := &domain.ListEntriesFilter{
+		Visibility: c.Query("visibility"),
+		FromDate:   from,
+		ToDate:     to,
 	}
-	if tags != "" {
+	if tags := c.Query("tags"); tags != "" {
 		filter.Tags = strings.Split(tags, ",")
 	}
-	if fromDate != "" {
-		if t, err := time.Parse(time.DateOnly, fromDate); err == nil {
-			filter.FromDate = t
-		}
-	}
-	if toDate != "" {
-		if t, err := time.Parse(time.DateOnly, toDate); err == nil {
-			filter.ToDate = t
-		}
-	}
 
-	// Determine the path to list
-	listPath := path
-	if listPath == "" {
-		listPath = "/"
-	}
+	listPath := cmp.Or(c.Query("path"), "/")
 
-	entries, folderInfos, total, err := h.svc.ListChildren(c.Request.Context(), userID, listPath, own, filter, limit, offset)
+	entries, folderInfos, total, err := h.svc.ListChildren(c.Request.Context(), userID, listPath, c.Query("own") == "true", filter, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "listing entries: " + err.Error()})
+		respondError(c, http.StatusInternalServerError, "listing entries: "+err.Error())
 		return
 	}
 
@@ -231,7 +180,7 @@ func (h *entryHandler) listEntries(c *gin.Context) {
 		folders[i] = folderResponse{Path: f.Path, Count: f.Count}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	respondData(c, http.StatusOK, gin.H{
 		"entries": items,
 		"folders": folders,
 		"total":   total,

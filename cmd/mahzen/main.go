@@ -47,26 +47,20 @@ func main() {
 	infra := mustInitInfra(ctx, cfg, logger)
 	defer infra.close()
 
+	seedDefaultUser(ctx, cfg, infra, logger)
+
 	srv, accessTokenSvc := buildServer(cfg, infra, logger)
 
-	// Load access token cache from DB before starting server.
 	if err := accessTokenSvc.LoadCacheFromDB(ctx); err != nil {
 		logger.Error("failed to load access token cache", "error", err)
 		os.Exit(1)
 	}
 
-	// Start background expiry worker.
 	accessTokenSvc.StartExpiryWorker(ctx)
 
 	srv.run(ctx, logger)
 }
 
-// ---------------------------------------------------------------------------
-// Infrastructure
-// ---------------------------------------------------------------------------
-
-// infrastructure groups all external clients and connections. A single
-// defer infra.close() in main handles cleanup.
 type infrastructure struct {
 	pool             *pgxpool.Pool
 	indexer          domain.Indexer
@@ -137,11 +131,38 @@ func mustInitInfra(ctx context.Context, cfg *config.Config, logger *slog.Logger)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Server
-// ---------------------------------------------------------------------------
+// seedDefaultUser creates the default user on first boot; on later boots it
+// never resets a custom password.
+func seedDefaultUser(ctx context.Context, cfg *config.Config, infra *infrastructure, logger *slog.Logger) {
+	email := cfg.DefaultUser.EmailOrDefault()
+	username := domain.NormalizeUsername(cfg.DefaultUser.UsernameOrDefault())
+	password := cfg.DefaultUser.PasswordOrDefault()
+	displayName := cfg.DefaultUser.DisplayNameOrDefault()
 
-// server holds the HTTP server(s).
+	userRepo := postgres.NewUserRepository(infra.pool)
+
+	user, err := userRepo.GetByEmailOrUsername(ctx, username)
+	if err != nil {
+		hash, err := infra.hasher.Hash(password)
+		if err != nil {
+			logger.Error("failed to hash default user password", "error", err)
+			os.Exit(1)
+		}
+		if _, err := userRepo.Create(ctx, username, email, displayName, hash); err != nil {
+			logger.Error("failed to create default user", "username", username, "email", email, "error", err)
+			os.Exit(1)
+		}
+		logger.Info("default user created", "username", username, "email", email)
+		return
+	}
+
+	if err := infra.hasher.Compare(user.PasswordHash, password); err == nil {
+		logger.Info("default user ready", "username", username)
+		return
+	}
+	logger.Info("default user found with custom password, leaving untouched", "username", username)
+}
+
 type server struct {
 	httpServer *http.Server
 	h3Server   *http3.Server // nil when TLS is not configured
@@ -216,7 +237,6 @@ func buildServer(cfg *config.Config, infra *infrastructure, logger *slog.Logger)
 			TLSConfig: tlsCfg,
 		}
 
-		// Advertise HTTP/3 via Alt-Svc header on HTTP/2 responses.
 		origHandler := httpServer.Handler
 		httpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if err := h3Srv.SetQUICHeaders(w.Header()); err != nil {

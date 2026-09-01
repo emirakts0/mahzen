@@ -21,14 +21,32 @@ func newAuthHandler(authSvc *service.AuthService) *authHandler {
 // registerRequest is the JSON body for POST /v1/auth/register.
 type registerRequest struct {
 	Email       string `json:"email" binding:"required,email"`
+	Username    string `json:"username" binding:"required"`
 	DisplayName string `json:"display_name"`
 	Password    string `json:"password" binding:"required,min=8"`
 }
 
 // loginRequest is the JSON body for POST /v1/auth/login.
+// identifier accepts an email address or a username; the email/username
+// fields are kept as legacy aliases for older clients.
 type loginRequest struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Identifier string `json:"identifier"`
+	Email      string `json:"email"`
+	Username   string `json:"username"`
+	Password   string `json:"password" binding:"required"`
+}
+
+// identifier returns the login identifier, falling back to the legacy
+// email/username fields when omitted.
+func (r loginRequest) identifier() string {
+	switch {
+	case r.Identifier != "":
+		return r.Identifier
+	case r.Email != "":
+		return r.Email
+	default:
+		return r.Username
+	}
 }
 
 // refreshTokenRequest is the JSON body for POST /v1/auth/refresh.
@@ -54,7 +72,7 @@ func (h *authHandler) register(c *gin.Context) {
 		return
 	}
 
-	tokens, err := h.authSvc.Register(c.Request.Context(), req.Email, req.DisplayName, req.Password)
+	tokens, err := h.authSvc.Register(c.Request.Context(), req.Email, req.Username, req.DisplayName, req.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "registration failed: " + err.Error()})
 		return
@@ -73,7 +91,7 @@ func (h *authHandler) login(c *gin.Context) {
 		return
 	}
 
-	tokens, err := h.authSvc.Login(c.Request.Context(), req.Email, req.Password)
+	tokens, err := h.authSvc.Login(c.Request.Context(), req.identifier(), req.Password)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "login failed: " + err.Error()})
 		return

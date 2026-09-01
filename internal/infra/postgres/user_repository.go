@@ -2,8 +2,10 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/emirakts0/mahzen/internal/domain"
@@ -20,8 +22,9 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 	return &UserRepository{q: query.New(pool)}
 }
 
-func (r *UserRepository) Create(ctx context.Context, email, displayName, passwordHash string) (*domain.User, error) {
+func (r *UserRepository) Create(ctx context.Context, username, email, displayName, passwordHash string) (*domain.User, error) {
 	row, err := r.q.CreateUser(ctx, query.CreateUserParams{
+		Username:     username,
 		Email:        email,
 		DisplayName:  displayName,
 		PasswordHash: passwordHash,
@@ -56,9 +59,22 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 	return mapUserRow(row), nil
 }
 
+func (r *UserRepository) GetByEmailOrUsername(ctx context.Context, identifier string) (*domain.User, error) {
+	row, err := r.q.GetUserByIdentifier(ctx, identifier)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("getting user by identifier: %w", err)
+	}
+
+	return mapUserRow(row), nil
+}
+
 func mapUserRow(row query.User) *domain.User {
 	return &domain.User{
-		ID:           uuidToString(row.ID),
+		ID:           row.ID.String(),
+		Username:     row.Username,
 		Email:        row.Email,
 		DisplayName:  row.DisplayName,
 		PasswordHash: row.PasswordHash,

@@ -70,8 +70,8 @@ func (r *RefreshTokenRepository) DeleteAllForUser(ctx context.Context, userID st
 
 func mapRefreshTokenRow(row query.RefreshToken) *domain.RefreshToken {
 	return &domain.RefreshToken{
-		ID:        uuidToString(row.ID),
-		UserID:    uuidToString(row.UserID),
+		ID:        row.ID.String(),
+		UserID:    row.UserID.String(),
 		TokenHash: row.TokenHash,
 		ExpiresAt: row.ExpiresAt.Time,
 		CreatedAt: row.CreatedAt.Time,

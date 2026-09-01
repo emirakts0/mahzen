@@ -17,7 +17,6 @@ type Tag struct {
 type TagRepository interface {
 	Create(ctx context.Context, tag *Tag) error
 	GetByID(ctx context.Context, id string) (*Tag, error)
-	GetBySlug(ctx context.Context, slug string) (*Tag, error)
 	List(ctx context.Context, limit, offset int) ([]*Tag, int, error)
 	Delete(ctx context.Context, id string) error
 	AttachToEntry(ctx context.Context, entryID, tagID string) error

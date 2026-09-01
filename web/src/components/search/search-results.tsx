@@ -144,11 +144,11 @@ export function SearchResults({
             <div
               className="rounded-xl border p-4"
               style={{
-                borderColor: "var(--glass-error, #ef4444)",
-                background: "rgba(239, 68, 68, 0.1)",
+                borderColor: "var(--glass-error-border)",
+                background: "var(--glass-error-bg)",
               }}
             >
-              <p className="text-sm" style={{ color: "var(--glass-error, #ef4444)" }}>
+              <p className="text-sm" style={{ color: "var(--glass-error)" }}>
                 Failed to load keyword results.
               </p>
             </div>
@@ -196,11 +196,11 @@ export function SearchResults({
             <div
               className="rounded-xl border p-4"
               style={{
-                borderColor: "var(--glass-error, #ef4444)",
-                background: "rgba(239, 68, 68, 0.1)",
+                borderColor: "var(--glass-error-border)",
+                background: "var(--glass-error-bg)",
               }}
             >
-              <p className="text-sm" style={{ color: "var(--glass-error, #ef4444)" }}>
+              <p className="text-sm" style={{ color: "var(--glass-error)" }}>
                 Failed to load semantic results.
               </p>
             </div>

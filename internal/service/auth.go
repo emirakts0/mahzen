@@ -42,8 +42,13 @@ func NewAuthService(
 }
 
 // Register creates a new user and returns auth tokens.
-func (s *AuthService) Register(ctx context.Context, email, displayName, password string) (*AuthTokens, error) {
-	slog.Info("registering user", "email", email, "display_name", displayName)
+func (s *AuthService) Register(ctx context.Context, email, username, displayName, password string) (*AuthTokens, error) {
+	slog.Info("registering user", "email", email, "username", username, "display_name", displayName)
+
+	username = domain.NormalizeUsername(username)
+	if err := domain.ValidateUsername(username); err != nil {
+		return nil, err
+	}
 
 	hash, err := s.hasher.Hash(password)
 	if err != nil {
@@ -51,32 +56,32 @@ func (s *AuthService) Register(ctx context.Context, email, displayName, password
 		return nil, fmt.Errorf("hashing password: %w", err)
 	}
 
-	user, err := s.userRepo.Create(ctx, email, displayName, hash)
+	user, err := s.userRepo.Create(ctx, username, email, displayName, hash)
 	if err != nil {
 		slog.Error("user creation failed", "email", email, "error", err)
 		return nil, fmt.Errorf("creating user: %w", err)
 	}
 
-	slog.Info("user registered", "user_id", user.ID, "email", email)
+	slog.Info("user registered", "user_id", user.ID, "username", username, "email", email)
 	return s.issueTokens(ctx, user.ID)
 }
 
-// Login authenticates a user with email and password, returns auth tokens.
-func (s *AuthService) Login(ctx context.Context, email, password string) (*AuthTokens, error) {
-	slog.Info("login attempt", "email", email)
+// Login authenticates a user with email or username plus password.
+func (s *AuthService) Login(ctx context.Context, identifier, password string) (*AuthTokens, error) {
+	slog.Info("login attempt", "identifier", identifier)
 
-	user, err := s.userRepo.GetByEmail(ctx, email)
+	user, err := s.userRepo.GetByEmailOrUsername(ctx, identifier)
 	if err != nil {
-		slog.Warn("login failed: user not found", "email", email)
+		slog.Warn("login failed: user not found", "identifier", identifier)
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
 	if err := s.hasher.Compare(user.PasswordHash, password); err != nil {
-		slog.Warn("login failed: invalid password", "email", email, "user_id", user.ID)
+		slog.Warn("login failed: invalid password", "identifier", identifier, "user_id", user.ID)
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
-	slog.Info("login successful", "user_id", user.ID, "email", email)
+	slog.Info("login successful", "user_id", user.ID, "username", user.Username, "email", user.Email)
 	return s.issueTokens(ctx, user.ID)
 }
 
@@ -99,7 +104,6 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*A
 		return nil, fmt.Errorf("refresh token expired")
 	}
 
-	// Consume the old refresh token (rotation).
 	if err := s.tokenRepo.DeleteByTokenHash(ctx, tokenHash); err != nil {
 		slog.Error("failed to consume refresh token", "user_id", stored.UserID, "error", err)
 		return nil, fmt.Errorf("consuming refresh token: %w", err)
@@ -123,8 +127,7 @@ func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 	return nil
 }
 
-// issueTokens generates an access token and a refresh token, stores the
-// refresh token hash in the database, and returns the pair.
+// issueTokens generates a token pair and stores the refresh token hash.
 func (s *AuthService) issueTokens(ctx context.Context, userID string) (*AuthTokens, error) {
 	accessToken, err := s.tokenGen.GenerateAccessToken(userID)
 	if err != nil {

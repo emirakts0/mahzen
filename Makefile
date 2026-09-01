@@ -1,4 +1,4 @@
-GO := /home/emir/sdk/go1.26.0/bin/go
+GO := /home/emir/sdk/go1.27.0/bin/go
 BINARY := mahzen
 CMD := ./cmd/mahzen
 

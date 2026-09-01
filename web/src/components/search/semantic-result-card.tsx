@@ -23,7 +23,7 @@ function MatchBadge({ score }: { score: number }) {
     percent >= MATCH_THRESHOLDS.HIGH
       ? { bg: "var(--glass-success-bg)", color: "var(--glass-success)" }
       : percent >= MATCH_THRESHOLDS.MEDIUM
-        ? { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" }
+        ? { bg: "var(--glass-info-bg)", color: "var(--glass-info)" }
         : { bg: "var(--glass-hover)", color: "var(--glass-text-muted)" }
 
   return (

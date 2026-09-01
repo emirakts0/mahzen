@@ -12,22 +12,29 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, display_name, password_hash)
-VALUES ($1, $2, $3)
-RETURNING id, email, display_name, password_hash, created_at
+INSERT INTO users (username, email, display_name, password_hash)
+VALUES ($1, $2, $3, $4)
+RETURNING id, username, email, display_name, password_hash, created_at
 `
 
 type CreateUserParams struct {
+	Username     string `json:"username"`
 	Email        string `json:"email"`
 	DisplayName  string `json:"display_name"`
 	PasswordHash string `json:"password_hash"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Email, arg.DisplayName, arg.PasswordHash)
+	row := q.db.QueryRow(ctx, createUser,
+		arg.Username,
+		arg.Email,
+		arg.DisplayName,
+		arg.PasswordHash,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.Username,
 		&i.Email,
 		&i.DisplayName,
 		&i.PasswordHash,
@@ -37,7 +44,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, display_name, password_hash, created_at
+SELECT id, username, email, display_name, password_hash, created_at
 FROM users
 WHERE email = $1
 `
@@ -47,6 +54,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.Username,
 		&i.Email,
 		&i.DisplayName,
 		&i.PasswordHash,
@@ -56,7 +64,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, display_name, password_hash, created_at
+SELECT id, username, email, display_name, password_hash, created_at
 FROM users
 WHERE id = $1
 `
@@ -66,6 +74,27 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.DisplayName,
+		&i.PasswordHash,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserByIdentifier = `-- name: GetUserByIdentifier :one
+SELECT id, username, email, display_name, password_hash, created_at
+FROM users
+WHERE email = $1 OR username = $1
+`
+
+func (q *Queries) GetUserByIdentifier(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByIdentifier, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
 		&i.Email,
 		&i.DisplayName,
 		&i.PasswordHash,

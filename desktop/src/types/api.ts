@@ -38,11 +38,12 @@ export interface AuthTokens {
 }
 
 export interface LoginRequest {
-  email: string
+  identifier: string
   password: string
 }
 
 export interface RegisterRequest {
+  username: string
   email: string
   password: string
   display_name?: string
@@ -50,6 +51,7 @@ export interface RegisterRequest {
 
 export interface User {
   id: string
+  username: string
   email: string
   display_name: string
 }

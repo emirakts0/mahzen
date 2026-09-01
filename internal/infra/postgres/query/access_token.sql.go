@@ -47,28 +47,6 @@ func (q *Queries) CreateAccessToken(ctx context.Context, arg CreateAccessTokenPa
 	return i, err
 }
 
-const getAccessTokenByHash = `-- name: GetAccessTokenByHash :one
-SELECT id, user_id, name, token_hash, prefix, status, expires_at, created_at
-FROM access_tokens
-WHERE token_hash = $1
-`
-
-func (q *Queries) GetAccessTokenByHash(ctx context.Context, tokenHash string) (AccessToken, error) {
-	row := q.db.QueryRow(ctx, getAccessTokenByHash, tokenHash)
-	var i AccessToken
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Name,
-		&i.TokenHash,
-		&i.Prefix,
-		&i.Status,
-		&i.ExpiresAt,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const listAccessTokensByUserID = `-- name: ListAccessTokensByUserID :many
 SELECT id, user_id, name, token_hash, prefix, status, expires_at, created_at
 FROM access_tokens

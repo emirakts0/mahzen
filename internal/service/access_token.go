@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/emirakts0/mahzen/internal/domain"
@@ -74,14 +75,8 @@ func (s *AccessTokenService) RevokeToken(ctx context.Context, userID, tokenID st
 		return fmt.Errorf("listing tokens: %w", err)
 	}
 
-	var tokenHash string
-	for _, t := range tokens {
-		if t.ID == tokenID {
-			tokenHash = t.TokenHash
-			break
-		}
-	}
-	if tokenHash == "" {
+	idx := slices.IndexFunc(tokens, func(t domain.AccessToken) bool { return t.ID == tokenID })
+	if idx < 0 {
 		return fmt.Errorf("token not found")
 	}
 
@@ -89,7 +84,7 @@ func (s *AccessTokenService) RevokeToken(ctx context.Context, userID, tokenID st
 		return fmt.Errorf("revoking token in db: %w", err)
 	}
 
-	s.tokenStore.Revoke(tokenHash)
+	s.tokenStore.Revoke(tokens[idx].TokenHash)
 
 	slog.Info("access token revoked", "user_id", userID, "token_id", tokenID)
 	return nil

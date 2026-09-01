@@ -50,17 +50,6 @@ func (r *TagRepository) GetByID(ctx context.Context, id string) (*domain.Tag, er
 	return tag, nil
 }
 
-func (r *TagRepository) GetBySlug(ctx context.Context, slug string) (*domain.Tag, error) {
-	row, err := r.q.GetTagBySlug(ctx, slug)
-	if err != nil {
-		return nil, fmt.Errorf("getting tag by slug: %w", err)
-	}
-
-	tag := &domain.Tag{}
-	mapTagRow(&row, tag)
-	return tag, nil
-}
-
 func (r *TagRepository) List(ctx context.Context, limit, offset int) ([]*domain.Tag, int, error) {
 	count, err := r.q.CountTags(ctx)
 	if err != nil {
@@ -171,7 +160,7 @@ func (r *TagRepository) ListByEntries(ctx context.Context, entryIDs []string) (m
 
 	result := make(map[string][]string, len(entryIDs))
 	for _, row := range rows {
-		eid := uuidToString(row.EntryID)
+		eid := row.EntryID.String()
 		result[eid] = append(result[eid], row.Name)
 	}
 	return result, nil
@@ -179,7 +168,7 @@ func (r *TagRepository) ListByEntries(ctx context.Context, entryIDs []string) (m
 
 // mapTagRow maps a sqlc-generated Tag row to a domain Tag.
 func mapTagRow(row *query.Tag, tag *domain.Tag) {
-	tag.ID = uuidToString(row.ID)
+	tag.ID = row.ID.String()
 	tag.Name = row.Name
 	tag.Slug = row.Slug
 	tag.CreatedAt = row.CreatedAt.Time

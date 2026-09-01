@@ -1,3 +1,0 @@
-ALTER TABLE entries
-    ADD COLUMN file_type TEXT    NOT NULL DEFAULT '',
-    ADD COLUMN file_size BIGINT  NOT NULL DEFAULT 0;

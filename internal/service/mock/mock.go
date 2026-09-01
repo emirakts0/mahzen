@@ -18,8 +18,6 @@ type EntryRepository struct {
 	GetByIDFn                   func(ctx context.Context, id string) (*domain.Entry, error)
 	UpdateFn                    func(ctx context.Context, entry *domain.Entry) error
 	DeleteFn                    func(ctx context.Context, id string) error
-	ListByUserFn                func(ctx context.Context, userID string, limit, offset int) ([]*domain.Entry, int, error)
-	ListAccessibleFn            func(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error)
 	ListDistinctPathsFn         func(ctx context.Context, userID string) ([]string, error)
 	ListInPathFn                func(ctx context.Context, userID, path string, own bool, filter *domain.ListEntriesFilter, limit, offset int) ([]*domain.Entry, int, error)
 	ListPathCountsUnderPrefixFn func(ctx context.Context, userID, prefix string, own bool, filter *domain.ListEntriesFilter) ([]domain.PathCount, error)
@@ -41,14 +39,6 @@ func (m *EntryRepository) Update(ctx context.Context, entry *domain.Entry) error
 
 func (m *EntryRepository) Delete(ctx context.Context, id string) error {
 	return m.DeleteFn(ctx, id)
-}
-
-func (m *EntryRepository) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*domain.Entry, int, error) {
-	return m.ListByUserFn(ctx, userID, limit, offset)
-}
-
-func (m *EntryRepository) ListAccessible(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error) {
-	return m.ListAccessibleFn(ctx, userID, pathPrefix, limit, offset)
 }
 
 func (m *EntryRepository) ListDistinctPaths(ctx context.Context, userID string) ([]string, error) {
@@ -79,7 +69,6 @@ func (m *EntryRepository) UpdateEmbedding(ctx context.Context, entryID string, e
 type TagRepository struct {
 	CreateFn          func(ctx context.Context, tag *domain.Tag) error
 	GetByIDFn         func(ctx context.Context, id string) (*domain.Tag, error)
-	GetBySlugFn       func(ctx context.Context, slug string) (*domain.Tag, error)
 	ListFn            func(ctx context.Context, limit, offset int) ([]*domain.Tag, int, error)
 	DeleteFn          func(ctx context.Context, id string) error
 	AttachToEntryFn   func(ctx context.Context, entryID, tagID string) error
@@ -94,10 +83,6 @@ func (m *TagRepository) Create(ctx context.Context, tag *domain.Tag) error {
 
 func (m *TagRepository) GetByID(ctx context.Context, id string) (*domain.Tag, error) {
 	return m.GetByIDFn(ctx, id)
-}
-
-func (m *TagRepository) GetBySlug(ctx context.Context, slug string) (*domain.Tag, error) {
-	return m.GetBySlugFn(ctx, slug)
 }
 
 func (m *TagRepository) List(ctx context.Context, limit, offset int) ([]*domain.Tag, int, error) {
@@ -197,13 +182,14 @@ func (m *Summarizer) Summarize(ctx context.Context, text string) (string, []stri
 
 // UserRepository is a test double for domain.UserRepository.
 type UserRepository struct {
-	CreateFn     func(ctx context.Context, email, displayName, passwordHash string) (*domain.User, error)
-	GetByIDFn    func(ctx context.Context, id string) (*domain.User, error)
-	GetByEmailFn func(ctx context.Context, email string) (*domain.User, error)
+	CreateFn               func(ctx context.Context, username, email, displayName, passwordHash string) (*domain.User, error)
+	GetByIDFn              func(ctx context.Context, id string) (*domain.User, error)
+	GetByEmailFn           func(ctx context.Context, email string) (*domain.User, error)
+	GetByEmailOrUsernameFn func(ctx context.Context, identifier string) (*domain.User, error)
 }
 
-func (m *UserRepository) Create(ctx context.Context, email, displayName, passwordHash string) (*domain.User, error) {
-	return m.CreateFn(ctx, email, displayName, passwordHash)
+func (m *UserRepository) Create(ctx context.Context, username, email, displayName, passwordHash string) (*domain.User, error) {
+	return m.CreateFn(ctx, username, email, displayName, passwordHash)
 }
 
 func (m *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
@@ -212,6 +198,10 @@ func (m *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 
 func (m *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	return m.GetByEmailFn(ctx, email)
+}
+
+func (m *UserRepository) GetByEmailOrUsername(ctx context.Context, identifier string) (*domain.User, error) {
+	return m.GetByEmailOrUsernameFn(ctx, identifier)
 }
 
 // ---------------------------------------------------------------------------

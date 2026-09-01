@@ -116,46 +116,26 @@ func (s *Searcher) SemanticSearch(ctx context.Context, embedding []float32, user
 // buildFilter creates a Meilisearch filter expression that enforces visibility
 // rules and applies optional filters for tags, path, date range, etc.
 func buildFilter(userID string, filters *domain.SearchFilters) string {
-	conditions := make([]string, 0, 6)
-
-	// Visibility filter with security
-	if filters != nil && filters.Visibility == "public" {
-		conditions = append(conditions, `visibility = "public"`)
-	} else if filters != nil && filters.Visibility == "private" {
-		if userID == "" {
-			conditions = append(conditions, `visibility = "__impossible__"`)
-		} else {
-			conditions = append(conditions, fmt.Sprintf(`(visibility = "private" AND user_id = "%s")`, userID))
-		}
-	} else if userID == "" {
-		conditions = append(conditions, `visibility = "public"`)
-	} else {
-		conditions = append(conditions, fmt.Sprintf(`(visibility = "public" OR user_id = "%s")`, userID))
-	}
-
+	visibility := visibilityCondition(userID, filters)
 	if filters == nil {
-		return strings.Join(conditions, " AND ")
+		return visibility
 	}
+
+	conditions := []string{visibility}
 
 	if filters.OnlyMine && userID != "" {
 		conditions = append(conditions, fmt.Sprintf(`user_id = "%s"`, userID))
 	}
-
-	// Tags filter (OR logic)
 	if len(filters.Tags) > 0 {
-		escapedTags := make([]string, len(filters.Tags))
+		escaped := make([]string, len(filters.Tags))
 		for i, tag := range filters.Tags {
-			escapedTags[i] = escapeFilterValue(tag)
+			escaped[i] = escapeFilterValue(tag)
 		}
-		conditions = append(conditions, fmt.Sprintf("tags IN [%s]", strings.Join(escapedTags, ", ")))
+		conditions = append(conditions, fmt.Sprintf("tags IN [%s]", strings.Join(escaped, ", ")))
 	}
-
-	// Path filter (exact match)
 	if filters.Path != "" {
-		conditions = append(conditions, fmt.Sprintf(`path = "%s"`, escapeQuotes(filters.Path)))
+		conditions = append(conditions, fmt.Sprintf(`path = %s`, escapeFilterValue(filters.Path)))
 	}
-
-	// Date range filters
 	if !filters.FromDate.IsZero() {
 		conditions = append(conditions, fmt.Sprintf("created_at >= %d", filters.FromDate.Unix()))
 	}
@@ -166,12 +146,27 @@ func buildFilter(userID string, filters *domain.SearchFilters) string {
 	return strings.Join(conditions, " AND ")
 }
 
-func escapeFilterValue(val string) string {
-	return `"` + escapeQuotes(val) + `"`
+// visibilityCondition enforces entry visibility: anonymous users only ever
+// see public entries; a "private" filter without a user yields an impossible
+// condition so it matches nothing.
+func visibilityCondition(userID string, filters *domain.SearchFilters) string {
+	switch {
+	case filters != nil && filters.Visibility == "public":
+		return `visibility = "public"`
+	case filters != nil && filters.Visibility == "private":
+		if userID == "" {
+			return `visibility = "__impossible__"`
+		}
+		return fmt.Sprintf(`(visibility = "private" AND user_id = "%s")`, userID)
+	case userID == "":
+		return `visibility = "public"`
+	default:
+		return fmt.Sprintf(`(visibility = "public" OR user_id = "%s")`, userID)
+	}
 }
 
-func escapeQuotes(val string) string {
-	return strings.ReplaceAll(val, `"`, `\"`)
+func escapeFilterValue(val string) string {
+	return `"` + strings.ReplaceAll(val, `"`, `\"`) + `"`
 }
 
 // mapSearchResults converts a Meilisearch search response to domain search results.
@@ -186,7 +181,6 @@ func mapSearchResults(resp *meili.SearchResponse) ([]*domain.SearchResult, int) 
 	for _, hit := range resp.Hits {
 		sr := &domain.SearchResult{}
 
-		// Extract regular fields from the hit.
 		sr.EntryID = stringFromHit(hit, "id")
 		sr.UserID = stringFromHit(hit, "user_id")
 		sr.Title = stringFromHit(hit, "title")
@@ -197,19 +191,15 @@ func mapSearchResults(resp *meili.SearchResponse) ([]*domain.SearchResult, int) 
 		sr.Tags = stringsFromHit(hit, "tags")
 		sr.FileSize = int64FromHit(hit, "file_size")
 
-		// Timestamp.
 		if ts := int64FromHit(hit, "created_at"); ts > 0 {
 			sr.CreatedAt = time.Unix(ts, 0).UTC().Format(time.RFC3339)
 		}
 
-		// Ranking score.
 		if score := float64FromHit(hit, "_rankingScore"); score > 0 {
 			sr.Score = score
 		}
 
-		// Highlights and cropped content from _formatted.
 		if formatted := objectFromHit(hit, "_formatted"); formatted != nil {
-			// Use cropped content from Meilisearch (centered around match).
 			if cropped := stringFromMap(formatted, "content"); cropped != "" {
 				sr.Content = cropped
 			}
@@ -224,14 +214,9 @@ func mapSearchResults(resp *meili.SearchResponse) ([]*domain.SearchResult, int) 
 			}
 		}
 
-		// Fallback: use raw content if _formatted didn't provide cropped content.
 		if sr.Content == "" {
 			if raw := stringFromHit(hit, "content"); raw != "" {
-				if len(raw) <= searchutil.ContentExcerptLen {
-					sr.Content = raw
-				} else {
-					sr.Content = raw[:searchutil.ContentExcerptLen]
-				}
+				sr.Content = raw[:min(len(raw), searchutil.ContentExcerptLen)]
 			}
 		}
 
@@ -241,78 +226,45 @@ func mapSearchResults(resp *meili.SearchResponse) ([]*domain.SearchResult, int) 
 	return results, total
 }
 
-func stringFromHit(hit meili.Hit, key string) string {
+// hitValue unmarshals the raw JSON value stored under key in a hit,
+// returning the zero value of T on absence or type mismatch.
+func hitValue[T any](hit meili.Hit, key string) T {
+	var out T
 	raw, ok := hit[key]
 	if !ok {
-		return ""
+		return out
 	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return ""
-	}
-	return s
+	_ = json.Unmarshal(raw, &out)
+	return out
+}
+
+func stringFromHit(hit meili.Hit, key string) string {
+	return hitValue[string](hit, key)
 }
 
 func stringsFromHit(hit meili.Hit, key string) []string {
-	raw, ok := hit[key]
-	if !ok {
-		return nil
-	}
-	var ss []string
-	if err := json.Unmarshal(raw, &ss); err != nil {
-		return nil
-	}
-	return ss
+	return hitValue[[]string](hit, key)
 }
 
 func int64FromHit(hit meili.Hit, key string) int64 {
-	raw, ok := hit[key]
-	if !ok {
-		return 0
-	}
-	var n json.Number
-	if err := json.Unmarshal(raw, &n); err != nil {
-		return 0
-	}
-	i, err := n.Int64()
-	if err != nil {
-		return 0
-	}
-	return i
+	n, _ := hitValue[json.Number](hit, key).Int64()
+	return n
 }
 
 func float64FromHit(hit meili.Hit, key string) float64 {
-	raw, ok := hit[key]
-	if !ok {
-		return 0
-	}
-	var f float64
-	if err := json.Unmarshal(raw, &f); err != nil {
-		return 0
-	}
-	return f
+	return hitValue[float64](hit, key)
 }
 
 func objectFromHit(hit meili.Hit, key string) map[string]json.RawMessage {
-	raw, ok := hit[key]
-	if !ok {
-		return nil
-	}
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil
-	}
-	return m
+	return hitValue[map[string]json.RawMessage](hit, key)
 }
 
 func stringFromMap(m map[string]json.RawMessage, key string) string {
+	var out string
 	raw, ok := m[key]
 	if !ok {
 		return ""
 	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return ""
-	}
-	return s
+	_ = json.Unmarshal(raw, &out)
+	return out
 }

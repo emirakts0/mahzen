@@ -12,15 +12,14 @@ import (
 	"github.com/emirakts0/mahzen/internal/config"
 )
 
-// TokenProvider implements domain.TokenGenerator using JWT for access tokens
-// and random bytes for refresh tokens.
+// TokenProvider implements domain.TokenGenerator with JWT access tokens and
+// random-bytes refresh/opaque tokens.
 type TokenProvider struct {
 	secret             []byte
 	accessTokenExpiry  time.Duration
 	refreshTokenExpiry time.Duration
 }
 
-// NewTokenProvider creates a new TokenProvider from auth config.
 func NewTokenProvider(cfg config.AuthConfig) *TokenProvider {
 	expiry := cfg.AccessTokenExpiry
 	if expiry == 0 {
@@ -61,7 +60,7 @@ func (p *TokenProvider) GenerateAccessToken(userID string) (string, error) {
 
 // ValidateAccessToken validates a JWT access token and returns the user ID.
 func (p *TokenProvider) ValidateAccessToken(tokenStr string) (string, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(t *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
@@ -81,29 +80,37 @@ func (p *TokenProvider) ValidateAccessToken(tokenStr string) (string, error) {
 
 // GenerateRefreshToken creates a random refresh token string (32 bytes, hex-encoded).
 func (p *TokenProvider) GenerateRefreshToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generating refresh token: %w", err)
-	}
-	return hex.EncodeToString(b), nil
+	return randomHex(32)
 }
 
 // HashToken creates a SHA-256 hash of a token for storage.
 func (p *TokenProvider) HashToken(token string) string {
-	h := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(h[:])
+	return hex.EncodeToString(p.sha256(token))
 }
 
 // GenerateOpaqueToken creates a random opaque access token.
 // Returns the raw token (prefixed with "mah_"), its SHA-256 hash, and a display prefix.
 func (p *TokenProvider) GenerateOpaqueToken() (raw, hash, prefix string, err error) {
-	b := make([]byte, 48)
-	if _, err = rand.Read(b); err != nil {
-		return "", "", "", fmt.Errorf("generating opaque token: %w", err)
+	b, err := randomHex(48)
+	if err != nil {
+		return "", "", "", err
 	}
-	raw = "mah_" + hex.EncodeToString(b)
-	h := sha256.Sum256([]byte(raw))
-	hash = hex.EncodeToString(h[:])
+	raw = "mah_" + b
+	hash = p.HashToken(raw)
 	prefix = raw[:12] + "..."
 	return raw, hash, prefix, nil
+}
+
+// randomHex returns n cryptographically random bytes, hex-encoded.
+func randomHex(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generating random bytes: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func (p *TokenProvider) sha256(s string) []byte {
+	h := sha256.Sum256([]byte(s))
+	return h[:]
 }

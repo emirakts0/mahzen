@@ -1,10 +1,9 @@
 package handler
 
 import (
+	"context"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -12,19 +11,36 @@ import (
 	"github.com/emirakts0/mahzen/internal/service"
 )
 
-func parsePagination(c *gin.Context, defaultLimit int) (limit, offset int) {
-	limit = defaultLimit
-	if l := c.Query("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 {
-			limit = v
-		}
-	}
-	if o := c.Query("offset"); o != "" {
-		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
-			offset = v
-		}
-	}
-	return
+// searchHandler implements the search HTTP handlers.
+type searchHandler struct {
+	svc *service.SearchService
+}
+
+func newSearchHandler(svc *service.SearchService) *searchHandler {
+	return &searchHandler{svc: svc}
+}
+
+// highlightResponse is the JSON representation of a field-attributed highlight.
+type highlightResponse struct {
+	Field   string `json:"field"`
+	Snippet string `json:"snippet"`
+}
+
+// searchResultResponse is the JSON representation of a search result.
+type searchResultResponse struct {
+	EntryID    string              `json:"entry_id"`
+	IsMine     bool                `json:"is_mine"`
+	Title      string              `json:"title"`
+	Summary    string              `json:"summary,omitempty"`
+	Content    string              `json:"content,omitempty"`
+	Score      float64             `json:"score,omitempty"`
+	Highlights []highlightResponse `json:"highlights,omitempty"`
+	Path       string              `json:"path"`
+	Visibility string              `json:"visibility"`
+	Tags       []string            `json:"tags,omitempty"`
+	CreatedAt  string              `json:"created_at"`
+	FileType   string              `json:"file_type,omitempty"`
+	FileSize   int64               `json:"file_size,omitempty"`
 }
 
 func domainSearchResultsToResponses(results []*domain.SearchResult, userID string) []searchResultResponse {
@@ -53,132 +69,56 @@ func domainSearchResultsToResponses(results []*domain.SearchResult, userID strin
 	return items
 }
 
-// searchHandler implements the search HTTP handlers.
-type searchHandler struct {
-	svc *service.SearchService
-}
+// runSearch executes a search and renders the shared response shape.
+type searchFunc func(ctx context.Context, query, userID string, filters *domain.SearchFilters, limit, offset int) ([]*domain.SearchResult, int, error)
 
-// newSearchHandler creates a new searchHandler.
-func newSearchHandler(svc *service.SearchService) *searchHandler {
-	return &searchHandler{svc: svc}
-}
+func (h *searchHandler) runSearch(c *gin.Context, kind string, fn searchFunc) {
+	userID := userIDFromContext(c)
+	limit, offset := parsePagination(c, 20)
 
-// highlightResponse is the JSON representation of a field-attributed highlight.
-type highlightResponse struct {
-	Field   string `json:"field"`
-	Snippet string `json:"snippet"`
-}
+	results, total, err := fn(c.Request.Context(), c.Query("query"), userID, parseSearchFilters(c), limit, offset)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, kind+" search: "+err.Error())
+		return
+	}
 
-// searchResultResponse is the JSON representation of a search result.
-type searchResultResponse struct {
-	EntryID    string              `json:"entry_id"`
-	IsMine     bool                `json:"is_mine"`
-	Title      string              `json:"title"`
-	Summary    string              `json:"summary,omitempty"`
-	Content    string              `json:"content,omitempty"`
-	Score      float64             `json:"score,omitempty"`
-	Highlights []highlightResponse `json:"highlights,omitempty"`
-	Path       string              `json:"path"`
-	Visibility string              `json:"visibility"`
-	Tags       []string            `json:"tags,omitempty"`
-	CreatedAt  string              `json:"created_at"`
-	FileType   string              `json:"file_type,omitempty"`
-	FileSize   int64               `json:"file_size,omitempty"`
+	respondData(c, http.StatusOK, gin.H{
+		"results": domainSearchResultsToResponses(results, userID),
+		"total":   total,
+	})
 }
 
 func (h *searchHandler) keywordSearch(c *gin.Context) {
-	query := c.Query("query")
-	userID := userIDFromContext(c)
-	filters := parseSearchFilters(c)
-
-	limit, offset := parsePagination(c, 20)
-
-	results, total, err := h.svc.KeywordSearch(c.Request.Context(), query, userID, filters, limit, offset)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "keyword search: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"results": domainSearchResultsToResponses(results, userID),
-		"total":   total,
-	})
+	h.runSearch(c, "keyword", h.svc.KeywordSearch)
 }
 
 func (h *searchHandler) semanticSearch(c *gin.Context) {
-	query := c.Query("query")
-	userID := userIDFromContext(c)
-	filters := parseSearchFilters(c)
-
-	limit, offset := parsePagination(c, 20)
-
-	results, total, err := h.svc.SemanticSearch(c.Request.Context(), query, userID, filters, limit, offset)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "semantic search: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"results": domainSearchResultsToResponses(results, userID),
-		"total":   total,
-	})
+	h.runSearch(c, "semantic", h.svc.SemanticSearch)
 }
 
 // parseSearchFilters extracts optional search filters from query parameters.
-// Supported params: tags (comma-separated), path, from_date, to_date, only_mine, visibility
+// Supported params: tags, path, from_date, to_date, only_mine, visibility.
+// Returns nil when no filter is set.
 func parseSearchFilters(c *gin.Context) *domain.SearchFilters {
 	filters := &domain.SearchFilters{}
 
-	// Tags: comma-separated list (e.g., ?tags=go,rust,web)
 	if tags := c.Query("tags"); tags != "" {
-		for _, tag := range strings.Split(tags, ",") {
+		for tag := range strings.SplitSeq(tags, ",") {
 			if t := strings.TrimSpace(tag); t != "" {
 				filters.Tags = append(filters.Tags, t)
 			}
 		}
 	}
-
-	// Path: exact path match (e.g., ?path=/notes/work)
-	if path := c.Query("path"); path != "" {
-		filters.Path = strings.TrimSpace(path)
+	filters.Path = strings.TrimSpace(c.Query("path"))
+	filters.FromDate, filters.ToDate = parseDateFilter(c.Query("from_date"), c.Query("to_date"))
+	filters.OnlyMine = c.Query("only_mine") == "true" || c.Query("only_mine") == "1"
+	if v := strings.ToLower(strings.TrimSpace(c.Query("visibility"))); v == "public" || v == "private" {
+		filters.Visibility = v
 	}
 
-	// FromDate: ISO date format (e.g., ?from_date=2024-01-01)
-	if fromDate := c.Query("from_date"); fromDate != "" {
-		if t, err := time.Parse(time.DateOnly, fromDate); err == nil {
-			filters.FromDate = t
-		}
-	}
-
-	// ToDate: ISO date format (e.g., ?to_date=2024-12-31)
-	if toDate := c.Query("to_date"); toDate != "" {
-		if t, err := time.Parse(time.DateOnly, toDate); err == nil {
-			filters.ToDate = t
-		}
-	}
-
-	// OnlyMine: boolean (e.g., ?only_mine=true)
-	if onlyMine := c.Query("only_mine"); onlyMine != "" {
-		filters.OnlyMine = strings.ToLower(onlyMine) == "true" || onlyMine == "1"
-	}
-
-	// Visibility: "public" or "private" (e.g., ?visibility=private)
-	if visibility := c.Query("visibility"); visibility != "" {
-		v := strings.ToLower(strings.TrimSpace(visibility))
-		if v == "public" || v == "private" {
-			filters.Visibility = v
-		}
-	}
-
-	// Return nil if no filters were set
-	if len(filters.Tags) == 0 &&
-		filters.Path == "" &&
-		filters.FromDate.IsZero() &&
-		filters.ToDate.IsZero() &&
-		!filters.OnlyMine &&
-		filters.Visibility == "" {
+	if filters.Tags == nil && filters.Path == "" && filters.FromDate.IsZero() &&
+		filters.ToDate.IsZero() && !filters.OnlyMine && filters.Visibility == "" {
 		return nil
 	}
-
 	return filters
 }

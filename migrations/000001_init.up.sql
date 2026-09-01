@@ -3,13 +3,15 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- Users
 CREATE TABLE users (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    username      TEXT        UNIQUE NOT NULL,
     email         TEXT        UNIQUE NOT NULL,
     display_name  TEXT        NOT NULL DEFAULT '',
     password_hash TEXT        NOT NULL DEFAULT '',
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_email    ON users(email);
+CREATE INDEX idx_users_username ON users(username);
 
 -- Entries
 CREATE TABLE entries (
@@ -20,14 +22,18 @@ CREATE TABLE entries (
     summary    TEXT        NOT NULL DEFAULT '',
     path       TEXT        NOT NULL DEFAULT '/',
     visibility TEXT        NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private')),
+    file_type  TEXT        NOT NULL DEFAULT '',
+    file_size  BIGINT      NOT NULL DEFAULT 0,
+    embedding  TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_entries_user_id        ON entries(user_id);
-CREATE INDEX idx_entries_visibility     ON entries(visibility);
-CREATE INDEX idx_entries_created_at     ON entries(created_at DESC);
+CREATE INDEX idx_entries_user_id           ON entries(user_id);
+CREATE INDEX idx_entries_visibility        ON entries(visibility);
+CREATE INDEX idx_entries_created_at        ON entries(created_at DESC);
 CREATE INDEX idx_entries_user_path_pattern ON entries(user_id, path text_pattern_ops);
+CREATE INDEX idx_entries_embedding_null    ON entries(id) WHERE embedding IS NULL;
 
 -- Tags
 CREATE TABLE tags (
@@ -60,3 +66,19 @@ CREATE TABLE refresh_tokens (
 
 CREATE INDEX idx_refresh_tokens_user_id    ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
+
+-- Long-lived opaque access tokens (desktop app / API clients)
+CREATE TABLE access_tokens (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name       TEXT        NOT NULL,
+    token_hash TEXT        UNIQUE NOT NULL,
+    prefix     TEXT        NOT NULL,
+    status     TEXT        NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked', 'expired')),
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_access_tokens_user_id    ON access_tokens(user_id);
+CREATE INDEX idx_access_tokens_token_hash ON access_tokens(token_hash);
+CREATE INDEX idx_access_tokens_status     ON access_tokens(status);

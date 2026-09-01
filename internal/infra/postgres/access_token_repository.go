@@ -42,15 +42,6 @@ func (r *AccessTokenRepository) Create(ctx context.Context, userID, name, tokenH
 	return mapAccessTokenRow(row), nil
 }
 
-func (r *AccessTokenRepository) GetByTokenHash(ctx context.Context, tokenHash string) (*domain.AccessToken, error) {
-	row, err := r.q.GetAccessTokenByHash(ctx, tokenHash)
-	if err != nil {
-		return nil, fmt.Errorf("getting access token: %w", err)
-	}
-
-	return mapAccessTokenRow(row), nil
-}
-
 func (r *AccessTokenRepository) ListByUserID(ctx context.Context, userID string) ([]domain.AccessToken, error) {
 	uid, err := parseUUID(userID)
 	if err != nil {
@@ -119,8 +110,8 @@ func (r *AccessTokenRepository) LoadAllActive(ctx context.Context) ([]domain.Acc
 
 func mapAccessTokenRow(row query.AccessToken) *domain.AccessToken {
 	return &domain.AccessToken{
-		ID:        uuidToString(row.ID),
-		UserID:    uuidToString(row.UserID),
+		ID:        row.ID.String(),
+		UserID:    row.UserID.String(),
 		Name:      row.Name,
 		TokenHash: row.TokenHash,
 		Prefix:    row.Prefix,

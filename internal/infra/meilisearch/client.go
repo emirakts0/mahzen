@@ -45,13 +45,11 @@ func NewClient(cfg config.MeilisearchConfig) (meili.ServiceManager, error) {
 func EnsureIndex(ctx context.Context, client meili.ServiceManager) error {
 	idx := client.Index(IndexName)
 
-	// Check if index already exists by getting its stats.
 	if _, err := idx.GetStatsWithContext(ctx); err == nil {
 		slog.Info("meilisearch index already exists", "index", IndexName)
 		return configureSettings(ctx, idx)
 	}
 
-	// Create the index.
 	if _, err := client.CreateIndexWithContext(ctx, &meili.IndexConfig{Uid: IndexName, PrimaryKey: "id"}); err != nil {
 		return fmt.Errorf("creating meilisearch index %s: %w", IndexName, err)
 	}
@@ -106,9 +104,7 @@ func configureSettings(ctx context.Context, idx meili.IndexManager) error {
 		return fmt.Errorf("waiting for meilisearch settings update: %w", err)
 	}
 
-	// Set filterable attributes separately using the dedicated endpoint
-	// to leverage AttributeRule for per-field feature optimization.
-	filterableAttrs := &[]interface{}{
+	filterableAttrs := &[]any{
 		"user_id",
 		"visibility",
 		"tags",

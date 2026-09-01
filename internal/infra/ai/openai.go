@@ -149,15 +149,15 @@ func parseSummarizeResponse(response string) (string, []string, error) {
 	var summary string
 	var tags []string
 
-	lines := strings.Split(response, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(response, "\n")
+	for line := range lines {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "SUMMARY:") {
-			summary = strings.TrimSpace(strings.TrimPrefix(line, "SUMMARY:"))
+		if after, ok := strings.CutPrefix(line, "SUMMARY:"); ok {
+			summary = strings.TrimSpace(after)
 		}
-		if strings.HasPrefix(line, "TAGS:") {
-			tagStr := strings.TrimSpace(strings.TrimPrefix(line, "TAGS:"))
-			for _, t := range strings.Split(tagStr, ",") {
+		if after, ok := strings.CutPrefix(line, "TAGS:"); ok {
+			tagStr := strings.TrimSpace(after)
+			for t := range strings.SplitSeq(tagStr, ",") {
 				t = strings.TrimSpace(t)
 				if t != "" {
 					tags = append(tags, t)

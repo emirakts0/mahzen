@@ -64,9 +64,6 @@ type AccessTokenRepository interface {
 	// Create stores a new access token.
 	Create(ctx context.Context, userID, name, tokenHash, prefix string, expiresAt time.Time) (*AccessToken, error)
 
-	// GetByTokenHash retrieves an access token by its hash.
-	GetByTokenHash(ctx context.Context, tokenHash string) (*AccessToken, error)
-
 	// ListByUserID returns all access tokens for a user.
 	ListByUserID(ctx context.Context, userID string) ([]AccessToken, error)
 

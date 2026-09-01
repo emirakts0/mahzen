@@ -11,7 +11,7 @@ import (
 	"github.com/emirakts0/mahzen/internal/domain"
 )
 
-// embeddingTimeout is the timeout for embedding generation operations.
+// embeddingTimeout bounds background embedding + indexing work.
 const embeddingTimeout = 2 * time.Minute
 
 // FolderInfo represents information about a folder in the entry tree.
@@ -72,27 +72,13 @@ func (s *EntryService) CreateEntry(ctx context.Context, userID, title, content, 
 	}
 
 	if err := s.entries.Create(ctx, entry); err != nil {
-		slog.Error("failed to create entry in db",
-			"user_id", userID,
-			"title", title,
-			"error", err,
-		)
+		slog.Error("failed to create entry in db", "user_id", userID, "title", title, "error", err)
 		return nil, fmt.Errorf("creating entry: %w", err)
 	}
 
-	slog.Info("entry created",
-		"entry_id", entry.ID,
-		"user_id", userID,
-		"title", title,
-		"path", normalizedPath,
-	)
+	slog.Info("entry created", "entry_id", entry.ID, "user_id", userID, "path", normalizedPath)
 
-	// Attach tags.
-	for _, tagID := range tagIDs {
-		if err := s.tags.AttachToEntry(ctx, entry.ID, tagID); err != nil {
-			slog.Warn("failed to attach tag", "entry_id", entry.ID, "tag_id", tagID, "error", err)
-		}
-	}
+	s.attachTags(ctx, entry.ID, tagIDs)
 
 	// Async: generate embedding and index in the search engine.
 	go s.indexEntryAsync(entry, tagIDs, content, false)
@@ -153,30 +139,28 @@ func (s *EntryService) UpdateEntry(ctx context.Context, id, title, content, path
 		return nil, fmt.Errorf("updating entry: %w", err)
 	}
 
-	slog.Info("entry updated",
-		"entry_id", id,
-		"title", entry.Title,
-		"path", entry.Path,
-	)
+	slog.Info("entry updated", "entry_id", id, "path", entry.Path)
 
 	// Re-sync tags: detach all existing, then attach new ones.
-	existingTags, err := s.tags.ListByEntry(ctx, id)
-	if err == nil {
+	if existingTags, err := s.tags.ListByEntry(ctx, id); err == nil {
 		for _, t := range existingTags {
-			if err := s.tags.DetachFromEntry(ctx, id, t.ID); err != nil {
-				slog.Warn("failed to detach tag during update", "entry_id", id, "tag_id", t.ID, "error", err)
-			}
+			s.tags.DetachFromEntry(ctx, id, t.ID)
 		}
 	}
-	for _, tagID := range tagIDs {
-		if err := s.tags.AttachToEntry(ctx, id, tagID); err != nil {
-			slog.Warn("failed to attach tag on update", "entry_id", id, "tag_id", tagID, "error", err)
-		}
-	}
+	s.attachTags(ctx, id, tagIDs)
 
 	go s.indexEntryAsync(entry, tagIDs, content, true)
 
 	return entry, nil
+}
+
+// attachTags attaches tags to an entry, logging failures without failing the operation.
+func (s *EntryService) attachTags(ctx context.Context, entryID string, tagIDs []string) {
+	for _, tagID := range tagIDs {
+		if err := s.tags.AttachToEntry(ctx, entryID, tagID); err != nil {
+			slog.Warn("failed to attach tag", "entry_id", entryID, "tag_id", tagID, "error", err)
+		}
+	}
 }
 
 // DeleteEntry deletes an entry and its search index.
@@ -224,36 +208,11 @@ func (s *EntryService) GetEntryTagsBatch(ctx context.Context, entryIDs []string)
 }
 
 // ListEntries lists entries accessible to the given user, optionally filtered by path prefix.
-func (s *EntryService) ListEntries(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*domain.Entry, int, error) {
-	slog.Info("listing entries",
-		"user_id", userID,
-		"path_prefix", pathPrefix,
-		"limit", limit,
-		"offset", offset,
-	)
-
-	entries, total, err := s.entries.ListAccessible(ctx, userID, pathPrefix, limit, offset)
-	if err != nil {
-		slog.Error("failed to list entries", "user_id", userID, "error", err)
-		return nil, 0, err
-	}
-
-	slog.Info("entries listed",
-		"user_id", userID,
-		"total", total,
-		"returned", len(entries),
-	)
-	return entries, total, nil
-}
-
-// indexEntryAsync generates an embedding and indexes the entry in the search engine.
-// Runs in a background goroutine — errors are logged, not returned.
-// isUpdate controls whether to call UpdateEntry (for updates) or IndexEntry (for creates).
+// indexEntryAsync generates an embedding and indexes the entry in the search
+// engine, running in a background goroutine; errors are logged, not returned.
 func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, content string, isUpdate bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), embeddingTimeout)
 	defer cancel()
-
-	slog.Info("async indexing started", "entry_id", entry.ID, "title", entry.Title, "is_update", isUpdate)
 
 	// Resolve tag objects.
 	tags := make([]*domain.Tag, 0, len(tagIDs))
@@ -266,29 +225,12 @@ func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, con
 		tags = append(tags, tag)
 	}
 
-	embedText := entry.EmbedText()
-
-	slog.Info("generating embedding for entry",
-		"entry_id", entry.ID,
-		"embed_text_length", len(embedText),
-	)
-
-	embedding, err := s.embedder.Embed(ctx, embedText)
+	embedding, err := s.embedder.Embed(ctx, entry.EmbedText())
 	if err != nil {
 		slog.Error("failed to generate embedding", "entry_id", entry.ID, "error", err)
 		embedding = nil // Index without embedding.
-	} else {
-		slog.Info("embedding generated",
-			"entry_id", entry.ID,
-			"dimensions", len(embedding),
-		)
-
-		// Save embedding to database.
-		if err := s.entries.UpdateEmbedding(ctx, entry.ID, embedding); err != nil {
-			slog.Error("failed to save embedding to db", "entry_id", entry.ID, "error", err)
-		} else {
-			slog.Info("embedding saved to db", "entry_id", entry.ID)
-		}
+	} else if err := s.entries.UpdateEmbedding(ctx, entry.ID, embedding); err != nil {
+		slog.Error("failed to save embedding to db", "entry_id", entry.ID, "error", err)
 	}
 
 	indexedEntry := *entry
@@ -296,35 +238,31 @@ func (s *EntryService) indexEntryAsync(entry *domain.Entry, tagIDs []string, con
 		indexedEntry.Content = content
 	}
 
-	var indexErr error
+	index := s.indexer.IndexEntry
 	if isUpdate {
-		indexErr = s.indexer.UpdateEntry(ctx, &indexedEntry, tags, embedding)
-	} else {
-		indexErr = s.indexer.IndexEntry(ctx, &indexedEntry, tags, embedding)
+		index = s.indexer.UpdateEntry
 	}
-	if indexErr != nil {
-		slog.Error("failed to index entry", "entry_id", entry.ID, "is_update", isUpdate, "error", indexErr)
-	} else {
-		slog.Info("async indexing completed", "entry_id", entry.ID)
+	if err := index(ctx, &indexedEntry, tags, embedding); err != nil {
+		slog.Error("failed to index entry", "entry_id", entry.ID, "is_update", isUpdate, "error", err)
+		return
 	}
+	slog.Info("async indexing completed", "entry_id", entry.ID)
 }
 
 // ListFolders returns all distinct folder paths accessible to the user.
 func (s *EntryService) ListFolders(ctx context.Context, userID string) ([]string, error) {
-	slog.Info("listing folders", "user_id", userID)
-
 	paths, err := s.entries.ListDistinctPaths(ctx, userID)
 	if err != nil {
-		slog.Error("failed to list folders", "user_id", userID, "error", err)
 		return nil, fmt.Errorf("listing folders: %w", err)
 	}
 
 	folderSet := make(map[string]struct{}, len(paths)*2)
 	for _, p := range paths {
 		folderSet[p] = struct{}{}
+		// Register every parent folder of the path.
 		segments := strings.Split(p, "/")
-		for i := 1; i < len(segments); i++ {
-			parent := strings.Join(segments[:i], "/")
+		for i := range segments[1:] {
+			parent := strings.Join(segments[:i+1], "/")
 			if parent == "" {
 				parent = "/"
 			}
@@ -336,28 +274,13 @@ func (s *EntryService) ListFolders(ctx context.Context, userID string) ([]string
 	for f := range folderSet {
 		folders = append(folders, f)
 	}
-
 	slices.Sort(folders)
 
-	slog.Info("folders listed", "user_id", userID, "count", len(folders))
 	return folders, nil
 }
 
 // ListChildren returns entries directly in a path and direct subfolders with counts.
-// For path "/abc", returns entries where path="/abc" and folders like "/abc/def" (not recursive).
 func (s *EntryService) ListChildren(ctx context.Context, userID, path string, own bool, filter *domain.ListEntriesFilter, limit, offset int) ([]*domain.Entry, []FolderInfo, int, error) {
-	slog.Info("listing children",
-		"user_id", userID,
-		"path", path,
-		"own", own,
-		"visibility", filter.Visibility,
-		"tags", filter.Tags,
-		"from_date", filter.FromDate,
-		"to_date", filter.ToDate,
-		"limit", limit,
-		"offset", offset,
-	)
-
 	entries, directCount, err := s.entries.ListInPath(ctx, userID, path, own, filter, limit, offset)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("listing entries in path: %w", err)
@@ -370,43 +293,32 @@ func (s *EntryService) ListChildren(ctx context.Context, userID, path string, ow
 
 	folderInfos, subfolderTotal := extractFolderInfos(path, pathCounts)
 
-	// Total includes entries directly at this path + all entries in subfolders
-	total := directCount + subfolderTotal
-
-	slog.Info("children listed", "user_id", userID, "path", path, "own", own, "entries", len(entries), "folders", len(folderInfos), "total", total)
-	return entries, folderInfos, total, nil
+	// Total includes entries directly at this path + all entries in subfolders.
+	return entries, folderInfos, directCount + subfolderTotal, nil
 }
 
 // extractFolderInfos extracts direct subfolder paths with counts from path counts under a prefix.
 // For prefix "/abc" and pathCounts [{"/abc/def", 3}, {"/abc/def/sub", 2}, {"/abc/ghi", 1}],
 // returns [{Path: "/abc/def", Count: 5}, {Path: "/abc/ghi", Count: 1}], subfolderTotal=6.
 func extractFolderInfos(prefix string, pathCounts []domain.PathCount) ([]FolderInfo, int) {
+	base := prefix
+	if base == "/" {
+		base = ""
+	}
+
 	folderCounts := make(map[string]int)
 	var subfolderTotal int
 
 	for _, pc := range pathCounts {
 		subfolderTotal += pc.Count
 
-		if prefix == "/" {
-			remaining := strings.TrimPrefix(pc.Path, "/")
-			if remaining == "" {
-				continue
-			}
-			parts := strings.SplitN(remaining, "/", 2)
-			if parts[0] != "" {
-				fullPath := "/" + parts[0]
-				folderCounts[fullPath] += pc.Count
-			}
-		} else {
-			remaining := strings.TrimPrefix(pc.Path, prefix+"/")
-			if remaining == "" || remaining == pc.Path {
-				continue
-			}
-			parts := strings.SplitN(remaining, "/", 2)
-			if parts[0] != "" {
-				fullPath := prefix + "/" + parts[0]
-				folderCounts[fullPath] += pc.Count
-			}
+		rel, ok := strings.CutPrefix(pc.Path, base+"/")
+		if !ok || rel == "" {
+			continue
+		}
+		first, _, _ := strings.Cut(rel, "/")
+		if first != "" {
+			folderCounts[base+"/"+first] += pc.Count
 		}
 	}
 
@@ -414,16 +326,8 @@ func extractFolderInfos(prefix string, pathCounts []domain.PathCount) ([]FolderI
 	for path, count := range folderCounts {
 		folderInfos = append(folderInfos, FolderInfo{Path: path, Count: count})
 	}
-
 	slices.SortFunc(folderInfos, func(a, b FolderInfo) int {
-		switch {
-		case a.Path < b.Path:
-			return -1
-		case a.Path > b.Path:
-			return 1
-		default:
-			return 0
-		}
+		return strings.Compare(a.Path, b.Path)
 	})
 
 	return folderInfos, subfolderTotal

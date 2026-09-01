@@ -57,60 +57,35 @@ type Entry struct {
 }
 
 // NormalizePath cleans and validates a path string for use as an entry path.
-// An empty string is normalized to "/" (root). The path must start with "/",
-// must not end with "/" (except root), and may only contain URL-safe characters.
+// An empty string is normalized to "/" (root). Consecutive and trailing
+// slashes are collapsed; "." and ".." segments are rejected.
 func NormalizePath(p string) (string, error) {
-	p = strings.TrimSpace(p)
-
-	// Empty or just "/" → root.
-	if p == "" || p == "/" {
-		return "/", nil
-	}
-
-	// Must start with "/".
-	if !strings.HasPrefix(p, "/") {
-		p = "/" + p
-	}
-
-	// Remove trailing slash.
-	p = strings.TrimRight(p, "/")
-	if p == "" {
-		return "/", nil
-	}
-
-	// Collapse consecutive slashes in a single pass.
-	parts := strings.Split(p, "/")
-	filtered := make([]string, 0, len(parts))
+	parts := strings.Split(strings.TrimSpace(p), "/")
+	segments := make([]string, 0, len(parts))
 	for _, part := range parts {
-		if part != "" {
-			filtered = append(filtered, part)
+		if part == "" {
+			continue
 		}
-	}
-	if len(filtered) == 0 {
-		return "/", nil
-	}
-	p = "/" + strings.Join(filtered, "/")
-
-	// Validate each segment.
-	segments := strings.Split(p[1:], "/") // skip leading "/"
-	for _, seg := range segments {
-		if seg == "" {
-			return "", fmt.Errorf("path contains empty segment")
+		switch part {
+		case ".", "..":
+			return "", fmt.Errorf("path segment %q is not allowed", part)
 		}
-		if seg == "." || seg == ".." {
-			return "", fmt.Errorf("path segment %q is not allowed", seg)
+		if utf8.RuneCountInString(part) > 255 {
+			return "", fmt.Errorf("path segment %q exceeds 255 characters", part)
 		}
-		if utf8.RuneCountInString(seg) > 255 {
-			return "", fmt.Errorf("path segment %q exceeds 255 characters", seg)
-		}
-		for _, r := range seg {
+		for _, r := range part {
 			if !isPathRune(r) {
 				return "", fmt.Errorf("path contains invalid character %q", r)
 			}
 		}
+		segments = append(segments, part)
 	}
 
-	// Overall path length check.
+	if len(segments) == 0 {
+		return "/", nil
+	}
+
+	p = "/" + strings.Join(segments, "/")
 	if len(p) > 4096 {
 		return "", fmt.Errorf("path exceeds maximum length of 4096 bytes")
 	}
@@ -163,8 +138,6 @@ type EntryRepository interface {
 	GetByID(ctx context.Context, id string) (*Entry, error)
 	Update(ctx context.Context, entry *Entry) error
 	Delete(ctx context.Context, id string) error
-	ListByUser(ctx context.Context, userID string, limit, offset int) ([]*Entry, int, error)
-	ListAccessible(ctx context.Context, userID, pathPrefix string, limit, offset int) ([]*Entry, int, error)
 	ListDistinctPaths(ctx context.Context, userID string) ([]string, error)
 	ListInPath(ctx context.Context, userID, path string, own bool, filter *ListEntriesFilter, limit, offset int) ([]*Entry, int, error)
 	ListPathCountsUnderPrefix(ctx context.Context, userID, prefix string, own bool, filter *ListEntriesFilter) ([]PathCount, error)

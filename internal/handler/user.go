@@ -21,6 +21,7 @@ func newUserHandler(userRepo domain.UserRepository) *userHandler {
 // userResponse is the JSON representation of a user.
 type userResponse struct {
 	ID          string `json:"id"`
+	Username    string `json:"username"`
 	Email       string `json:"email"`
 	DisplayName string `json:"display_name"`
 }
@@ -41,6 +42,7 @@ func (h *userHandler) getCurrentUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"user": userResponse{
 			ID:          user.ID,
+			Username:    user.Username,
 			Email:       user.Email,
 			DisplayName: user.DisplayName,
 		},

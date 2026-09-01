@@ -12,11 +12,8 @@ import (
 
 type Querier interface {
 	AttachTagToEntry(ctx context.Context, arg AttachTagToEntryParams) error
-	CountAccessibleEntries(ctx context.Context, userID pgtype.UUID) (int64, error)
-	CountAccessibleEntriesByPath(ctx context.Context, arg CountAccessibleEntriesByPathParams) (int64, error)
 	CountAllEntries(ctx context.Context) (int64, error)
 	CountAllPaths(ctx context.Context, arg CountAllPathsParams) ([]CountAllPathsRow, error)
-	CountEntriesByUser(ctx context.Context, userID pgtype.UUID) (int64, error)
 	CountPathsUnderPrefix(ctx context.Context, arg CountPathsUnderPrefixParams) ([]CountPathsUnderPrefixRow, error)
 	CountTags(ctx context.Context) (int64, error)
 	CreateAccessToken(ctx context.Context, arg CreateAccessTokenParams) (AccessToken, error)
@@ -27,21 +24,17 @@ type Querier interface {
 	DeleteRefreshTokensByUserID(ctx context.Context, userID pgtype.UUID) error
 	DeleteTag(ctx context.Context, id pgtype.UUID) error
 	DetachTagFromEntry(ctx context.Context, arg DetachTagFromEntryParams) error
-	GetAccessTokenByHash(ctx context.Context, tokenHash string) (AccessToken, error)
-	GetEntryByID(ctx context.Context, id pgtype.UUID) (GetEntryByIDRow, error)
+	GetEntryByID(ctx context.Context, id pgtype.UUID) (Entry, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
 	GetTagByID(ctx context.Context, id pgtype.UUID) (Tag, error)
-	GetTagBySlug(ctx context.Context, slug string) (Tag, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
-	InsertEntry(ctx context.Context, arg InsertEntryParams) (InsertEntryRow, error)
+	GetUserByIdentifier(ctx context.Context, email string) (User, error)
+	InsertEntry(ctx context.Context, arg InsertEntryParams) (Entry, error)
 	InsertTag(ctx context.Context, arg InsertTagParams) (Tag, error)
 	ListAccessTokensByUserID(ctx context.Context, userID pgtype.UUID) ([]AccessToken, error)
-	ListAccessibleEntries(ctx context.Context, arg ListAccessibleEntriesParams) ([]ListAccessibleEntriesRow, error)
-	ListAccessibleEntriesByPath(ctx context.Context, arg ListAccessibleEntriesByPathParams) ([]ListAccessibleEntriesByPathRow, error)
-	ListAllEntries(ctx context.Context) ([]ListAllEntriesRow, error)
+	ListAllEntries(ctx context.Context) ([]Entry, error)
 	ListDistinctPaths(ctx context.Context, userID pgtype.UUID) ([]string, error)
-	ListEntriesByUser(ctx context.Context, arg ListEntriesByUserParams) ([]ListEntriesByUserRow, error)
 	ListEntriesInPathWithCount(ctx context.Context, arg ListEntriesInPathWithCountParams) ([]ListEntriesInPathWithCountRow, error)
 	ListTags(ctx context.Context, arg ListTagsParams) ([]Tag, error)
 	ListTagsByEntries(ctx context.Context, dollar_1 []pgtype.UUID) ([]ListTagsByEntriesRow, error)
@@ -49,7 +42,7 @@ type Querier interface {
 	LoadAllActiveAccessTokens(ctx context.Context) ([]AccessToken, error)
 	MarkAccessTokensExpiredBatch(ctx context.Context, dollar_1 []pgtype.UUID) error
 	UpdateAccessTokenStatus(ctx context.Context, arg UpdateAccessTokenStatusParams) error
-	UpdateEntry(ctx context.Context, arg UpdateEntryParams) (UpdateEntryRow, error)
+	UpdateEntry(ctx context.Context, arg UpdateEntryParams) (Entry, error)
 	UpdateEntryEmbedding(ctx context.Context, arg UpdateEntryEmbeddingParams) error
 }
 

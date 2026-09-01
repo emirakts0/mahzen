@@ -21,8 +21,8 @@ const EXPIRY_OPTIONS = [
 function statusBadge(status: AccessToken["status"]) {
   const colors: Record<string, { bg: string; text: string }> = {
     active: { bg: "var(--glass-success-bg)", text: "var(--glass-success)" },
-    revoked: { bg: "rgba(239,68,68,0.15)", text: "#ef4444" },
-    expired: { bg: "rgba(156,163,175,0.15)", text: "#9ca3af" },
+    revoked: { bg: "var(--glass-error-bg)", text: "var(--glass-error)" },
+    expired: { bg: "var(--glass-text-muted)", text: "var(--background)" },
   }
   const c = colors[status] ?? colors.expired
   return (
@@ -154,7 +154,7 @@ export default function TokensPage() {
                         onClick={() => revokeMut.mutate(token.id)}
                         disabled={revokeMut.isPending}
                         className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium"
-                        style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}
+                        style={{ background: "var(--glass-error-bg)", color: "var(--glass-error)" }}
                       >
                         {revokeMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Confirm"}
                       </button>
@@ -171,7 +171,7 @@ export default function TokensPage() {
                       onClick={() => setConfirmRevokeId(token.id)}
                       className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors"
                       style={{ color: "var(--glass-text-muted)" }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#ef4444" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--glass-error)" }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--glass-text-muted)" }}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -267,7 +267,7 @@ function CreateTokenForm({
             ))}
           </div>
         </div>
-        {error && <p className="text-xs" style={{ color: "#ef4444" }}>{error}</p>}
+        {error && <p className="text-xs" style={{ color: "var(--glass-error)" }}>{error}</p>}
         <button
           type="submit"
           disabled={isPending}

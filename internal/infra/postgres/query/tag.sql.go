@@ -80,24 +80,6 @@ func (q *Queries) GetTagByID(ctx context.Context, id pgtype.UUID) (Tag, error) {
 	return i, err
 }
 
-const getTagBySlug = `-- name: GetTagBySlug :one
-SELECT id, name, slug, created_at
-FROM tags
-WHERE slug = $1
-`
-
-func (q *Queries) GetTagBySlug(ctx context.Context, slug string) (Tag, error) {
-	row := q.db.QueryRow(ctx, getTagBySlug, slug)
-	var i Tag
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Slug,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const insertTag = `-- name: InsertTag :one
 INSERT INTO tags (name, slug)
 VALUES ($1, $2)

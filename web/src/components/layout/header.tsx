@@ -108,6 +108,7 @@ export function Header() {
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--glass-bg)" }}
                 >
                   {user?.display_name?.[0]?.toUpperCase() ??
+                    user?.username?.[0]?.toUpperCase() ??
                     user?.email?.[0]?.toUpperCase() ??
                     "U"}
                 </button>
@@ -122,7 +123,7 @@ export function Header() {
               >
                 <div className="px-2 py-1.5">
                   <p className="text-xs font-medium" style={{ color: "var(--glass-text)" }}>{user?.display_name || "User"}</p>
-                  <p className="truncate text-xs" style={{ color: "var(--glass-text-muted)" }}>{user?.email}</p>
+                  <p className="truncate text-xs" style={{ color: "var(--glass-text-muted)" }}>{user?.username || user?.email}</p>
                 </div>
                 <DropdownMenuSeparator style={{ background: "var(--glass-divider)" }} />
                 <DropdownMenuItem
